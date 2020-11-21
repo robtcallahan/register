@@ -118,6 +118,10 @@ func (rs *RegisterSheet) read() {
 	for i := 0; int64(i) <= rs.LastRow; i += 2 {
 		values := rangeValues[i]
 
+		descr := getNameField(values)
+		if descr == "VOID" {
+			continue
+		}
 		source := getSourceField(values)
 		date := getDateField(values)
 		amount := getAmountField(values)
@@ -133,7 +137,7 @@ func (rs *RegisterSheet) read() {
 			Reconciled:   "4",
 			Source:       source,
 			Date:         date,
-			Name:         getNameField(values),
+			Description:  descr,
 			Withdrawl:    getRegisterField(values, config.RegisterIndexes["Withdrawals"]),
 			Deposit:      deposit,
 			CreditCard:   getRegisterField(values, config.RegisterIndexes["CreditCards"]),
@@ -547,7 +551,7 @@ func getDateField(values []interface{}) string {
 }
 
 func getNameField(values []interface{}) string {
-	return fmt.Sprintf("%v", values[config.RegisterIndexes["Name"]])
+	return fmt.Sprintf("%v", values[config.RegisterIndexes["Description"]])
 }
 
 func getRegisterField(values []interface{}, i int) string {

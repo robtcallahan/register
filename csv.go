@@ -44,7 +44,7 @@ func readWellsFargoCSV(bankFile string) []*CSVRow {
 			name = "AA Meeting (Venmo)"
 		}
 		csv := &CSVRow{
-			Key:    fmt.Sprintf("-:%s:%.2f", row.Date, row.Amount),
+			Key:    fmt.Sprintf("-:%s:%.2f", formatDate(row.Date), row.Amount),
 			Source: "-",
 			Date:   formatDate(row.Date),
 			Amount: row.Amount,
@@ -69,7 +69,7 @@ func readFidelityCSV(bankFile string) []*CSVRow {
 	csvRows := []*CSVRow{}
 	for _, row := range rows {
 		csv := &CSVRow{
-			Key:    fmt.Sprintf("VISA:%s:%.2f", row.Date, row.Amount),
+			Key:    fmt.Sprintf("VISA:%s:%.2f", formatDate(row.Date), row.Amount),
 			Source: "VISA",
 			Date:   formatDate(row.Date),
 			Amount: row.Amount,
@@ -94,7 +94,7 @@ func readCitiCSV(bankFile string) []*CSVRow {
 	csvRows := []*CSVRow{}
 	for _, row := range rows {
 		csv := &CSVRow{
-			Key:    fmt.Sprintf("CITI:%s:%.2f", row.Date, -row.Debit),
+			Key:    fmt.Sprintf("CITI:%s:%.2f", formatDate(row.Date), -row.Debit),
 			Source: "CITI",
 			Date:   formatDate(row.Date),
 			Amount: -row.Debit,
@@ -119,7 +119,7 @@ func readChaseCSV(bankFile string) []*CSVRow {
 	csvRows := []*CSVRow{}
 	for _, row := range rows {
 		csv := &CSVRow{
-			Key:    fmt.Sprintf("CHASE:%s:%.2f", row.TransactionDate, row.Amount),
+			Key:    fmt.Sprintf("CHASE:%s:%.2f", formatDate(row.TransactionDate), row.Amount),
 			Source: "CHASE",
 			Date:   formatDate(row.TransactionDate),
 			Amount: row.Amount,

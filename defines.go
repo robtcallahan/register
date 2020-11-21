@@ -39,7 +39,7 @@ type RegisterEntry struct {
 	Reconciled   string
 	Source       string
 	Date         string
-	Name         string
+	Description  string
 	Amount       float32
 	Withdrawl    string
 	Deposit      string

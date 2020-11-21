@@ -30,7 +30,7 @@ type Config struct {
 }
 
 func readConfig() *Config {
-	contents, err := ioutil.ReadFile("/Users/rob/workspace/go/src/budget/config.json")
+	contents, err := ioutil.ReadFile("config.json")
 	checkError(err)
 
 	var config Config = Config{}
@@ -38,38 +38,3 @@ func readConfig() *Config {
 	checkError(err)
 	return &config
 }
-
-// "budget_categories": {
-// 	"Cash": "K",
-// 	"Dining Out": "L",
-// 	"Gas": "M",
-// 	"Grocery": "N",
-// 	"Misc": "O",
-// 	"Vape Supplies": "P",
-// 	"AT&T Cell Phone": "Q",
-// 	"Content Subscriptions": "R",
-// 	"Comcast/Xfinity Internet": "S",
-// 	"Washington Gas": "U",
-// 	"Dominion Power": "V",
-// 	"Hair Cut": "W",
-// 	"Insurance, Auto": "Y",
-// 	"Massage": "AA",
-// 	"Loudoun Heights Rent": "AB",
-// 	"Insurance, Renters": "AC",
-// 	"Storage Rental": "AD",
-// 	"Personal Loan": "AG",
-// 	"Car Loan": "AH",
-// 	"IRS": "AI",
-// 	"Car Expenses": "AL",
-// 	"Car Property Tax": "AM",
-// 	"Clothing & Household": "AN",
-// 	"Extra": "AO",
-// 	"Gifts": "AP",
-// 	"Gandalf": "AT",
-// 	"Mental Health": "AU",
-// 	"Medical (SoberLink)": "AV",
-// 	"Vision": "AW",
-// 	"Emergency": "AY",
-// 	"Exercise Equipment": "BA",
-// 	"General Savings (court fines)": "BB"
-// },

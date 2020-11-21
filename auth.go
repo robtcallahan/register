@@ -18,9 +18,9 @@ func getClient() *http.Client {
 	// The file token.json stores the user's access and refresh tokens, and is
 	// created automatically when the authorization flow completes for the first
 	// time.
-	tokFile := "token.json"
+	tokFile := "json/token.json"
 
-	b, err := ioutil.ReadFile("credentials.json")
+	b, err := ioutil.ReadFile("json/credentials.json")
 	if err != nil {
 		log.Fatalf("Unable to read client secret file: %v", err)
 	}
