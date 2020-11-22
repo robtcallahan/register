@@ -119,7 +119,7 @@ func (rs *RegisterSheet) read() {
 		values := rangeValues[i]
 
 		descr := getNameField(values)
-		if descr == "VOID" {
+		if descr == "VOID" || descr == "Reallocation of funds" {
 			continue
 		}
 		source := getSourceField(values)
