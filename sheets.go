@@ -13,6 +13,71 @@ import (
 	"google.golang.org/api/sheets/v4"
 )
 
+// SheetService ...
+type SheetService struct {
+	Service       *sheets.Service
+	SpreadsheetID string
+}
+
+// BudgetEntry ...
+type BudgetEntry struct {
+	Category     string
+	Weekly       float32
+	Monthly      float32
+	Every2Weeks  float32
+	TwiceMonthly float32
+	Yearly       float32
+	// RegisterColumnName string
+}
+
+// BudgetSheet ...
+type BudgetSheet struct {
+	Service        *sheets.Service
+	ID             int64
+	SpreadsheetID  string
+	StartRow       int64
+	EndRow         int64
+	LastRow        int64
+	EndColumnName  string
+	EndColumnIndex int64
+	Spreadsheet    sheets.Spreadsheet
+	BudgetEntries  []*BudgetEntry
+	CategoriesMap  map[string]*BudgetEntry
+}
+
+// RegisterEntry ...
+type RegisterEntry struct {
+	Reconciled   string
+	Source       string
+	Date         string
+	Description  string
+	Amount       float32
+	Withdrawl    string
+	Deposit      string
+	CreditCard   string
+	BankRegister string
+	Cleared      string
+	Delta        string
+}
+
+// RegisterSheet ...
+type RegisterSheet struct {
+	Service          *sheets.Service
+	ID               int64
+	SpreadsheetID    string
+	StartRow         int64
+	EndRow           int64
+	FirstRowToUpdate int64
+	LastRow          int64
+	EndColumnName    string
+	EndColumnIndex   int64
+	Spreadsheet      sheets.Spreadsheet
+	RegisterEntries  []*RegisterEntry
+	CSV              []*CSVRow
+	CategoriesMap    map[string]*BudgetEntry
+	ValuesMap        map[string][]interface{}
+}
+
 func newService() *sheets.Service {
 	client := getClient()
 	service, err := sheets.New(client)

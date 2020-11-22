@@ -2,8 +2,11 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
+
+	"github.com/plaid/plaid-go/plaid"
 )
 
 var config *Config
@@ -14,6 +17,34 @@ func main() {
 	config = readConfig()
 	options := parseOptions()
 	banks := strings.Split(*options.Banks, ",")
+
+	client := &Client{
+		PlaidKeys: &PlaidKeys{
+			Products:     "transactions",
+			CountryCodes: "US",
+		},
+	}
+	client.PlaidClient = func() *plaid.Client {
+		client, err := plaid.NewClient(plaid.ClientOptions{
+			ClientID:    config.PlaidClientID,
+			Secret:      config.PlaidSecret,
+			Environment: plaid.Development,
+			HTTPClient:  &http.Client{},
+		})
+		checkErr(err)
+		return client
+	}()
+
+	fmt.Println("Getting transactions...")
+	for _, cfg := range config.BankInfo {
+		fmt.Printf("    %s...", cfg.Name)
+		client.setBank(cfg)
+		transResp := client.getTransactions(cfg, config.StartDate, config.EndDate)
+		writeCSV(cfg.FileName, transResp.Transactions)
+		fmt.Println("done")
+	}
+
+	os.Exit(0)
 
 	srv := &SheetService{
 		Service:       newService(),
@@ -35,7 +66,7 @@ func main() {
 	rows := []*CSVRow{}
 	csvRows := []*CSVRow{}
 	for _, bank := range banks {
-		bankFile := config.FinanceDir + config.BankFiles[bank]
+		bankFile := config.FinanceDir + config.BankInfo[bank].FileName
 		fmt.Printf("Reading %s...\n", bankFile)
 		switch bank {
 		case "wellsfargo":

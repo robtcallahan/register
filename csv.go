@@ -12,6 +12,58 @@ import (
 	"github.com/gocarina/gocsv"
 )
 
+// Name ...
+type Name struct {
+	string
+}
+
+// FidelityVisa ...
+type FidelityVisa struct {
+	Date        string  `csv:"Date"`
+	Transaction string  `csv:"Transaction"`
+	Name        Name    `csv:"Name"`
+	Memo        string  `csv:"Memo"`
+	Amount      float32 `csv:"Amount"`
+}
+
+// CostcoCitiVisa ...
+type CostcoCitiVisa struct {
+	Status      string  `csv:"Status"`
+	Date        string  `csv:"Date"`
+	Description Name    `csv:"Description"`
+	Debit       float32 `csv:"Debit"`
+	Credit      float32 `csv:"Credit"`
+	MemberName  string  `csv:"Member Name"`
+}
+
+// ChaseVisa ...
+type ChaseVisa struct {
+	TransactionDate string  `csv:"Transaction Date"`
+	PostDate        string  `csv:"Post Date"`
+	Description     Name    `csv:"Description"`
+	Category        string  `csv:"Category"`
+	Type            string  `csv:"Type"`
+	Amount          float32 `csv:"Amount"`
+}
+
+// WellsFargo ...
+type WellsFargo struct {
+	Date   string  `csv:"Date"`
+	Amount float32 `csv:"Amount"`
+	Dummy1 string
+	Dummy2 string
+	Name   Name `csv:"Name"`
+}
+
+// CSVRow ...
+type CSVRow struct {
+	Key    string
+	Source string
+	Date   string
+	Amount float32
+	Name   string
+}
+
 func readWellsFargoCSV(bankFile string) []*CSVRow {
 	// must a header row to the file
 	fileBytes, err := ioutil.ReadFile(bankFile)
