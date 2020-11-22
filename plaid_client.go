@@ -36,17 +36,6 @@ type Client struct {
 	PlaidClient *plaid.Client
 }
 
-// Sandbox Env
-// plaidSecret = "4a0c1b065b8e9a6e531c7f860e6463"
-// plaidEnv    = plaid.Sandbox
-// Development Env
-// plaidSecret = "6e3dff9eb291c22e2cb5754ef3003b"
-// plaidEnv    = plaid.Development
-
-// func main() {
-// r, err := client.PlaidClient.GetItem("access-development-26abbd49-8174-46ab-a5ab-0d819ca6e14c")
-// checkErr(err)
-
 // client.Link.Token = client.createLinkToken()
 // resp := client.getLinkClient()
 // client.Link.SessionID = resp.LinkSessionID
@@ -63,11 +52,6 @@ type Client struct {
 // 	code := getCode()
 // 	sentCodeResp := client.sendMFACode(code)
 
-// id.LinkToken = "link-sandbox-a5af9dd2-c297-4939-8b1c-ed67d12a7799"
-// id.PublicToken = "public-sandbox-d1cef444-0600-4971-902a-d99d47551127"
-// id.RequestID = "Ji6FrWj3X1Zpu3J"
-
-// client.PublicToken = "public-development-4df9ab83-0334-41c2-9a60-147d4f0cbc78"
 // client.AccessToken, client.ItemID = client.getAccessToken()
 // client.printIdent()
 
