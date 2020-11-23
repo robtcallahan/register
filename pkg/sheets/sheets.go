@@ -1,3 +1,19 @@
+/*
+Copyright © 2020 Rob Callahan <robtcallahan@aol.com>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package sheets
 
 import (
@@ -11,7 +27,8 @@ import (
 	"time"
 
 	"register/pkg/auth"
-	"register/pkg/csv"
+	"register/pkg/banking"
+	cfg "register/pkg/config"
 
 	"google.golang.org/api/sheets/v4"
 )
@@ -20,6 +37,7 @@ import (
 type SheetService struct {
 	Service       *sheets.Service
 	SpreadsheetID string
+	ColumnIndexes map[string]int64
 }
 
 // BudgetEntry ...
@@ -38,6 +56,7 @@ type BudgetSheet struct {
 	Service        *sheets.Service
 	ID             int64
 	SpreadsheetID  string
+	TabName        string
 	StartRow       int64
 	EndRow         int64
 	LastRow        int64
@@ -66,8 +85,11 @@ type RegisterEntry struct {
 // RegisterSheet ...
 type RegisterSheet struct {
 	Service          *sheets.Service
+	Config           cfg.Config
 	ID               int64
 	SpreadsheetID    string
+	PaycheckName     string
+	TabName          string
 	StartRow         int64
 	EndRow           int64
 	FirstRowToUpdate int64
@@ -76,7 +98,7 @@ type RegisterSheet struct {
 	EndColumnIndex   int64
 	Spreadsheet      sheets.Spreadsheet
 	RegisterEntries  []*RegisterEntry
-	CSV              []*csv.Row
+	Transactions     []*banking.Transaction
 	CategoriesMap    map[string]*BudgetEntry
 	ValuesMap        map[string][]interface{}
 }
@@ -92,10 +114,12 @@ func NewService() *sheets.Service {
 }
 
 // NewRegisterSheet ...
-func NewRegisterSheet(ss *SheetService, startRow, endRow int64) *RegisterSheet {
+func NewRegisterSheet(ss *SheetService, config cfg.Config, startRow, endRow int64) *RegisterSheet {
 	sheet := RegisterSheet{
 		Service:        ss.Service,
+		Config:         config,
 		SpreadsheetID:  ss.SpreadsheetID,
+		TabName:        config.TabNames["register"],
 		StartRow:       startRow,
 		EndRow:         endRow,
 		EndColumnName:  "BB",
@@ -105,14 +129,15 @@ func NewRegisterSheet(ss *SheetService, startRow, endRow int64) *RegisterSheet {
 }
 
 // NewBudgetSheet ...
-func NewBudgetSheet(ss *SheetService, startRow, endRow int64) *BudgetSheet {
+func NewBudgetSheet(ss *SheetService, tabName string, startRow, endRow int64) *BudgetSheet {
 	sheet := BudgetSheet{
 		Service:        ss.Service,
 		SpreadsheetID:  ss.SpreadsheetID,
+		TabName:        tabName,
 		StartRow:       startRow,
 		EndRow:         endRow,
 		EndColumnName:  "J",
-		EndColumnIndex: config.ColumnIndexes["J"],
+		EndColumnIndex: ss.ColumnIndexes["J"],
 	}
 	return &sheet
 }
@@ -134,7 +159,7 @@ func (ss *SheetService) GetSheetID(tabName string) (int64, error) {
 
 // Read ...
 func (bs *BudgetSheet) Read() {
-	readRange := fmt.Sprintf("%s!B%d:%s%d", config.TabNames["budget"], bs.StartRow, bs.EndColumnName, bs.EndRow)
+	readRange := fmt.Sprintf("%s!B%d:%s%d", bs.TabName, bs.StartRow, bs.EndColumnName, bs.EndRow)
 	resp, err := bs.Service.Spreadsheets.Values.Get(bs.SpreadsheetID, readRange).Do()
 	if err != nil {
 		log.Fatalf("unable to retrieve data from sheet: %v", err)
@@ -171,8 +196,8 @@ func (bs *BudgetSheet) Read() {
 }
 
 // Read ...
-func (rs *RegisterSheet) Read() {
-	readRange := fmt.Sprintf("%s!A%d:%s%d", config.TabNames["register"], rs.StartRow, rs.EndColumnName, rs.EndRow)
+func (rs *RegisterSheet) Read(debug bool) {
+	readRange := fmt.Sprintf("%s!A%d:%s%d", rs.TabName, rs.StartRow, rs.EndColumnName, rs.EndRow)
 	resp, err := rs.Service.Spreadsheets.Values.Get(rs.SpreadsheetID, readRange).Do()
 	if err != nil {
 		log.Fatalf("unable to retrieve data from sheet: %v", err)
@@ -192,17 +217,13 @@ func (rs *RegisterSheet) Read() {
 	for i := 0; int64(i) <= rs.LastRow; i += 2 {
 		values := rangeValues[i]
 
-		descr := getNameField(values)
+		descr := rs.getNameField(values)
 		if descr == "VOID" || descr == "Reallocation of funds" {
 			continue
 		}
-		source := getSourceField(values)
-		date := getDateField(values)
-		amount := getAmountField(values)
-		deposit := getRegisterField(values, config.RegisterIndexes["Deposits"])
-		if deposit == "" {
-			amount = "-" + amount
-		}
+		source := rs.getSourceField(values)
+		date := rs.getDateField(values)
+		amount := rs.getAmountFieldForKey(values)
 
 		key := fmt.Sprintf("%s:%s:%s", source, date, amount)
 		valuesMap[key] = values
@@ -212,16 +233,19 @@ func (rs *RegisterSheet) Read() {
 			Source:       source,
 			Date:         date,
 			Description:  descr,
-			Withdrawl:    getRegisterField(values, config.RegisterIndexes["Withdrawals"]),
-			Deposit:      deposit,
-			CreditCard:   getRegisterField(values, config.RegisterIndexes["CreditCards"]),
-			BankRegister: getRegisterField(values, config.RegisterIndexes["BankRegister"]),
-			Cleared:      getRegisterField(values, config.RegisterIndexes["Cleared"]),
-			Delta:        getRegisterField(values, config.RegisterIndexes["Delta"]),
+			Withdrawl:    getRegisterField(values, rs.Config.RegisterIndexes["Withdrawals"]),
+			Deposit:      getRegisterField(values, rs.Config.RegisterIndexes["Deposits"]),
+			CreditCard:   getCCRegisterField(values, rs.Config.RegisterIndexes["CreditCards"]),
+			BankRegister: getRegisterField(values, rs.Config.RegisterIndexes["BankRegister"]),
+			Cleared:      getRegisterField(values, rs.Config.RegisterIndexes["Cleared"]),
+			Delta:        getRegisterField(values, rs.Config.RegisterIndexes["Delta"]),
 		}
 		register = append(register, c)
+		if debug {
+			fmt.Printf("    (%2d) %-20s %s w:%s d:%s cc:%s\n", i, key, descr, c.Withdrawl, c.Deposit, c.CreditCard)
+		}
 
-		if values[config.RegisterIndexes["Date"]] == "" {
+		if values[rs.Config.RegisterIndexes["Date"]] == "" {
 			rs.FirstRowToUpdate = int64(i) + rs.StartRow - 1
 			break
 		}
@@ -231,26 +255,14 @@ func (rs *RegisterSheet) Read() {
 
 // SortByCSVDate ...
 func (rs *RegisterSheet) SortByCSVDate() {
-	rows := rs.CSV
+	rows := rs.Transactions
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].Date == rows[j].Date {
 			return rows[i].Name < rows[j].Name
 		}
 		return rows[i].Date < rows[j].Date
 	})
-	rs.CSV = rows
-}
-
-// FilterCSVRows ...
-func (rs *RegisterSheet) FilterCSVRows(rows []*csv.Row) []*csv.Row {
-	filteredRows := []*csv.Row{}
-	for _, row := range rows {
-		key := fmt.Sprintf("%s:%s:%.2f", row.Source, row.Date, row.Amount)
-		if _, ok := (rs.ValuesMap)[key]; !ok {
-			filteredRows = append(filteredRows, row)
-		}
-	}
-	return filteredRows
+	rs.Transactions = rows
 }
 
 // CopyRows ...
@@ -297,7 +309,6 @@ func (rs *RegisterSheet) CopyRows(numCopies int) {
 }
 
 func (rs *RegisterSheet) readRange(readRange string) []string {
-	// readRange := fmt.Sprintf("%s!A%d:%s%d", config.TabNames["register"], rs.StartRow, rs.EndColumnName, rs.EndRow)
 	call := rs.Service.Spreadsheets.Values.BatchGet(rs.SpreadsheetID)
 	call.ValueRenderOption("FORMULA")
 	call.Ranges(readRange)
@@ -354,7 +365,7 @@ func (rs *RegisterSheet) UpdateRows() {
 func (rs *RegisterSheet) populateCells() []*sheets.RowData {
 	rows := []*sheets.RowData{}
 	rowIndex := rs.FirstRowToUpdate
-	for _, csvRow := range rs.CSV {
+	for _, csvRow := range rs.Transactions {
 		if csvRow.Name == "Credit Card Payment" {
 			continue
 		}
@@ -363,7 +374,7 @@ func (rs *RegisterSheet) populateCells() []*sheets.RowData {
 		row := &sheets.RowData{}
 
 		bgColor := "white"
-		if csvRow.Name == config.PaycheckName {
+		if csvRow.Name == rs.PaycheckName {
 			bgColor = "green"
 		}
 		borders := false
@@ -376,28 +387,28 @@ func (rs *RegisterSheet) populateCells() []*sheets.RowData {
 		if csvRow.Source == "-" {
 			// Wells Fargo Bank transaction
 			if csvRow.Amount < 0 {
-				cells = append(cells, mkDollarsCell(-1*csvRow.Amount, "right", bgColor, borders))
-				cells = append(cells, mkStringCell("", "left", bgColor, borders))
-			} else {
 				cells = append(cells, mkStringCell("", "left", bgColor, borders))
 				cells = append(cells, mkDollarsCell(csvRow.Amount, "right", bgColor, borders))
+			} else {
+				cells = append(cells, mkDollarsCell(csvRow.Amount, "right", bgColor, borders))
+				cells = append(cells, mkStringCell("", "left", bgColor, borders))
 			}
 			cells = append(cells, mkStringCell("", "left", bgColor, borders))
 		} else {
 			// credit card transaction
 			cells = append(cells, mkStringCell("", "left", bgColor, borders))
 			cells = append(cells, mkStringCell("", "left", bgColor, borders))
-			cells = append(cells, mkDollarsCell(-1*csvRow.Amount, "right", bgColor, borders))
+			cells = append(cells, mkDollarsCell(-1*csvRow.Amount, "right", bgColor, borders)) // sign is reversed
 		}
 
 		// salary deposit
 		if csvRow.Name == "CrowdStrike Salary" {
 			// allocate out budgeted amounts and set background color appropriately
-			readRange := fmt.Sprintf("%s!H%d:J%d", config.TabNames["register"], rowIndex+1, rowIndex+1)
+			readRange := fmt.Sprintf("%s!H%d:J%d", rs.Config.TabNames["register"], rowIndex+1, rowIndex+1)
 			totalsFormulas := rs.readRange(readRange)
 			borders = false
-			for i := 0; i < len(config.BudgetCategories); i++ {
-				cat := config.BudgetCategories[i]
+			for i := 0; i < len(rs.Config.BudgetCategories); i++ {
+				cat := rs.Config.BudgetCategories[i]
 				if ok := intInSlice(i, []int{0, 1, 2}); ok {
 					cells = append(cells, mkDollarsCellFromFormulaString(totalsFormulas[i], "right", cat.Color, borders))
 				} else if cat.Name == "" {
@@ -611,33 +622,58 @@ func getDollarsField(value interface{}) float32 {
 	return float32(f)
 }
 
-func getAmountField(values []interface{}) string {
-	regi := config.RegisterIndexes
-	amount := fmt.Sprintf("%v", values[regi["Withdrawals"]]) +
-		fmt.Sprintf("%v", values[regi["Deposits"]]) + fmt.Sprintf("%v", values[regi["CreditCards"]])
+func (rs *RegisterSheet) getAmountFieldForKey(values []interface{}) string {
+	regi := rs.Config.RegisterIndexes
+
+	amt := ""
+	v := ""
+	if v = fmt.Sprintf("%v", values[regi["Withdrawals"]]); v != "" {
+		amt = "-" + v
+	} else if v = fmt.Sprintf("%v", values[regi["Deposits"]]); v != "" {
+		amt = v
+	} else if v = fmt.Sprintf("%v", values[regi["CreditCards"]]); v != "" {
+		re := regexp.MustCompile(`[\(\)]`)
+		if re.Match([]byte(v)) {
+			amt = re.ReplaceAllString(v, "")
+		} else {
+			amt = "-" + v
+		}
+	}
 	re := regexp.MustCompile(`[\s\$,]`)
-	amount = re.ReplaceAllString(amount, "")
-	return amount
+	amt = re.ReplaceAllString(amt, "")
+	return amt
 }
 
-func getDateField(values []interface{}) string {
-	dateString := fmt.Sprintf("%v", values[config.RegisterIndexes["Date"]])
+func getRegisterField(values []interface{}, i int) string {
+	re := regexp.MustCompile(`[\s\$,]`)
+	return re.ReplaceAllString(fmt.Sprintf("%s", values[i]), "")
+}
+
+func getCCRegisterField(values []interface{}, i int) string {
+	re := regexp.MustCompile(`[\s\$,]`)
+	amt := re.ReplaceAllString(fmt.Sprintf("%s", values[i]), "")
+
+	re = regexp.MustCompile(`[\(\)]`)
+	if re.Match([]byte(amt)) {
+		amt = "-" + re.ReplaceAllString(amt, "")
+	}
+	return amt
+}
+
+func (rs *RegisterSheet) getDateField(values []interface{}) string {
+	dateString := fmt.Sprintf("%v", values[rs.Config.RegisterIndexes["Date"]])
 	if dateString == "" {
 		return ""
 	}
 	return formatDate(dateString)
 }
 
-func getNameField(values []interface{}) string {
-	return fmt.Sprintf("%v", values[config.RegisterIndexes["Description"]])
+func (rs *RegisterSheet) getNameField(values []interface{}) string {
+	return fmt.Sprintf("%v", values[rs.Config.RegisterIndexes["Description"]])
 }
 
-func getRegisterField(values []interface{}, i int) string {
-	return fmt.Sprintf("%v", values[i])
-}
-
-func getSourceField(values []interface{}) string {
-	regi := config.RegisterIndexes
+func (rs *RegisterSheet) getSourceField(values []interface{}) string {
+	regi := rs.Config.RegisterIndexes
 	source := fmt.Sprintf("%v", values[regi["Source"]])
 	if fmt.Sprintf("%v", values[regi["Source"]]) == "" {
 		source = "-"
@@ -658,4 +694,19 @@ func checkError(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func formatYear(date string) string {
+	re := regexp.MustCompile(`(\d+\/\d+)\/20(\d+)`)
+	return re.ReplaceAllString(date, "${1}/${2}")
+}
+
+func formatDate(date string) string {
+	re := regexp.MustCompile(`(\d+)\/(\d+)\/(20)?(\d+)`)
+	m := re.FindAllStringSubmatch(date, -1)
+	mm, _ := strconv.Atoi(m[0][1])
+	dd, _ := strconv.Atoi(m[0][2])
+	yy, _ := strconv.Atoi(m[0][4])
+	d := fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
+	return d
 }
