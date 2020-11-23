@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"encoding/json"
@@ -43,7 +43,8 @@ type Config struct {
 	ColumnIndexes     map[string]int64    `json:"column_indexes"`
 }
 
-func readConfig() *Config {
+// ReadConfig ...
+func ReadConfig() *Config {
 	contents, err := ioutil.ReadFile("config.json")
 	checkError(err)
 
@@ -51,4 +52,10 @@ func readConfig() *Config {
 	err = json.Unmarshal([]byte(contents), &config)
 	checkError(err)
 	return &config
+}
+
+func checkError(err error) {
+	if err != nil {
+		panic(err)
+	}
 }

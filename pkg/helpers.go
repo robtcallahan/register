@@ -1,10 +1,12 @@
-package main
+package pkg
 
 import (
 	"flag"
 	"fmt"
 	"log"
 	"regexp"
+
+	"register/pkg/csv"
 )
 
 // Options ...
@@ -33,11 +35,11 @@ func parseOptions() Options {
 	return options
 }
 
-func printRows(rows []*FidelityVisa) {
+func printRows(rows []*csv.FidelityVisa) {
 	for _, row := range rows {
 		fmt.Printf("%s %s %0.2f\n",
 			row.Date,
-			row.Name.string,
+			// row.Name.string,
 			row.Amount,
 		)
 	}
@@ -55,6 +57,5 @@ func checkErrors(errs []error) {
 func checkError(err error) {
 	if err != nil {
 		panic(err)
-		// log.Fatalf("%s\n", err.Error())
 	}
 }

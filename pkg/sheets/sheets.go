@@ -1,4 +1,4 @@
-package main
+package sheets
 
 import (
 	"fmt"
@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"register/pkg/auth"
+	"register/pkg/csv"
 
 	"google.golang.org/api/sheets/v4"
 )
@@ -73,13 +76,14 @@ type RegisterSheet struct {
 	EndColumnIndex   int64
 	Spreadsheet      sheets.Spreadsheet
 	RegisterEntries  []*RegisterEntry
-	CSV              []*CSVRow
+	CSV              []*csv.Row
 	CategoriesMap    map[string]*BudgetEntry
 	ValuesMap        map[string][]interface{}
 }
 
-func newService() *sheets.Service {
-	client := getClient()
+// NewService ...
+func NewService() *sheets.Service {
+	client := auth.GetClient()
 	service, err := sheets.New(client)
 	if err != nil {
 		log.Fatalf("unable to retrieve sheets client: %v", err)
@@ -87,7 +91,8 @@ func newService() *sheets.Service {
 	return service
 }
 
-func newRegisterSheet(ss *SheetService, startRow, endRow int64) *RegisterSheet {
+// NewRegisterSheet ...
+func NewRegisterSheet(ss *SheetService, startRow, endRow int64) *RegisterSheet {
 	sheet := RegisterSheet{
 		Service:        ss.Service,
 		SpreadsheetID:  ss.SpreadsheetID,
@@ -99,7 +104,8 @@ func newRegisterSheet(ss *SheetService, startRow, endRow int64) *RegisterSheet {
 	return &sheet
 }
 
-func newBudgetSheet(ss *SheetService, startRow, endRow int64) *BudgetSheet {
+// NewBudgetSheet ...
+func NewBudgetSheet(ss *SheetService, startRow, endRow int64) *BudgetSheet {
 	sheet := BudgetSheet{
 		Service:        ss.Service,
 		SpreadsheetID:  ss.SpreadsheetID,
@@ -111,7 +117,8 @@ func newBudgetSheet(ss *SheetService, startRow, endRow int64) *BudgetSheet {
 	return &sheet
 }
 
-func (ss *SheetService) getSheetID(tabName string) (int64, error) {
+// GetSheetID ...
+func (ss *SheetService) GetSheetID(tabName string) (int64, error) {
 	spreadsheet, err := ss.Service.Spreadsheets.Get(ss.SpreadsheetID).Do()
 	if err != nil {
 		log.Fatalf("unable to retrieve spreadsheet: %v", err)
@@ -125,7 +132,8 @@ func (ss *SheetService) getSheetID(tabName string) (int64, error) {
 	return 0, fmt.Errorf("could not get sheet id: %v", err)
 }
 
-func (bs *BudgetSheet) read() {
+// Read ...
+func (bs *BudgetSheet) Read() {
 	readRange := fmt.Sprintf("%s!B%d:%s%d", config.TabNames["budget"], bs.StartRow, bs.EndColumnName, bs.EndRow)
 	resp, err := bs.Service.Spreadsheets.Values.Get(bs.SpreadsheetID, readRange).Do()
 	if err != nil {
@@ -162,7 +170,8 @@ func (bs *BudgetSheet) read() {
 	bs.CategoriesMap = catMap
 }
 
-func (rs *RegisterSheet) read() {
+// Read ...
+func (rs *RegisterSheet) Read() {
 	readRange := fmt.Sprintf("%s!A%d:%s%d", config.TabNames["register"], rs.StartRow, rs.EndColumnName, rs.EndRow)
 	resp, err := rs.Service.Spreadsheets.Values.Get(rs.SpreadsheetID, readRange).Do()
 	if err != nil {
@@ -220,7 +229,8 @@ func (rs *RegisterSheet) read() {
 	rs.ValuesMap = valuesMap
 }
 
-func (rs *RegisterSheet) sortByCSVDate() {
+// SortByCSVDate ...
+func (rs *RegisterSheet) SortByCSVDate() {
 	rows := rs.CSV
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].Date == rows[j].Date {
@@ -231,8 +241,9 @@ func (rs *RegisterSheet) sortByCSVDate() {
 	rs.CSV = rows
 }
 
-func (rs *RegisterSheet) filterCSVRows(rows []*CSVRow) []*CSVRow {
-	filteredRows := []*CSVRow{}
+// FilterCSVRows ...
+func (rs *RegisterSheet) FilterCSVRows(rows []*csv.Row) []*csv.Row {
+	filteredRows := []*csv.Row{}
 	for _, row := range rows {
 		key := fmt.Sprintf("%s:%s:%.2f", row.Source, row.Date, row.Amount)
 		if _, ok := (rs.ValuesMap)[key]; !ok {
@@ -242,7 +253,8 @@ func (rs *RegisterSheet) filterCSVRows(rows []*CSVRow) []*CSVRow {
 	return filteredRows
 }
 
-func (rs *RegisterSheet) copyRows(numCopies int) {
+// CopyRows ...
+func (rs *RegisterSheet) CopyRows(numCopies int) {
 	// loop to copy NumberOfCopy times
 	requests := []*sheets.Request{}
 	index := rs.LastRow
@@ -306,7 +318,8 @@ func (rs *RegisterSheet) readRange(readRange string) []string {
 	return retValues
 }
 
-func (rs *RegisterSheet) updateRows() {
+// UpdateRows ...
+func (rs *RegisterSheet) UpdateRows() {
 	requests := []*sheets.Request{}
 	rows := rs.populateCells()
 
@@ -639,4 +652,10 @@ func intInSlice(a int, list []int) bool {
 		}
 	}
 	return false
+}
+
+func checkError(err error) {
+	if err != nil {
+		panic(err)
+	}
 }

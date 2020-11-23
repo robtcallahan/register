@@ -1,4 +1,4 @@
-package main
+package banking
 
 import (
 	"bufio"
@@ -7,11 +7,13 @@ import (
 	"os"
 	"strings"
 
+	"register/pkg/config"
+
 	"github.com/plaid/plaid-go/plaid"
 )
 
-// PlaidKeys ...
-type PlaidKeys struct {
+// Keys ...
+type Keys struct {
 	Products     string
 	CountryCodes string
 }
@@ -27,7 +29,7 @@ type Link struct {
 
 // Client ...
 type Client struct {
-	PlaidKeys   *PlaidKeys
+	Keys        *Keys
 	Link        *Link
 	AccessToken string
 	PublicToken string
@@ -66,14 +68,15 @@ type Client struct {
 // -------------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------------
 
-func (c *Client) setBank(b BankInfo) {
+// SetBank ...
+func (c *Client) SetBank(b config.BankInfo) {
 	c.ItemID = b.PlaidItemID
 	c.AccessToken = b.PlaidAccessToken
 }
 
 func (c *Client) createLinkToken() string {
-	countryCodes := strings.Split(c.PlaidKeys.CountryCodes, ",")
-	products := strings.Split(c.PlaidKeys.Products, ",")
+	countryCodes := strings.Split(c.Keys.CountryCodes, ",")
+	products := strings.Split(c.Keys.Products, ",")
 	configs := plaid.LinkTokenConfigs{
 		User: &plaid.LinkTokenUser{
 			// This should correspond to a unique id for the current user.
@@ -154,7 +157,8 @@ func (c *Client) sendMFACode(code string) (resp *plaid.LinkItemMFASendCodeRespon
 	return resp
 }
 
-func (c *Client) getAccounts() plaid.GetAccountsResponse {
+// GetAccounts ...
+func (c *Client) GetAccounts() plaid.GetAccountsResponse {
 	res, err := c.PlaidClient.GetAccounts(c.AccessToken)
 	checkErr(err)
 	return res
@@ -169,7 +173,8 @@ func (c *Client) getCheckingID(accts []plaid.Account) (checkingID string) {
 	return checkingID
 }
 
-func (c *Client) getTransactions(cfg BankInfo, start, end string) plaid.GetTransactionsResponse {
+// GetTransactions ...
+func (c *Client) GetTransactions(cfg config.BankInfo, start, end string) plaid.GetTransactionsResponse {
 	res, err := c.PlaidClient.GetTransactionsWithOptions(c.AccessToken, plaid.GetTransactionsOptions{
 		StartDate:  start,
 		EndDate:    end,
@@ -213,7 +218,8 @@ func printAccounts(accts []plaid.Account) {
 	fmt.Println("")
 }
 
-func writeCSV(fileName string, trans []plaid.Transaction) {
+// WriteCSV ...
+func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) {
 	f, err := os.Create(fileName)
 	checkErr(err)
 
