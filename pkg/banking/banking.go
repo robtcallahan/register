@@ -298,11 +298,11 @@ func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) {
 }
 
 func formatDate(date string) string {
-	re := regexp.MustCompile(`(\d+)\/(\d+)\/(20)?(\d+)`)
+	re := regexp.MustCompile(`(20)?(\d\d)-(\d\d)-(\d\d)`)
 	m := re.FindAllStringSubmatch(date, -1)
-	mm, _ := strconv.Atoi(m[0][1])
-	dd, _ := strconv.Atoi(m[0][2])
-	yy, _ := strconv.Atoi(m[0][4])
+	yy, _ := strconv.Atoi(m[0][2])
+	mm, _ := strconv.Atoi(m[0][3])
+	dd, _ := strconv.Atoi(m[0][4])
 	d := fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
 	return d
 }
@@ -327,15 +327,15 @@ func checkError(err error) {
 // client.PublicToken = resp2.PublicToken
 // client.RequestID = resp2.RequestID
 // if len(resp2.DeviceList) > 0 {
-// 	mfaReqResp := client.linkItemMFA()
-// 	fmt.Printf("MFA req resp msg: %s\n", mfaReqResp.Device.DisplayMessage)
-// 	code := getCode()
-// 	sentCodeResp := client.sendMFACode(code)
-// client.AccessToken, client.ItemID = client.getAccessToken()
-// client.printIdent()
-// acctsResp := client.getAccounts()
-// printAccounts(acctsResp.Accounts)
-// checkingID := client.getCheckingID(acctsResp.Accounts)
-// transResp := client.getTransactions(checkingID)
-// writeCSV(transResp.Transactions)
+//     mfaReqResp := client.linkItemMFA()
+//     fmt.Printf("MFA req resp msg: %s\n", mfaReqResp.Device.DisplayMessage)
+//     code := getCode()
+//     sentCodeResp := client.sendMFACode(code)
+//     client.AccessToken, client.ItemID = client.getAccessToken()
+//     client.printIdent()
+//     acctsResp := client.getAccounts()
+//     printAccounts(acctsResp.Accounts)
+//     checkingID := client.getCheckingID(acctsResp.Accounts)
+//     transResp := client.getTransactions(checkingID)
+//     writeCSV(transResp.Transactions)
 // }

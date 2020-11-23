@@ -19,8 +19,6 @@ package cmd
 import (
 	"fmt"
 	"net/http"
-	"regexp"
-	"strconv"
 	"strings"
 
 	// "os"
@@ -63,6 +61,7 @@ func init() {
 	updateCmd.Flags().Int64P("end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
 	updateCmd.Flags().StringP("id", "i", config.SpreadsheetID, "The Google spreadsheet id")
 	updateCmd.Flags().BoolP("debug", "d", false, "Debug mode")
+	updateCmd.Flags().BoolP("test", "t", false, "Test mode; no updates performed")
 }
 
 func update(cmd *cobra.Command, args []string) {
@@ -75,6 +74,7 @@ func update(cmd *cobra.Command, args []string) {
 	startRow, _ := cmd.Flags().GetInt64("start")
 	endRow, _ := cmd.Flags().GetInt64("end")
 	debug, _ := cmd.Flags().GetBool("debug")
+	test, _ := cmd.Flags().GetBool("test")
 
 	client := &banking.Client{
 		Keys: &banking.Keys{
@@ -131,8 +131,10 @@ func update(cmd *cobra.Command, args []string) {
 			fmt.Printf("    (%2d) %-5s %-10s %8.2f %s\n", i, r.Source, r.Date, r.Amount, r.Name)
 		}
 
-		fmt.Printf("Updating spreadsheet...\n")
-		reg.UpdateRows()
+		if !test {
+			fmt.Printf("Updating spreadsheet...\n")
+			reg.UpdateRows()
+		}
 	} else {
 		fmt.Println("No updates needed")
 	}
@@ -145,16 +147,6 @@ func formatMerchants(merch string) string {
 		}
 	}
 	return merch
-}
-
-func formatDate(date string) string {
-	re := regexp.MustCompile(`(20)?(\d\d)-(\d\d)-(\d\d)`)
-	m := re.FindAllStringSubmatch(date, -1)
-	yy, _ := strconv.Atoi(m[0][2])
-	mm, _ := strconv.Atoi(m[0][3])
-	dd, _ := strconv.Atoi(m[0][4])
-	d := fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
-	return d
 }
 
 func checkError(err error) {
