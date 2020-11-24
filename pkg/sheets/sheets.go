@@ -365,8 +365,8 @@ func (rs *RegisterSheet) UpdateRows() {
 func (rs *RegisterSheet) populateCells() []*sheets.RowData {
 	rows := []*sheets.RowData{}
 	rowIndex := rs.FirstRowToUpdate
-	for _, csvRow := range rs.Transactions {
-		if csvRow.Name == "Credit Card Payment" {
+	for _, transRow := range rs.Transactions {
+		if transRow.Name == "Credit Card Payment" {
 			continue
 		}
 
@@ -374,23 +374,23 @@ func (rs *RegisterSheet) populateCells() []*sheets.RowData {
 		row := &sheets.RowData{}
 
 		bgColor := "white"
-		if csvRow.Name == rs.PaycheckName {
+		if transRow.Name == rs.PaycheckName {
 			bgColor = "green"
 		}
 		borders := false
 
 		cells = append(cells, mkNumberCell(4, "center", bgColor, borders))
-		cells = append(cells, mkStringCell(csvRow.Source, "center", bgColor, borders))
-		cells = append(cells, mkDateCell(csvRow.Date, "center", bgColor, borders))
-		cells = append(cells, mkStringCell(csvRow.Name, "left", bgColor, borders))
+		cells = append(cells, mkStringCell(transRow.Source, "center", bgColor, borders))
+		cells = append(cells, mkDateCell(transRow.Date, "center", bgColor, borders))
+		cells = append(cells, mkStringCell(transRow.Name, "left", bgColor, borders))
 
-		if csvRow.Source == "-" {
+		if transRow.Source == "-" {
 			// Wells Fargo Bank transaction
-			if csvRow.Amount < 0 {
+			if transRow.Amount < 0 {
 				cells = append(cells, mkStringCell("", "left", bgColor, borders))
-				cells = append(cells, mkDollarsCell(csvRow.Amount, "right", bgColor, borders))
+				cells = append(cells, mkDollarsCell(transRow.Amount, "right", bgColor, borders))
 			} else {
-				cells = append(cells, mkDollarsCell(csvRow.Amount, "right", bgColor, borders))
+				cells = append(cells, mkDollarsCell(transRow.Amount, "right", bgColor, borders))
 				cells = append(cells, mkStringCell("", "left", bgColor, borders))
 			}
 			cells = append(cells, mkStringCell("", "left", bgColor, borders))
@@ -398,26 +398,41 @@ func (rs *RegisterSheet) populateCells() []*sheets.RowData {
 			// credit card transaction
 			cells = append(cells, mkStringCell("", "left", bgColor, borders))
 			cells = append(cells, mkStringCell("", "left", bgColor, borders))
-			cells = append(cells, mkDollarsCell(-1*csvRow.Amount, "right", bgColor, borders)) // sign is reversed
+			cells = append(cells, mkDollarsCell(-1*transRow.Amount, "right", bgColor, borders)) // sign is reversed
 		}
 
+		readRange := fmt.Sprintf("%s!H%d:J%d", rs.Config.TabNames["register"], rowIndex+1, rowIndex+1)
+		totalsFormulas := rs.readRange(readRange)
+
 		// salary deposit
-		if csvRow.Name == "CrowdStrike Salary" {
+		if transRow.Name == "CrowdStrike Salary" {
 			// allocate out budgeted amounts and set background color appropriately
-			readRange := fmt.Sprintf("%s!H%d:J%d", rs.Config.TabNames["register"], rowIndex+1, rowIndex+1)
-			totalsFormulas := rs.readRange(readRange)
-			borders = false
 			for i := 0; i < len(rs.Config.BudgetCategories); i++ {
+				borders = true
 				cat := rs.Config.BudgetCategories[i]
 				if ok := intInSlice(i, []int{0, 1, 2}); ok {
+					borders = false
 					cells = append(cells, mkDollarsCellFromFormulaString(totalsFormulas[i], "right", cat.Color, borders))
 				} else if cat.Name == "" {
-					borders = true
 					cells = append(cells, mkOpaqueCell(cat.Color, borders))
 				} else {
-					borders = true
 					entry := rs.CategoriesMap[cat.Name]
 					cells = append(cells, mkDollarsCell(entry.TwiceMonthly, "left", cat.Color, borders))
+				}
+			}
+		} else {
+			for i := 0; i < len(rs.Config.BudgetCategories); i++ {
+				borders = true
+				cat := rs.Config.BudgetCategories[i]
+				if ok := intInSlice(i, []int{0, 1, 2}); ok {
+					borders = false
+					cells = append(cells, mkDollarsCellFromFormulaString(totalsFormulas[i], "right", cat.Color, borders))
+				} else if cat.Name == "" {
+					cells = append(cells, mkOpaqueCell(cat.Color, borders))
+				} else if _, ok := rs.Config.MerchantToCategory[transRow.Name]; ok && cat.Name == rs.Config.MerchantToCategory[transRow.Name] {
+					cells = append(cells, mkDollarsCell(-1*transRow.Amount, "left", cat.Color, borders))
+				} else {
+					cells = append(cells, mkOpaqueCell(cat.Color, borders))
 				}
 			}
 		}

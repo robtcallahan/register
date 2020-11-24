@@ -18,8 +18,6 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
-
 	// "os"
 	// "strings"
 
@@ -77,6 +75,7 @@ func update(cmd *cobra.Command, args []string) {
 		Debug:         debug,
 		PlaidClientID: config.PlaidClientID,
 		PlaidSecret:   config.PlaidSecret,
+		Merchants:     config.Merchants,
 	})
 
 	srv := &sheets.SheetService{
@@ -110,8 +109,7 @@ func update(cmd *cobra.Command, args []string) {
 	if len(reg.Transactions) > 0 {
 		fmt.Printf("Transaction updates...\n")
 		for i, r := range reg.Transactions {
-			reg.Transactions[i].Name = formatMerchants(r.Name)
-			fmt.Printf("    (%2d) %-5s %-10s %8.2f %s\n", i, r.Source, r.Date, r.Amount, r.Name)
+			fmt.Printf("    (%2d) %-5s %-10s %8.2f %s\n", i+1, r.Source, r.Date, r.Amount, r.Name)
 		}
 
 		if !test {
@@ -121,15 +119,6 @@ func update(cmd *cobra.Command, args []string) {
 	} else {
 		fmt.Println("No updates needed")
 	}
-}
-
-func formatMerchants(merch string) string {
-	for substr, replace := range config.Merchants {
-		if strings.Contains(merch, substr) {
-			return replace
-		}
-	}
-	return merch
 }
 
 func checkError(err error) {

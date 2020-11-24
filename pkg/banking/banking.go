@@ -54,6 +54,7 @@ type ClientOptions struct {
 	BankInfo      map[string]config.BankInfo
 	PlaidClientID string
 	PlaidSecret   string
+	Merchants     map[string]string
 	Debug         bool
 }
 
@@ -69,6 +70,7 @@ type Client struct {
 	StartDate   string
 	EndDate     string
 	BankInfo    map[string]config.BankInfo
+	Merchants   map[string]string
 	ClientID    string
 	Secret      string
 	Debug       bool
@@ -96,6 +98,7 @@ func New(o *ClientOptions) *Client {
 		Debug:     o.Debug,
 		ClientID:  o.PlaidClientID,
 		Secret:    o.PlaidSecret,
+		Merchants: o.Merchants,
 	}
 	pc, _ := plaid.NewClient(plaid.ClientOptions{
 		ClientID:    o.PlaidClientID,
@@ -144,7 +147,8 @@ func (c *Client) GetTransactions() []*Transaction {
 			} else if t.Name == "Venmo Payment" && t.Amount == -5 {
 				name = "AA Meeting (Venmo)"
 			} else {
-				name = t.Name
+				name = c.formatMerchants(t.Name)
+				// name = t.Name
 			}
 
 			if cfg.Name == "Wells Fargo Checking" {
@@ -180,6 +184,15 @@ func (c *Client) GetTransactions() []*Transaction {
 		fmt.Println("done")
 	}
 	return transactions
+}
+
+func (c *Client) formatMerchants(merch string) string {
+	for substr, rep := range c.Merchants {
+		if strings.Contains(merch, substr) {
+			return rep
+		}
+	}
+	return merch
 }
 
 // FilterRows ...
