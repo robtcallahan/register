@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"regexp"
 	"strconv"
@@ -45,6 +46,17 @@ type Link struct {
 	SessionID    string
 }
 
+// ClientOptions ...
+type ClientOptions struct {
+	Keys          *Keys
+	StartDate     string
+	EndDate       string
+	BankInfo      map[string]config.BankInfo
+	PlaidClientID string
+	PlaidSecret   string
+	Debug         bool
+}
+
 // Client ...
 type Client struct {
 	Keys        *Keys
@@ -57,6 +69,8 @@ type Client struct {
 	StartDate   string
 	EndDate     string
 	BankInfo    map[string]config.BankInfo
+	ClientID    string
+	Secret      string
 	Debug       bool
 }
 
@@ -69,8 +83,29 @@ type Transaction struct {
 	Name   string
 }
 
-// -------------------------------------------------------------------------------------
-// -------------------------------------------------------------------------------------
+// New ...
+func New(o *ClientOptions) *Client {
+	c := &Client{
+		Keys: &Keys{
+			Products:     "transactions",
+			CountryCodes: "US",
+		},
+		StartDate: o.StartDate,
+		EndDate:   o.EndDate,
+		BankInfo:  o.BankInfo,
+		Debug:     o.Debug,
+		ClientID:  o.PlaidClientID,
+		Secret:    o.PlaidSecret,
+	}
+	pc, _ := plaid.NewClient(plaid.ClientOptions{
+		ClientID:    o.PlaidClientID,
+		Secret:      o.PlaidSecret,
+		Environment: plaid.Development,
+		HTTPClient:  &http.Client{},
+	})
+	c.PlaidClient = pc
+	return c
+}
 
 // SetBank ...
 func (c *Client) SetBank(b config.BankInfo) {

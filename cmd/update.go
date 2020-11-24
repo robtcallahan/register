@@ -18,7 +18,6 @@ package cmd
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 
 	// "os"
@@ -28,7 +27,6 @@ import (
 	cfg "register/pkg/config"
 	"register/pkg/sheets"
 
-	"github.com/plaid/plaid-go/plaid"
 	"github.com/spf13/cobra"
 )
 
@@ -66,36 +64,20 @@ func init() {
 
 func update(cmd *cobra.Command, args []string) {
 	var err error
-
-	// banksOpt, _ := cmd.Flags().GetString("banks")
-	// banks := strings.Split(banksOpt, ",")
-
 	ssID, _ := cmd.Flags().GetString("id")
 	startRow, _ := cmd.Flags().GetInt64("start")
 	endRow, _ := cmd.Flags().GetInt64("end")
 	debug, _ := cmd.Flags().GetBool("debug")
 	test, _ := cmd.Flags().GetBool("test")
 
-	client := &banking.Client{
-		Keys: &banking.Keys{
-			Products:     "transactions",
-			CountryCodes: "US",
-		},
-		StartDate: config.StartDate,
-		EndDate:   config.EndDate,
-		BankInfo:  config.BankInfo,
-		Debug:     debug,
-	}
-	client.PlaidClient = func() *plaid.Client {
-		client, err := plaid.NewClient(plaid.ClientOptions{
-			ClientID:    config.PlaidClientID,
-			Secret:      config.PlaidSecret,
-			Environment: plaid.Development,
-			HTTPClient:  &http.Client{},
-		})
-		checkError(err)
-		return client
-	}()
+	client := banking.New(&banking.ClientOptions{
+		StartDate:     config.StartDate,
+		EndDate:       config.EndDate,
+		BankInfo:      config.BankInfo,
+		Debug:         debug,
+		PlaidClientID: config.PlaidClientID,
+		PlaidSecret:   config.PlaidSecret,
+	})
 
 	srv := &sheets.SheetService{
 		Service:       sheets.NewService(),
@@ -104,7 +86,8 @@ func update(cmd *cobra.Command, args []string) {
 
 	reg := sheets.NewRegisterSheet(srv, *config, startRow, endRow)
 	fmt.Printf("Reading Register...\n")
-	reg.ID, err = srv.GetSheetID(config.TabNames["register"])
+	id, err := srv.GetSheetID(config.TabNames["register"])
+	reg.ID = id
 	checkError(err)
 	reg.Read(debug)
 
