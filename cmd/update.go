@@ -17,12 +17,17 @@ limitations under the License.
 package cmd
 
 import (
+	"bufio"
 	"fmt"
-	// "os"
-	// "strings"
+	"math"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"register/pkg/banking"
 	cfg "register/pkg/config"
+	"register/pkg/database"
 	"register/pkg/sheets"
 
 	"github.com/spf13/cobra"
@@ -32,92 +37,168 @@ import (
 var updateCmd = &cobra.Command{
 	Use:   "update",
 	Short: "Get all back and CC transactions and update the Google Sheets register spreadsheet",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. `,
+	Long:  `A longer description`,
 	Run: func(cmd *cobra.Command, args []string) {
 		update(cmd, args)
 	},
 }
 
-var config *cfg.Config
-
 func init() {
-	rootCmd.AddCommand(updateCmd)
 	config = cfg.ReadConfig()
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// updateCmd.PersistentFlags().String("foo", "", "A help for foo")
+	rootCmd.AddCommand(updateCmd)
 
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// updateCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	updateCmd.Flags().StringP("banks", "b", "wellsfargo,fidelity,costcocitivisa,chasevisa", "The desired bank CSV files to read")
-	updateCmd.Flags().Int64P("start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
-	updateCmd.Flags().Int64P("end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
-	updateCmd.Flags().StringP("id", "i", config.SpreadsheetID, "The Google spreadsheet id")
-	updateCmd.Flags().BoolP("debug", "d", false, "Debug mode")
-	updateCmd.Flags().BoolP("test", "t", false, "Test mode; no updates performed")
+	updateCmd.Flags().Int64VarP(&StartRow, "start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
+	updateCmd.Flags().Int64VarP(&EndRow, "end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
+	updateCmd.Flags().StringVarP(&SpreadsheetID, "id", "i", config.SpreadsheetID, "The Google spreadsheet id")
+	updateCmd.Flags().BoolVarP(&Debug, "debug", "d", false, "Debug mode")
+	updateCmd.Flags().BoolVarP(&Test, "test", "t", false, "Test mode; no updates performed")
 }
 
 func update(cmd *cobra.Command, args []string) {
-	var err error
-	ssID, _ := cmd.Flags().GetString("id")
-	startRow, _ := cmd.Flags().GetInt64("start")
-	endRow, _ := cmd.Flags().GetInt64("end")
-	debug, _ := cmd.Flags().GetBool("debug")
-	test, _ := cmd.Flags().GetBool("test")
-
-	client := banking.New(&banking.ClientOptions{
+	bankClient := banking.New(&banking.ClientOptions{
 		StartDate:     config.StartDate,
 		EndDate:       config.EndDate,
 		BankInfo:      config.BankInfo,
-		Debug:         debug,
+		Debug:         Debug,
 		PlaidClientID: config.PlaidClientID,
 		PlaidSecret:   config.PlaidSecret,
-		Merchants:     config.Merchants,
 	})
 
-	srv := &sheets.SheetService{
+	db := database.New(database.ConfigParams{
+		Debug:      Debug,
+		DBName:     config.DBName,
+		DBUsername: config.DBUsername,
+		DBPassword: config.DBPassword,
+	})
+
+	sheetService := &sheets.SheetService{
 		Service:       sheets.NewService(),
-		SpreadsheetID: ssID,
+		SpreadsheetID: SpreadsheetID,
 	}
 
-	reg := sheets.NewRegisterSheet(srv, *config, startRow, endRow)
 	fmt.Printf("Reading Register...\n")
-	id, err := srv.GetSheetID(config.TabNames["register"])
-	reg.ID = id
+	register := sheets.NewRegisterSheet(sheetService, *config, StartRow, EndRow, Debug)
+	id, err := sheetService.GetSheetID(config.TabNames["register"])
+	register.ID = id
 	checkError(err)
-	reg.Read(debug)
+	register.Read()
 
 	fmt.Println("Getting transactions...")
-	reg.Transactions = client.GetTransactions()
+	transactions := bankClient.GetTransactions()
 
 	fmt.Printf("Sorting...\n")
-	reg.SortByCSVDate()
-
-	fmt.Printf("Reading Budget...\n")
-	bud := sheets.NewBudgetSheet(srv, config.TabNames["budget"], config.BudgetStartRow, config.BudgetEndRow)
-	bud.ID, err = srv.GetSheetID(config.TabNames["budget"])
-	checkError(err)
-	bud.Read()
-	reg.CategoriesMap = bud.CategoriesMap
+	transactions = bankClient.SortTransactions(transactions)
 
 	fmt.Printf("Filtering rows...\n")
-	reg.Transactions = client.FilterRows(reg.ValuesMap, reg.Transactions)
+	transactions = bankClient.FilterRows(transactions, register.KeysMap)
 
-	if len(reg.Transactions) > 0 {
+	fmt.Println("Updating merchants...")
+	lookupData := db.GetLookupData()
+	transactions = bankClient.FormatMerchants(transactions, lookupData)
+
+	if len(transactions) > 0 {
 		fmt.Printf("Transaction updates...\n")
-		for i, r := range reg.Transactions {
+		if Debug {
+			printTransactions(bankClient, transactions)
+		}
+	}
+
+	if needInfo := needInfo(transactions); needInfo {
+		fmt.Println("Info needed...")
+		transactions = getInfo(db, transactions)
+	}
+
+	fmt.Printf("Reading Budget...\n")
+	bud := sheets.NewBudgetSheet(sheetService, config.TabNames["budget"], config.BudgetStartRow, config.BudgetEndRow)
+	bud.ID, err = sheetService.GetSheetID(config.TabNames["budget"])
+	checkError(err)
+	bud.Read()
+	register.CategoriesMap = bud.CategoriesMap
+
+	if len(transactions) > 0 {
+		fmt.Printf("Transaction updates...\n")
+		for i, r := range transactions {
 			fmt.Printf("    (%2d) %-5s %-10s %8.2f %s\n", i+1, r.Source, r.Date, r.Amount, r.Name)
 		}
 
-		if !test {
+		if !Test {
 			fmt.Printf("Updating spreadsheet...\n")
-			reg.UpdateRows()
+			cols := db.GetColumns()
+			nameToCol := db.GetNameMapToColumn()
+			register.UpdateRows(cols, nameToCol, transactions)
 		}
 	} else {
 		fmt.Println("No updates needed")
+	}
+}
+
+func needInfo(trans []*banking.Transaction) bool {
+	for _, t := range trans {
+		if t.Name == "" {
+			return true
+		}
+	}
+	return false
+}
+
+func getInfo(db *database.Client, trans []*banking.Transaction) []*banking.Transaction {
+	cols := db.GetColumns()
+	filter := []database.Column{}
+	re := regexp.MustCompile(`old-\d+`)
+	for _, c := range cols {
+		chk := re.Match([]byte(c.Name))
+		if !c.IsCategory || chk {
+			continue
+		}
+		filter = append(filter, c)
+	}
+	numRows := int(math.Floor(float64(len(filter)) / 3))
+	remItems := len(filter) % 3
+
+	i := 0
+	for r := 1; r <= numRows; r++ {
+		fmt.Printf("%2d %-30s %2d %-30s %2d %-30s\n",
+			filter[i].ID, filter[i].Name,
+			filter[i+1].ID, filter[i+1].Name,
+			filter[i+2].ID, filter[i+2].Name,
+		)
+		i += 3
+	}
+	for ; i < remItems; i++ {
+		fmt.Printf("%2d %-30s \n", filter[i].ID, filter[i].Name)
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	for i, t := range trans {
+		if t.Name == "" {
+			fmt.Printf("    Bank Name: %s\n", t.BankName)
+
+			fmt.Printf("    Name: ")
+			name, _ := reader.ReadString('\n')
+			trans[i].Name = strings.Replace(name, "\n", "", -1)
+
+			fmt.Printf("    Column Index: ")
+			s, _ := reader.ReadString('\n')
+			s = strings.Replace(s, "\n", "", -1)
+			colInx, _ := strconv.Atoi(s)
+			trans[i].ColumnIndex = colInx
+
+			db.CreateMerchant(&database.Merchant{
+				Name:     name,
+				BankName: t.BankName,
+				ColumnID: colInx,
+			})
+		}
+	}
+	return trans
+}
+
+func printTransactions(client *banking.Client, trans []*banking.Transaction) {
+	fmt.Println("")
+	client.PrintTransactionHead()
+	for i, t := range trans {
+		t.PrintTransaction(i)
 	}
 }
 

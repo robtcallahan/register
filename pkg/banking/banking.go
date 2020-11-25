@@ -23,10 +23,12 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
 	"register/pkg/config"
+	"register/pkg/database"
 
 	"github.com/plaid/plaid-go/plaid"
 )
@@ -70,7 +72,6 @@ type Client struct {
 	StartDate   string
 	EndDate     string
 	BankInfo    map[string]config.BankInfo
-	Merchants   map[string]string
 	ClientID    string
 	Secret      string
 	Debug       bool
@@ -78,11 +79,19 @@ type Client struct {
 
 // Transaction ...
 type Transaction struct {
-	Key    string
-	Source string
-	Date   string
-	Amount float32
-	Name   string
+	Key          string
+	Source       string
+	Date         string
+	Name         string
+	BankName     string
+	MerchantName string
+	Amount       float64
+	Withdrawal   float64
+	Deposit      float64
+	CreditCard   float64
+	ColumnIndex  int
+	Color        string
+	IsCategory   bool
 }
 
 // New ...
@@ -98,7 +107,6 @@ func New(o *ClientOptions) *Client {
 		Debug:     o.Debug,
 		ClientID:  o.PlaidClientID,
 		Secret:    o.PlaidSecret,
-		Merchants: o.Merchants,
 	}
 	pc, _ := plaid.NewClient(plaid.ClientOptions{
 		ClientID:    o.PlaidClientID,
@@ -131,80 +139,117 @@ func (c *Client) getPlaidTransactions(cfg config.BankInfo, start, end string) pl
 // GetTransactions ...
 func (c *Client) GetTransactions() []*Transaction {
 	transactions := []*Transaction{}
+	i := 1
 	for _, cfg := range c.BankInfo {
+		if i == 1 {
+			i++
+			continue
+		}
 		fmt.Printf("    %s...", cfg.Name)
+
 		c.SetBank(cfg)
 		transResp := c.getPlaidTransactions(cfg, c.StartDate, c.EndDate)
+
 		c.WriteCSV(cfg.FileName, transResp.Transactions)
 
-		name := ""
-		key := ""
-		src := ""
-		amt := 0.00
-		for i, t := range transResp.Transactions {
-			if t.Name == "Venmo Payment" && t.Amount == -150 {
-				name = "Margie Knight (Venmo)"
-			} else if t.Name == "Venmo Payment" && t.Amount == -5 {
-				name = "AA Meeting (Venmo)"
-			} else {
-				name = c.formatMerchants(t.Name)
-				// name = t.Name
+		for _, t := range transResp.Transactions {
+			tran := &Transaction{
+				Date:         formatDate(t.Date),
+				Name:         "",
+				BankName:     t.Name,
+				MerchantName: t.MerchantName,
 			}
 
-			if cfg.Name == "Wells Fargo Checking" {
-				src = "-"
-				amt = t.Amount
-				key = fmt.Sprintf("%s:%s:%.2f", src, formatDate(t.Date), -1*t.Amount)
-			} else if cfg.Name == "Fidelity Visa" {
-				src = "VISA"
-				amt = -1 * t.Amount
-				key = fmt.Sprintf("%s:%s:%.2f", src, formatDate(t.Date), amt)
-			} else if cfg.Name == "Chase Visa" {
-				src = "CHASE"
-				amt = -1 * t.Amount
-				key = fmt.Sprintf("%s:%s:%.2f", src, formatDate(t.Date), amt)
-			} else if cfg.Name == "Citi Visa" {
-				src = "CITI"
-				amt = -1 * t.Amount
-				key = fmt.Sprintf("%s:%s:%.2f", src, formatDate(t.Date), amt)
+			switch cfg.Name {
+			case "Wells Fargo Checking":
+				tran.Source = "-"
+				tran.Amount = t.Amount
+				if t.Amount < 0 {
+					tran.Deposit = -1 * t.Amount
+				} else {
+					tran.Withdrawal = t.Amount
+				}
+				tran.Key = fmt.Sprintf("-:%s:%.2f", formatDate(t.Date), -1*t.Amount)
+			case "Fidelity Visa":
+				tran.Source = "VISA"
+				tran.Amount = t.Amount
+				tran.CreditCard = t.Amount
+				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, formatDate(t.Date), -1*t.Amount)
+			case "Chase Visa":
+				tran.Source = "CHASE"
+				tran.Amount = t.Amount
+				tran.CreditCard = t.Amount
+				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, formatDate(t.Date), -1*t.Amount)
+			case "Citi Visa":
+				tran.Source = "CITI"
+				tran.Amount = t.Amount
+				tran.CreditCard = t.Amount
+				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, formatDate(t.Date), -1*t.Amount)
 			}
-
-			trans := &Transaction{
-				Key:    key,
-				Source: src,
-				Date:   formatDate(t.Date),
-				Amount: float32(amt),
-				Name:   name,
-			}
-			if c.Debug {
-				fmt.Printf("    [%d] %s %.2f\n", i, key, amt)
-			}
-			transactions = append(transactions, trans)
+			transactions = append(transactions, tran)
 		}
 		fmt.Println("done")
 	}
 	return transactions
 }
 
-func (c *Client) formatMerchants(merch string) string {
-	for substr, rep := range c.Merchants {
-		if strings.Contains(merch, substr) {
-			return rep
+// SortTransactions ...
+func (c *Client) SortTransactions(trans []*Transaction) []*Transaction {
+	sort.Slice(trans, func(i, j int) bool {
+		if trans[i].Date == trans[j].Date {
+			return trans[i].Name < trans[j].Name
+		}
+		return trans[i].Date < trans[j].Date
+	})
+	return trans
+}
+
+// PrintTransactionHead ...
+func (c *Client) PrintTransactionHead() {
+	fmt.Printf("    [Num] %-25s %-32s %-40s %-40s %12s %12s %12s %12s %7s %5s\n",
+		"Key", "Name", "Bank Name", "Merchant Name", "Withdrawal", "Deposit", "Credit Card", "Amount", "ColIndx", "Color")
+}
+
+// PrintTransaction ...
+func (t *Transaction) PrintTransaction(n int) {
+	fmt.Printf("    [%3d] %-25s %-32s %-40s %-40s %12.2f %12.2f %12.2f %12.2f %7d %-5s\n",
+		n+1, t.Key, t.Name, t.BankName, t.MerchantName, t.Withdrawal, t.Deposit, t.CreditCard, t.Amount, t.ColumnIndex, t.Color)
+}
+
+// FormatMerchants ...
+func (c *Client) FormatMerchants(trans []*Transaction, lookup []*database.DataRow) []*Transaction {
+	for i, t := range trans {
+		// if t.Name == "Venmo" && t.Amount == 150.00 {
+		// 	trans[i].BankName = "Margie Knight (Venmo)"
+		// 	trans[i].ColumnIndex = 46
+		// 	trans[i].Color = "blue"
+		// } else if t.BankName == "Venmo" && t.Amount == 5.00 {
+		// 	trans[i].Name = "AA Meeting (Venmo)"
+		// 	trans[i].ColumnIndex = 41
+		// 	trans[i].Color = "blue"
+		// }
+
+		for _, l := range lookup {
+			if strings.Contains(t.BankName, l.BankName) {
+				trans[i].Name = l.Name
+				trans[i].Color = l.Color
+				trans[i].ColumnIndex = l.ColumnIndex
+				trans[i].IsCategory = l.IsCategory
+			}
 		}
 	}
-	return merch
+	return trans
 }
 
 // FilterRows ...
-func (c *Client) FilterRows(valuesMap map[string][]interface{}, rows []*Transaction) []*Transaction {
-	filteredRows := []*Transaction{}
-	for _, row := range rows {
-		// key := fmt.Sprintf("%s:%s:%.2f", row.Source, row.Date, row.Amount)
-		if _, ok := valuesMap[row.Key]; !ok {
-			filteredRows = append(filteredRows, row)
+func (c *Client) FilterRows(trans []*Transaction, lookup map[string]bool) []*Transaction {
+	filter := []*Transaction{}
+	for _, r := range trans {
+		if _, ok := lookup[r.Key]; !ok {
+			filter = append(filter, r)
 		}
 	}
-	return filteredRows
+	return filter
 }
 
 func (c *Client) createLinkToken() string {

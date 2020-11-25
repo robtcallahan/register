@@ -56,12 +56,12 @@ func copy(cmd *cobra.Command, args []string) {
 		Service:       sheets.NewService(),
 		SpreadsheetID: ssID,
 	}
-	reg := sheets.NewRegisterSheet(srv, *config, startRow, endRow)
+	reg := sheets.NewRegisterSheet(srv, *config, startRow, endRow, Debug)
 
 	fmt.Printf("Reading Register...\n")
 	reg.ID, err = srv.GetSheetID(config.TabNames["register"])
 	checkError(err)
-	reg.Read(false)
+	reg.Read()
 
 	fmt.Printf("Copying rows %d times...\n", copies)
 	reg.CopyRows(copies)

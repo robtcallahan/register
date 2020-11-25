@@ -3,3 +3,4 @@ json
 register
 csv
 .vscode
+sql/*.bak
