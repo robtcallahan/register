@@ -26,8 +26,8 @@ import (
 // storeCmd represents the store command
 var storeCmd = &cobra.Command{
 	Use:   "store",
-	Short: "A brief description of your command",
-	Long:  `A longer description `,
+	Short: "Just a placeholder. Doesn't do anything yet.",
+	Long:  `Just a placeholder. Doesn't do anything yet.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		store(cmd, args)
 	},

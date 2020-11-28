@@ -36,8 +36,11 @@ import (
 // updateCmd represents the get command
 var updateCmd = &cobra.Command{
 	Use:   "update",
-	Short: "Get all back and CC transactions and update the Google Sheets register spreadsheet",
-	Long:  `A longer description`,
+	Short: "Reads bank transactions and updates the financial register spreadsheet",
+	Long: `Register reads bank and credit card transactions from Wells Fargo, Fidlity, Chase,
+and Citi, both the Register and Budget tabs from your Google Sheets financial spreadsheet,
+removes duplicates and updates the Register tab with new transactions subtracting those
+amounts from the appropriate budget category columns.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		update(cmd, args)
 	},
@@ -45,17 +48,12 @@ var updateCmd = &cobra.Command{
 
 func init() {
 	config = cfg.ReadConfig()
-
 	rootCmd.AddCommand(updateCmd)
-
-	updateCmd.Flags().Int64VarP(&StartRow, "start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
-	updateCmd.Flags().Int64VarP(&EndRow, "end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
-	updateCmd.Flags().StringVarP(&SpreadsheetID, "id", "i", config.SpreadsheetID, "The Google spreadsheet id")
-	updateCmd.Flags().BoolVarP(&Debug, "debug", "d", false, "Debug mode")
-	updateCmd.Flags().BoolVarP(&Test, "test", "t", false, "Test mode; no updates performed")
 }
 
 func update(cmd *cobra.Command, args []string) {
+	var err error
+
 	bankClient := banking.New(&banking.ClientOptions{
 		StartDate:     config.StartDate,
 		EndDate:       config.EndDate,
@@ -78,11 +76,10 @@ func update(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Printf("Reading Register...\n")
-	register := sheets.NewRegisterSheet(sheetService, *config, StartRow, EndRow, Debug)
-	id, err := sheetService.GetSheetID(config.TabNames["register"])
-	register.ID = id
+	regSrv := sheets.NewRegisterSheet(sheetService, *config, StartRow, EndRow, Debug)
+	regSrv.ID, err = sheetService.GetSheetID(config.TabNames["register"])
 	checkError(err)
-	register.Read()
+	regSrv.Register, regSrv.KeysMap, _ = regSrv.Read()
 
 	fmt.Println("Getting transactions...")
 	transactions := bankClient.GetTransactions()
@@ -91,7 +88,7 @@ func update(cmd *cobra.Command, args []string) {
 	transactions = bankClient.SortTransactions(transactions)
 
 	fmt.Printf("Filtering rows...\n")
-	transactions = bankClient.FilterRows(transactions, register.KeysMap)
+	transactions = bankClient.FilterRows(transactions, regSrv.KeysMap)
 
 	fmt.Println("Updating merchants...")
 	lookupData := db.GetLookupData()
@@ -110,11 +107,11 @@ func update(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Printf("Reading Budget...\n")
-	bud := sheets.NewBudgetSheet(sheetService, config.TabNames["budget"], config.BudgetStartRow, config.BudgetEndRow)
-	bud.ID, err = sheetService.GetSheetID(config.TabNames["budget"])
+	budget := sheets.NewBudgetSheet(sheetService, config.TabNames["budget"], config.BudgetStartRow, config.BudgetEndRow)
+	budget.ID, err = sheetService.GetSheetID(config.TabNames["budget"])
 	checkError(err)
-	bud.Read()
-	register.CategoriesMap = bud.CategoriesMap
+	budget.Read()
+	regSrv.CategoriesMap = budget.CategoriesMap
 
 	if len(transactions) > 0 {
 		fmt.Printf("Transaction updates...\n")
@@ -126,7 +123,7 @@ func update(cmd *cobra.Command, args []string) {
 			fmt.Printf("Updating spreadsheet...\n")
 			cols := db.GetColumns()
 			nameToCol := db.GetNameMapToColumn()
-			register.UpdateRows(cols, nameToCol, transactions)
+			regSrv.UpdateRows(cols, nameToCol, transactions)
 		}
 	} else {
 		fmt.Println("No updates needed")

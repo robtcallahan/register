@@ -20,26 +20,37 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
+	cfg "register/pkg/config"
 
-	homedir "github.com/mitchellh/go-homedir"
-	"github.com/spf13/viper"
+	"github.com/spf13/cobra"
+	// homedir "github.com/mitchellh/go-homedir"
+	// "github.com/spf13/viper"
 )
 
-var cfgFile string
+var (
+	config *cfg.Config
+	// SpreadsheetID ...
+	SpreadsheetID string
+	// StartRow ...
+	StartRow int64
+	// EndRow ...
+	EndRow int64
+	// Debug ...
+	Debug bool
+	// Test ...
+	Test bool
+
+	err error
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "register",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
+	Short: "Reads bank transactions and updates the financial register spreadsheet",
+	Long: `Register reads bank and credit card transactions from Wells Fargo, Fidlity, Chase,
+and Citi, both the Register and Budget tabs from your Google Sheets financial spreadsheet,
+removes duplicates and updates the Register tab with new transactions subtracting those
+amounts from the appropriate budget category columns.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			cmd.Help()
@@ -58,31 +69,39 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	// cobra.OnInitialize(initConfig)
+	cobra.OnInitialize()
+
+	rootCmd.Flags().Int64VarP(&StartRow, "start", "s", config.RegisterStartRow, "The first row to start reading in the spreadsheet")
+	rootCmd.Flags().Int64VarP(&EndRow, "end", "e", config.RegisterEndRow, "The last row to read in the spreadsheet")
+	rootCmd.Flags().StringVarP(&SpreadsheetID, "id", "i", config.SpreadsheetID, "The Google spreadsheet id")
+
+	rootCmd.Flags().BoolVarP(&Test, "test", "t", false, "Test mode; no updates performed")
+	rootCmd.Flags().BoolVarP(&Debug, "debug", "d", false, "Debug mode")
 }
 
 // initConfig reads in config file and ENV variables if set.
-func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Find home directory.
-		home, err := homedir.Dir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+// func initConfig() {
+// 	if cfgFile != "" {
+// 		// Use config file from the flag.
+// 		viper.SetConfigFile(cfgFile)
+// 	} else {
+// 		// Find home directory.
+// 		home, err := homedir.Dir()
+// 		if err != nil {
+// 			fmt.Println(err)
+// 			os.Exit(1)
+// 		}
 
-		// Search config in home directory with name ".register" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigName(".register")
-	}
+// 		// Search config in home directory with name ".register" (without extension).
+// 		viper.AddConfigPath(home)
+// 		viper.SetConfigName(".register")
+// 	}
 
-	viper.AutomaticEnv() // read in environment variables that match
+// 	viper.AutomaticEnv() // read in environment variables that match
 
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
-	}
-}
+// 	// If a config file is found, read it in.
+// 	if err := viper.ReadInConfig(); err == nil {
+// 		fmt.Println("Using config file:", viper.ConfigFileUsed())
+// 	}
+// }

@@ -21,12 +21,14 @@ import (
 	"log"
 
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"register/pkg/auth"
 	"register/pkg/banking"
+	"register/pkg/config"
 	cfg "register/pkg/config"
 	"register/pkg/database"
 
@@ -69,17 +71,18 @@ type BudgetSheet struct {
 
 // RegisterEntry ...
 type RegisterEntry struct {
+	RowID        int64
 	Reconciled   string
 	Source       string
 	Date         string
-	Description  string
+	Name         string
 	Amount       float64
-	Withdrawl    string
-	Deposit      string
-	CreditCard   string
-	BankRegister string
-	Cleared      string
-	Delta        string
+	Withdrawl    float32
+	Deposit      float32
+	CreditCard   float32
+	BankRegister float32
+	Cleared      float32
+	Delta        float32
 }
 
 // RegisterSheet ...
@@ -197,7 +200,7 @@ func (bs *BudgetSheet) Read() {
 }
 
 // Read ...
-func (rs *RegisterSheet) Read() {
+func (rs *RegisterSheet) Read() ([]*RegisterEntry, map[string]bool, [][]interface{}) {
 	readRange := fmt.Sprintf("%s!A%d:%s%d", rs.TabName, rs.StartRow, rs.EndColumnName, rs.EndRow)
 	resp, err := rs.Service.Spreadsheets.Values.Get(rs.SpreadsheetID, readRange).Do()
 	if err != nil {
@@ -218,8 +221,8 @@ func (rs *RegisterSheet) Read() {
 	for i := 0; int64(i) <= rs.LastRow; i += 2 {
 		values := rangeValues[i]
 
-		descr := rs.getNameField(values)
-		if descr == "VOID" || descr == "Reallocation of funds" {
+		name := rs.getNameField(values)
+		if name == "VOID" || name == "Reallocation of funds" {
 			continue
 		}
 		source := rs.getSourceField(values)
@@ -230,16 +233,17 @@ func (rs *RegisterSheet) Read() {
 		keysMap[key] = true
 
 		c := &RegisterEntry{
-			Reconciled:   "4",
+			RowID:        rs.StartRow + int64(i),
+			Reconciled:   getStringField(values, rs.Config.RegisterIndexes["Withdrawals"]),
 			Source:       source,
 			Date:         date,
-			Description:  descr,
-			Withdrawl:    getRegisterField(values, rs.Config.RegisterIndexes["Withdrawals"]),
-			Deposit:      getRegisterField(values, rs.Config.RegisterIndexes["Deposits"]),
-			CreditCard:   getCCRegisterField(values, rs.Config.RegisterIndexes["CreditCards"]),
-			BankRegister: getRegisterField(values, rs.Config.RegisterIndexes["BankRegister"]),
-			Cleared:      getRegisterField(values, rs.Config.RegisterIndexes["Cleared"]),
-			Delta:        getRegisterField(values, rs.Config.RegisterIndexes["Delta"]),
+			Name:         name,
+			Withdrawl:    rs.GetRegisterField(values, rs.Config.RegisterIndexes["Withdrawals"]),
+			Deposit:      rs.GetRegisterField(values, rs.Config.RegisterIndexes["Deposits"]),
+			CreditCard:   rs.GetRegisterField(values, rs.Config.RegisterIndexes["CreditCards"]),
+			BankRegister: rs.GetRegisterField(values, rs.Config.RegisterIndexes["BankRegister"]),
+			Cleared:      rs.GetRegisterField(values, rs.Config.RegisterIndexes["Cleared"]),
+			Delta:        rs.GetRegisterField(values, rs.Config.RegisterIndexes["Delta"]),
 		}
 		register = append(register, c)
 
@@ -248,8 +252,28 @@ func (rs *RegisterSheet) Read() {
 			break
 		}
 	}
-	rs.KeysMap = keysMap
-	rs.Register = register
+	return register, keysMap, rangeValues
+}
+
+// ReadCategoryHeads ...
+func (rs *RegisterSheet) ReadCategoryHeads(debug bool) []database.Column {
+	// readRange := fmt.Sprintf("%s!A1:%s1", rs.TabName, rs.Config.RegisterCategoryEndColumn)
+	// resp, err := rs.Service.Spreadsheets.Values.Get(rs.SpreadsheetID, readRange).Do()
+	// if err != nil {
+	// 	log.Fatalf("unable to retrieve data from sheet: %v", err)
+	// }
+	// values := resp.ValueRanges[0].Values
+	// if len(values) == 0 {
+	// 	log.Fatalf("No data found")
+	// }
+
+	db := database.New(database.ConfigParams{
+		Debug:      debug,
+		DBName:     rs.Config.DBName,
+		DBUsername: rs.Config.DBUsername,
+		DBPassword: rs.Config.DBPassword,
+	})
+	return db.GetColumns()
 }
 
 // CopyRows ...
@@ -350,7 +374,7 @@ func (rs *RegisterSheet) UpdateRows(columns []database.Column, nameToCol map[str
 }
 
 func (rs *RegisterSheet) populateCells(columns []database.Column, nameToCol map[string]string, transactions []*banking.Transaction) []*sheets.RowData {
-	// rows willl be returned be added to the sheet
+	// rows will be returned be added to the sheet
 	rows := []*sheets.RowData{}
 	// this is the first empty row to be updated
 	rowIndex := rs.FirstRowToUpdate
@@ -461,6 +485,229 @@ func (rs *RegisterSheet) populateCells(columns []database.Column, nameToCol map[
 	return rows
 }
 
+// UpdateMonthlyCategories ...
+func (ss *SheetService) UpdateMonthlyCategories(tabName string, catAgg map[string]map[string]float64, columns []database.Column) {
+	requests := []*sheets.Request{}
+	rows := populateMonthlyCategories(catAgg, columns)
+	id, err := ss.GetSheetID(tabName)
+	checkError(err)
+
+	gc := &sheets.GridCoordinate{
+		SheetId:     id,
+		RowIndex:    0,
+		ColumnIndex: 0,
+	}
+	updateCellsRequest := sheets.UpdateCellsRequest{
+		Fields: "*",
+		Rows:   rows,
+		Start:  gc,
+	}
+
+	request := sheets.Request{
+		UpdateCells: &updateCellsRequest,
+	}
+	requests = append(requests, &request)
+
+	// create the batch request
+	batchUpdateRequest := sheets.BatchUpdateSpreadsheetRequest{
+		Requests: requests,
+	}
+
+	// execute the request
+	_, err = ss.Service.Spreadsheets.BatchUpdate(config.ReadConfig().SpreadsheetID, &batchUpdateRequest).Do()
+	if err != nil {
+		log.Fatalf("could not perform update action: %v", err)
+	}
+}
+
+func populateMonthlyCategories(catAgg map[string]map[string]float64, cats []database.Column) []*sheets.RowData {
+	rows := []*sheets.RowData{}
+	bgColor := "white"
+	border := false
+
+	// sort the months
+	mKeys := make([]string, 0, len(catAgg))
+	for m := range catAgg {
+		mKeys = append(mKeys, m)
+	}
+	sort.Strings(mKeys)
+
+	// create first row of months
+	cells := []*sheets.CellData{}
+
+	// first cell is blank
+	bgColor = "grey"
+	cells = append(cells, mkBoldStringCell("Category", "left", bgColor, border))
+
+	// the rest of the months on the top row
+	for i := 0; i < len(mKeys); i++ {
+		m := mKeys[i]
+		cells = append(cells, mkBoldStringCell(m, "center", bgColor, border))
+	}
+	// summary columns
+	cells = append(cells, mkBoldStringCell("Yearly Totals", "center", bgColor, border))
+	cells = append(cells, mkBoldStringCell("Monthly Average", "center", bgColor, border))
+
+	// add the cells to the row
+	row := &sheets.RowData{Values: cells}
+	rows = append(rows, row)
+
+	// now all the category rows
+	r := 2
+	for i := 10; i < len(cats); i++ {
+		c := cats[i]
+		cells := []*sheets.CellData{}
+
+		bgColor = "lightgrey"
+		if i%2 == 0 {
+			bgColor = "white"
+		}
+
+		// 1st column: category name
+		cells = append(cells, mkBoldStringCell(c.Name, "left", bgColor, border))
+
+		// remaining columns: $value for each month
+		for i := 0; i < len(mKeys); i++ {
+			m := mKeys[i]
+			cells = append(cells, mkDollarsCell(catAgg[m][c.Name], "right", bgColor, border))
+		}
+
+		// add the totals and average in last 2 columns
+		f := mkDollarsCellFromFormulaString(fmt.Sprintf("=SUM(B%d:L%d) * -1", r, r), "right", bgColor, border)
+		f.UserEnteredFormat.TextFormat.Bold = true
+		cells = append(cells, f)
+		f = mkDollarsCellFromFormulaString(fmt.Sprintf("=AVERAGE(B%d:L%d) * -1", r, r), "right", bgColor, border)
+		f.UserEnteredFormat.TextFormat.Bold = true
+		cells = append(cells, f)
+		r++
+
+		// add the cells to the row
+		row := &sheets.RowData{Values: cells}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+// UpdateMonthlyPayees ...
+func (ss *SheetService) UpdateMonthlyPayees(tabName string, catAgg map[string]map[string]float64, columns []database.Column) {
+	requests := []*sheets.Request{}
+	rows := populateMonthlyPayees(catAgg, columns)
+	id, err := ss.GetSheetID(tabName)
+	checkError(err)
+
+	gc := &sheets.GridCoordinate{
+		SheetId:     id,
+		RowIndex:    0,
+		ColumnIndex: 0,
+	}
+	updateCellsRequest := sheets.UpdateCellsRequest{
+		Fields: "*",
+		Rows:   rows,
+		Start:  gc,
+	}
+
+	request := sheets.Request{
+		UpdateCells: &updateCellsRequest,
+	}
+	requests = append(requests, &request)
+
+	// create the batch request
+	batchUpdateRequest := sheets.BatchUpdateSpreadsheetRequest{
+		Requests: requests,
+	}
+
+	// execute the request
+	_, err = ss.Service.Spreadsheets.BatchUpdate(config.ReadConfig().SpreadsheetID, &batchUpdateRequest).Do()
+	if err != nil {
+		log.Fatalf("could not perform update action: %v", err)
+	}
+}
+
+func populateMonthlyPayees(payeeAgg map[string]map[string]float64, cols []database.Column) []*sheets.RowData {
+	rows := []*sheets.RowData{}
+	bgColor := "white"
+	border := false
+
+	// sort the months
+	mKeys := make([]string, 0, len(payeeAgg))
+	for m := range payeeAgg {
+		mKeys = append(mKeys, m)
+	}
+	sort.Strings(mKeys)
+
+	// create first row of months
+	cells := []*sheets.CellData{}
+
+	// first cell is blank
+	bgColor = "grey"
+	cells = append(cells, mkBoldStringCell("Payee", "left", bgColor, border))
+
+	// the rest of the months on the top row
+	for i := 0; i < len(payeeAgg); i++ {
+		m := mKeys[i]
+		cells = append(cells, mkBoldStringCell(m, "center", bgColor, border))
+	}
+
+	// summary columns
+	cells = append(cells, mkBoldStringCell("Yearly Totals", "center", bgColor, border))
+	cells = append(cells, mkBoldStringCell("Monthly Average", "center", bgColor, border))
+
+	// add the cells to the row
+	row := &sheets.RowData{Values: cells}
+	rows = append(rows, row)
+
+	// make a map of payees
+	pMap := make(map[string]bool)
+	for k := range payeeAgg {
+		for p := range payeeAgg[k] {
+			pMap[p] = true
+		}
+	}
+
+	// sort the payees
+	pKeys := make([]string, 0, len(payeeAgg))
+	for k := range pMap {
+		pKeys = append(pKeys, k)
+	}
+	sort.Strings(pKeys)
+
+	// now all the payee rows
+	r := 2
+	for i := 0; i < len(pKeys); i++ {
+		p := pKeys[i]
+		cells := []*sheets.CellData{}
+
+		bgColor = "lightgrey"
+		if i%2 == 0 {
+			bgColor = "white"
+		}
+
+		// 1st column: payee name
+		cells = append(cells, mkBoldStringCell(p, "left", bgColor, border))
+
+		// remaining columns: $value for each month
+		for i := 0; i < len(mKeys); i++ {
+			m := mKeys[i]
+			cells = append(cells, mkDollarsCell(payeeAgg[m][p], "right", bgColor, border))
+		}
+
+		// add the totals and average in last 2 columns
+		f := mkDollarsCellFromFormulaString(fmt.Sprintf("=SUM(B%d:L%d) * -1", r, r), "right", bgColor, border)
+		f.UserEnteredFormat.TextFormat.Bold = true
+		cells = append(cells, f)
+		f = mkDollarsCellFromFormulaString(fmt.Sprintf("=AVERAGE(B%d:L%d) * -1", r, r), "right", bgColor, border)
+		f.UserEnteredFormat.TextFormat.Bold = true
+		cells = append(cells, f)
+		r++
+
+		// add the cells to the row
+		row := &sheets.RowData{Values: cells}
+		rows = append(rows, row)
+
+	}
+	return rows
+}
+
 func mkStringCell(value, align, color string, bordersOn bool) *sheets.CellData {
 	return &sheets.CellData{
 		UserEnteredValue: &sheets.ExtendedValue{
@@ -468,6 +715,17 @@ func mkStringCell(value, align, color string, bordersOn bool) *sheets.CellData {
 		},
 		UserEnteredFormat: formatCell(align, color, bordersOn),
 	}
+}
+
+func mkBoldStringCell(value, align, color string, bordersOn bool) *sheets.CellData {
+	c := sheets.CellData{
+		UserEnteredValue: &sheets.ExtendedValue{
+			StringValue: &value,
+		},
+		UserEnteredFormat: formatCell(align, color, bordersOn),
+	}
+	c.UserEnteredFormat.TextFormat.Bold = true
+	return &c
 }
 
 func mkNumberCell(value float32, align, color string, bordersOn bool) *sheets.CellData {
@@ -632,6 +890,18 @@ func color(name string) *sheets.Color {
 			Red:   0,
 			Green: 0.8,
 		},
+		"lightgrey": {
+			Alpha: 1,
+			Blue:  0.937,
+			Red:   0.937,
+			Green: 0.937,
+		},
+		"grey": {
+			Alpha: 1,
+			Blue:  0.8,
+			Red:   0.8,
+			Green: 0.8,
+		},
 	}
 	return colors[name]
 }
@@ -671,20 +941,39 @@ func (rs *RegisterSheet) getAmountFieldForKey(values []interface{}) string {
 	return amt
 }
 
-func getRegisterField(values []interface{}, i int) string {
-	re := regexp.MustCompile(`[\s\$,]`)
-	return re.ReplaceAllString(fmt.Sprintf("%s", values[i]), "")
+func getStringField(values []interface{}, i int) string {
+	return fmt.Sprintf("%v", values[i])
 }
 
-func getCCRegisterField(values []interface{}, i int) string {
-	re := regexp.MustCompile(`[\s\$,]`)
-	amt := re.ReplaceAllString(fmt.Sprintf("%s", values[i]), "")
+func getIntField(values []interface{}, i int) int {
+	v := fmt.Sprintf("%s", values[i])
+	amt, err := strconv.Atoi(v)
+	if v == "" {
+		return 0
+	}
+	checkError(err)
+	return amt
+}
+
+// GetRegisterField ...
+func (rs *RegisterSheet) GetRegisterField(values []interface{}, i int) float32 {
+	amt := fmt.Sprintf("%s", values[i])
+	re := regexp.MustCompile(`[\s\$,-]`)
+	amt = re.ReplaceAllString(amt, "")
+	if amt == "" {
+		return 0
+	}
 
 	re = regexp.MustCompile(`[\(\)]`)
 	if re.Match([]byte(amt)) {
 		amt = "-" + re.ReplaceAllString(amt, "")
 	}
-	return amt
+	f, err := strconv.ParseFloat(amt, 32)
+	if err != nil {
+		fmt.Printf("error: amt: %s\n", amt)
+		panic(err)
+	}
+	return float32(f)
 }
 
 func (rs *RegisterSheet) getDateField(values []interface{}) string {

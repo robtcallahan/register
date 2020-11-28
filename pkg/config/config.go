@@ -39,31 +39,35 @@ type BankInfo struct {
 
 // Config ...
 type Config struct {
-	DBName               string              `json:"db_name"`
-	DBUsername           string              `json:"db_username"`
-	DBPassword           string              `json:"db_password"`
-	StartDate            string              `json:"start_date"`
-	EndDate              string              `json:"end_date"`
-	PlaidClientID        string              `json:"plaid_client_id"`
-	PlaidSecret          string              `json:"plaid_secret"`
-	BankInfo             map[string]BankInfo `json:"bank_info"`
-	SpreadsheetID        string              `json:"spreadsheet_id"`
-	SpreadsheetTestID    string              `json:"spreadsheet_test_id"`
-	CreditCardColumnName string              `json:"credit_card_column_name"`
-	FinanceDir           string              `json:"finance_dir"`
-	PaycheckName         string              `json:"paycheck_name"`
-	BudgetStartRow       int64               `json:"budget_start_row"`
-	BudgetEndRow         int64               `json:"budget_end_row"`
-	RegisterStartRow     int64               `json:"register_start_row"`
-	RegisterEndRow       int64               `json:"register_end_row"`
-	TabNames             map[string]string   `json:"tab_names"`
-	RegisterIndexes      map[string]int      `json:"register_indexes"`
-	ColumnIndexes        map[string]int64    `json:"column_indexes"`
+	DBName                      string              `json:"db_name"`
+	DBUsername                  string              `json:"db_username"`
+	DBPassword                  string              `json:"db_password"`
+	StartDate                   string              `json:"start_date"`
+	EndDate                     string              `json:"end_date"`
+	PlaidClientID               string              `json:"plaid_client_id"`
+	PlaidSecret                 string              `json:"plaid_secret"`
+	BankInfo                    map[string]BankInfo `json:"bank_info"`
+	SpreadsheetID               string              `json:"spreadsheet_id"`
+	SpreadsheetTestID           string              `json:"spreadsheet_test_id"`
+	CreditCardColumnName        string              `json:"credit_card_column_name"`
+	RegisterSheetID             string              `json:"register_sheet_id"`
+	BudgetSheetID               string              `json:"budget_sheet_id"`
+	FinanceDir                  string              `json:"finance_dir"`
+	PaycheckName                string              `json:"paycheck_name"`
+	BudgetStartRow              int64               `json:"budget_start_row"`
+	BudgetEndRow                int64               `json:"budget_end_row"`
+	RegisterStartRow            int64               `json:"register_start_row"`
+	RegisterEndRow              int64               `json:"register_end_row"`
+	TabNames                    map[string]string   `json:"tab_names"`
+	RegisterCategoryStartColumn string              `json:"register_category_start_column"`
+	RegisterCategoryEndColumn   string              `json:"register_category_end_column"`
+	RegisterIndexes             map[string]int      `json:"register_indexes"`
+	ColumnIndexes               map[string]int64    `json:"column_indexes"`
 }
 
 // ReadConfig ...
 func ReadConfig() *Config {
-	contents, err := ioutil.ReadFile("/Users/rob/workspace/go/src/register/config.json")
+	contents, err := ioutil.ReadFile("config/config.json")
 	checkError(err)
 
 	var config Config = Config{}

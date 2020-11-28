@@ -28,8 +28,9 @@ import (
 // copyCmd represents the copy command
 var copyCmd = &cobra.Command{
 	Use:   "copy",
-	Short: "A brief description of your command",
-	Long:  `A longer description.`,
+	Short: "Copies the last 2 rows of the Register spreadsheet -c <num> times",
+	Long: `Copies the last 2 rows of the Register spreadsheet then numer of times
+specified using the -c <num> or --copy <num> options. `,
 	Run: func(cmd *cobra.Command, args []string) {
 		copy(cmd, args)
 	},
@@ -40,6 +41,7 @@ func init() {
 	config = cfg.ReadConfig()
 
 	copyCmd.Flags().IntP("copies", "c", 0, "The number of times to copy the last 2 rows")
+	copyCmd.MarkFlagRequired("copies")
 	copyCmd.Flags().Int64P("start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
 	copyCmd.Flags().Int64P("end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
 	copyCmd.Flags().StringP("id", "i", config.SpreadsheetID, "The Google spreadsheet id")
