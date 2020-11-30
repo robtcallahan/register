@@ -255,27 +255,6 @@ func (rs *RegisterSheet) Read() ([]*RegisterEntry, map[string]bool, [][]interfac
 	return register, keysMap, rangeValues
 }
 
-// ReadCategoryHeads ...
-func (rs *RegisterSheet) ReadCategoryHeads(debug bool) []database.Column {
-	// readRange := fmt.Sprintf("%s!A1:%s1", rs.TabName, rs.Config.RegisterCategoryEndColumn)
-	// resp, err := rs.Service.Spreadsheets.Values.Get(rs.SpreadsheetID, readRange).Do()
-	// if err != nil {
-	// 	log.Fatalf("unable to retrieve data from sheet: %v", err)
-	// }
-	// values := resp.ValueRanges[0].Values
-	// if len(values) == 0 {
-	// 	log.Fatalf("No data found")
-	// }
-
-	db := database.New(database.ConfigParams{
-		Debug:      debug,
-		DBName:     rs.Config.DBName,
-		DBUsername: rs.Config.DBUsername,
-		DBPassword: rs.Config.DBPassword,
-	})
-	return db.GetColumns()
-}
-
 // CopyRows ...
 func (rs *RegisterSheet) CopyRows(numCopies int) {
 	// loop to copy NumberOfCopy times
@@ -487,116 +466,25 @@ func (rs *RegisterSheet) populateCells(columns []database.Column, nameToCol map[
 
 // UpdateMonthlyCategories ...
 func (ss *SheetService) UpdateMonthlyCategories(tabName string, catAgg map[string]map[string]float64, columns []database.Column) {
-	requests := []*sheets.Request{}
 	rows := populateMonthlyCategories(catAgg, columns)
+
 	id, err := ss.GetSheetID(tabName)
 	checkError(err)
 
-	gc := &sheets.GridCoordinate{
-		SheetId:     id,
-		RowIndex:    0,
-		ColumnIndex: 0,
-	}
-	updateCellsRequest := sheets.UpdateCellsRequest{
-		Fields: "*",
-		Rows:   rows,
-		Start:  gc,
-	}
-
-	request := sheets.Request{
-		UpdateCells: &updateCellsRequest,
-	}
-	requests = append(requests, &request)
-
-	// create the batch request
-	batchUpdateRequest := sheets.BatchUpdateSpreadsheetRequest{
-		Requests: requests,
-	}
-
-	// execute the request
-	_, err = ss.Service.Spreadsheets.BatchUpdate(config.ReadConfig().SpreadsheetID, &batchUpdateRequest).Do()
-	if err != nil {
-		log.Fatalf("could not perform update action: %v", err)
-	}
-}
-
-func populateMonthlyCategories(catAgg map[string]map[string]float64, cats []database.Column) []*sheets.RowData {
-	rows := []*sheets.RowData{}
-	bgColor := "white"
-	border := false
-
-	// sort the months
-	mKeys := make([]string, 0, len(catAgg))
-	for m := range catAgg {
-		mKeys = append(mKeys, m)
-	}
-	sort.Strings(mKeys)
-
-	// create first row of months
-	cells := []*sheets.CellData{}
-
-	// first cell is blank
-	bgColor = "grey"
-	cells = append(cells, mkBoldStringCell("Category", "left", bgColor, border))
-
-	// the rest of the months on the top row
-	for i := 0; i < len(mKeys); i++ {
-		m := mKeys[i]
-		cells = append(cells, mkBoldStringCell(m, "center", bgColor, border))
-	}
-	// summary columns
-	cells = append(cells, mkBoldStringCell("Yearly Totals", "center", bgColor, border))
-	cells = append(cells, mkBoldStringCell("Monthly Average", "center", bgColor, border))
-
-	// add the cells to the row
-	row := &sheets.RowData{Values: cells}
-	rows = append(rows, row)
-
-	// now all the category rows
-	r := 2
-	for i := 10; i < len(cats); i++ {
-		c := cats[i]
-		cells := []*sheets.CellData{}
-
-		bgColor = "lightgrey"
-		if i%2 == 0 {
-			bgColor = "white"
-		}
-
-		// 1st column: category name
-		cells = append(cells, mkBoldStringCell(c.Name, "left", bgColor, border))
-
-		// remaining columns: $value for each month
-		for i := 0; i < len(mKeys); i++ {
-			m := mKeys[i]
-			cells = append(cells, mkDollarsCell(catAgg[m][c.Name], "right", bgColor, border))
-		}
-
-		// add the totals and average in last 2 columns
-		f := mkDollarsCellFromFormulaString(fmt.Sprintf("=SUM(B%d:L%d) * -1", r, r), "right", bgColor, border)
-		f.UserEnteredFormat.TextFormat.Bold = true
-		cells = append(cells, f)
-		f = mkDollarsCellFromFormulaString(fmt.Sprintf("=AVERAGE(B%d:L%d) * -1", r, r), "right", bgColor, border)
-		f.UserEnteredFormat.TextFormat.Bold = true
-		cells = append(cells, f)
-		r++
-
-		// add the cells to the row
-		row := &sheets.RowData{Values: cells}
-		rows = append(rows, row)
-	}
-	return rows
+	ss.updateMonthly(id, rows)
 }
 
 // UpdateMonthlyPayees ...
 func (ss *SheetService) UpdateMonthlyPayees(tabName string, catAgg map[string]map[string]float64, columns []database.Column) {
-	requests := []*sheets.Request{}
 	rows := populateMonthlyPayees(catAgg, columns)
 	id, err := ss.GetSheetID(tabName)
 	checkError(err)
+	ss.updateMonthly(id, rows)
+}
 
+func (ss *SheetService) updateMonthly(sheetID int64, rows []*sheets.RowData) {
 	gc := &sheets.GridCoordinate{
-		SheetId:     id,
+		SheetId:     sheetID,
 		RowIndex:    0,
 		ColumnIndex: 0,
 	}
@@ -606,6 +494,7 @@ func (ss *SheetService) UpdateMonthlyPayees(tabName string, catAgg map[string]ma
 		Start:  gc,
 	}
 
+	requests := []*sheets.Request{}
 	request := sheets.Request{
 		UpdateCells: &updateCellsRequest,
 	}
@@ -617,95 +506,128 @@ func (ss *SheetService) UpdateMonthlyPayees(tabName string, catAgg map[string]ma
 	}
 
 	// execute the request
-	_, err = ss.Service.Spreadsheets.BatchUpdate(config.ReadConfig().SpreadsheetID, &batchUpdateRequest).Do()
-	if err != nil {
-		log.Fatalf("could not perform update action: %v", err)
-	}
+	_, err := ss.Service.Spreadsheets.BatchUpdate(config.ReadConfig().SpreadsheetID, &batchUpdateRequest).Do()
+	checkError(err)
+}
+
+func populateMonthlyCategories(catAgg map[string]map[string]float64, cats []database.Column) []*sheets.RowData {
+	// sort the months
+	months := sortKeys(&catAgg)
+
+	// add the top row of months
+	rows := addSummaryTopRow(months)
+
+	// make a hash of column names
+	cNames := columnNames(cats)
+
+	// now all the category rows
+	rows = addSummaryRows(rows, catAgg, months, cNames)
+
+	return rows
 }
 
 func populateMonthlyPayees(payeeAgg map[string]map[string]float64, cols []database.Column) []*sheets.RowData {
-	rows := []*sheets.RowData{}
-	bgColor := "white"
-	border := false
-
 	// sort the months
-	mKeys := make([]string, 0, len(payeeAgg))
-	for m := range payeeAgg {
-		mKeys = append(mKeys, m)
-	}
-	sort.Strings(mKeys)
+	months := sortKeys(&payeeAgg)
+
+	// add the top row of months
+	rows := addSummaryTopRow(months)
+
+	// make a has of payees and sort
+	payees := sortKeys(&payeeAgg)
+
+	// now all the payee rows
+	rows = addSummaryRows(rows, payeeAgg, months, payees)
+
+	return rows
+}
+
+func addSummaryTopRow(months *[]string) []*sheets.RowData {
+	rows := []*sheets.RowData{}
+	border := false
+	bgColor := "grey"
 
 	// create first row of months
 	cells := []*sheets.CellData{}
 
 	// first cell is blank
-	bgColor = "grey"
-	cells = append(cells, mkBoldStringCell("Payee", "left", bgColor, border))
+	cells = append(cells, mkBoldStringCell("Category", "left", bgColor, border))
 
 	// the rest of the months on the top row
-	for i := 0; i < len(payeeAgg); i++ {
-		m := mKeys[i]
+	for i := 0; i < len(*months); i++ {
+		m := (*months)[i]
 		cells = append(cells, mkBoldStringCell(m, "center", bgColor, border))
 	}
-
 	// summary columns
 	cells = append(cells, mkBoldStringCell("Yearly Totals", "center", bgColor, border))
 	cells = append(cells, mkBoldStringCell("Monthly Average", "center", bgColor, border))
 
 	// add the cells to the row
 	row := &sheets.RowData{Values: cells}
-	rows = append(rows, row)
+	return append(rows, row)
+}
 
-	// make a map of payees
-	pMap := make(map[string]bool)
-	for k := range payeeAgg {
-		for p := range payeeAgg[k] {
-			pMap[p] = true
-		}
-	}
+func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float64, months, cats *[]string) []*sheets.RowData {
+	border := false
+	row := 2
+	d := 10
 
-	// sort the payees
-	pKeys := make([]string, 0, len(payeeAgg))
-	for k := range pMap {
-		pKeys = append(pKeys, k)
-	}
-	sort.Strings(pKeys)
-
-	// now all the payee rows
-	r := 2
-	for i := 0; i < len(pKeys); i++ {
-		p := pKeys[i]
+	for i := 0; i < len(*cats)-d; i++ {
+		c := (*cats)[d]
 		cells := []*sheets.CellData{}
 
-		bgColor = "lightgrey"
-		if i%2 == 0 {
-			bgColor = "white"
-		}
+		// rowColor(rowIndex, even_color, odd_color)
+		bgColor := rowColor(i, "white", "lightgrey")
 
-		// 1st column: payee name
-		cells = append(cells, mkBoldStringCell(p, "left", bgColor, border))
+		// 1st column: category name
+		cells = append(cells, mkBoldStringCell(c, "left", bgColor, border))
 
 		// remaining columns: $value for each month
-		for i := 0; i < len(mKeys); i++ {
-			m := mKeys[i]
-			cells = append(cells, mkDollarsCell(payeeAgg[m][p], "right", bgColor, border))
+		for i := 0; i < len(*months); i++ {
+			m := (*months)[i]
+			cells = append(cells, mkDollarsCell(aggData[m][c], "right", bgColor, border))
 		}
 
 		// add the totals and average in last 2 columns
-		f := mkDollarsCellFromFormulaString(fmt.Sprintf("=SUM(B%d:L%d) * -1", r, r), "right", bgColor, border)
+		f := mkDollarsCellFromFormulaString(fmt.Sprintf("=SUM(B%d:L%d) * -1", row, row), "right", bgColor, border)
 		f.UserEnteredFormat.TextFormat.Bold = true
 		cells = append(cells, f)
-		f = mkDollarsCellFromFormulaString(fmt.Sprintf("=AVERAGE(B%d:L%d) * -1", r, r), "right", bgColor, border)
+		f = mkDollarsCellFromFormulaString(fmt.Sprintf("=AVERAGE(B%d:L%d) * -1", row, row), "right", bgColor, border)
 		f.UserEnteredFormat.TextFormat.Bold = true
 		cells = append(cells, f)
-		r++
+
+		row++
+		d++
 
 		// add the cells to the row
 		row := &sheets.RowData{Values: cells}
 		rows = append(rows, row)
-
 	}
 	return rows
+}
+
+func rowColor(i int, even, odd string) string {
+	if i%2 == 0 {
+		return "white"
+	}
+	return "lightgrey"
+}
+
+func sortKeys(aggMap *map[string]map[string]float64) *[]string {
+	keys := make([]string, 0, len(*aggMap))
+	for k := range *aggMap {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return &keys
+}
+
+func columnNames(cats []database.Column) *[]string {
+	names := make([]string, 0, len(cats))
+	for _, c := range cats {
+		names = append(names, c.Name)
+	}
+	return &names
 }
 
 func mkStringCell(value, align, color string, bordersOn bool) *sheets.CellData {

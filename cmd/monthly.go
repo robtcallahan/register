@@ -29,25 +29,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// chartsCmd represents the charts command
-var chartsCmd = &cobra.Command{
-	Use:   "charts",
-	Short: "Charts aggregates monthly budget category expenses and creates tables and charts",
-	Long:  `Charts aggregates monthly budget category expenses and creates tables and charts`,
+// monthlyCmd represents the monthly command
+var monthlyCmd = &cobra.Command{
+	Use:   "monthly",
+	Short: "Monthly aggregates monthly budget category expenses and updates the montly summary tabs",
+	Long:  `Monthly aggregates monthly budget category expenses and updates the montly summary tabs`,
 	Run: func(cmd *cobra.Command, args []string) {
-		chart(cmd, args)
+		monthly(cmd, args)
 	},
 }
 
 func init() {
 	config = cfg.ReadConfig()
 
-	rootCmd.AddCommand(chartsCmd)
+	rootCmd.AddCommand(monthlyCmd)
 
 	// 4698
 }
 
-func chart(cmd *cobra.Command, args []string) {
+func monthly(cmd *cobra.Command, args []string) {
 	sheetService := &sheets.SheetService{
 		Service:       sheets.NewService(),
 		SpreadsheetID: SpreadsheetID,
@@ -100,6 +100,6 @@ func chart(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Println("Updating...")
-	sheetService.UpdateMonthlyCategories("Monthly - Categories", catAgg, cols)
-	sheetService.UpdateMonthlyPayees("Monthly - Payees", payeeAgg, cols)
+	sheetService.UpdateMonthlyCategories("MonthlyCategories", catAgg, cols)
+	sheetService.UpdateMonthlyPayees("MonthlyPayees", payeeAgg, cols)
 }

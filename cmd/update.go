@@ -103,7 +103,7 @@ func update(cmd *cobra.Command, args []string) {
 
 	if needInfo := needInfo(transactions); needInfo {
 		fmt.Println("Info needed...")
-		transactions = getInfo(db, transactions)
+		transactions = getBankNameToName(db, transactions)
 	}
 
 	fmt.Printf("Reading Budget...\n")
@@ -139,7 +139,7 @@ func needInfo(trans []*banking.Transaction) bool {
 	return false
 }
 
-func getInfo(db *database.Client, trans []*banking.Transaction) []*banking.Transaction {
+func getBankNameToName(db *database.Client, trans []*banking.Transaction) []*banking.Transaction {
 	cols := db.GetColumns()
 	filter := []database.Column{}
 	re := regexp.MustCompile(`old-\d+`)
