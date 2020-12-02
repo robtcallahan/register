@@ -19,7 +19,7 @@ package cmd
 import (
 	"fmt"
 	cfg "register/pkg/config"
-	"register/pkg/database"
+	repo "register/pkg/repository"
 
 	"github.com/spf13/cobra"
 )
@@ -44,14 +44,13 @@ func init() {
 }
 
 func store(cmd *cobra.Command, args []string) {
-	db := database.New(database.ConfigParams{
+	r := repo.Repository.NewRepository(&repo.NewRepositoryParams{
 		Debug:      Debug,
 		DBName:     config.DBName,
 		DBUsername: config.DBUsername,
 		DBPassword: config.DBPassword,
 	})
-
-	cols := db.GetColumns()
+	cols := r.GetColumns()
 	for i := 0; i < 10; i++ {
 		c := cols[i]
 		fmt.Printf("%s\n", c.Name)

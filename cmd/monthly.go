@@ -23,7 +23,7 @@ import (
 	// "strconv"
 
 	cfg "register/pkg/config"
-	"register/pkg/database"
+	repo "register/pkg/repository"
 	"register/pkg/sheets"
 
 	"github.com/spf13/cobra"
@@ -53,7 +53,7 @@ func monthly(cmd *cobra.Command, args []string) {
 		SpreadsheetID: SpreadsheetID,
 	}
 
-	db := database.New(database.ConfigParams{
+	db := repo.NewRepository(repo.NewRepositoryParams{
 		Debug:      Debug,
 		DBName:     config.DBName,
 		DBUsername: config.DBUsername,

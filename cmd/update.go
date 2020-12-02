@@ -27,7 +27,7 @@ import (
 
 	"register/pkg/banking"
 	cfg "register/pkg/config"
-	"register/pkg/database"
+	repo "register/pkg/repository"
 	"register/pkg/sheets"
 
 	"github.com/spf13/cobra"
@@ -63,7 +63,7 @@ func update(cmd *cobra.Command, args []string) {
 		PlaidSecret:   config.PlaidSecret,
 	})
 
-	db := database.New(database.ConfigParams{
+	db := repo.NewRepository(repo.NewRepositoryParams{
 		Debug:      Debug,
 		DBName:     config.DBName,
 		DBUsername: config.DBUsername,
@@ -139,9 +139,9 @@ func needInfo(trans []*banking.Transaction) bool {
 	return false
 }
 
-func getBankNameToName(db *database.Client, trans []*banking.Transaction) []*banking.Transaction {
+func getBankNameToName(db *mysql.db, trans []*banking.Transaction) []*banking.Transaction {
 	cols := db.GetColumns()
-	filter := []database.Column{}
+	filter := []repo.Column{}
 	re := regexp.MustCompile(`old-\d+`)
 	for _, c := range cols {
 		chk := re.Match([]byte(c.Name))
@@ -181,7 +181,7 @@ func getBankNameToName(db *database.Client, trans []*banking.Transaction) []*ban
 			colInx, _ := strconv.Atoi(s)
 			trans[i].ColumnIndex = colInx
 
-			db.CreateMerchant(&database.Merchant{
+			db.CreateMerchant(&repo.Merchant{
 				Name:     name,
 				BankName: t.BankName,
 				ColumnID: colInx,

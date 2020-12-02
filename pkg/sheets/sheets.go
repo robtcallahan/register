@@ -30,7 +30,7 @@ import (
 	"register/pkg/banking"
 	"register/pkg/config"
 	cfg "register/pkg/config"
-	"register/pkg/database"
+	repo "register/pkg/repository"
 
 	"google.golang.org/api/sheets/v4"
 )
@@ -320,7 +320,7 @@ func (rs *RegisterSheet) readRange(readRange string) []string {
 }
 
 // UpdateRows ...
-func (rs *RegisterSheet) UpdateRows(columns []database.Column, nameToCol map[string]string, transactions []*banking.Transaction) {
+func (rs *RegisterSheet) UpdateRows(columns []repo.Column, nameToCol map[string]string, transactions []*banking.Transaction) {
 	requests := []*sheets.Request{}
 	rows := rs.populateCells(columns, nameToCol, transactions)
 
@@ -352,7 +352,7 @@ func (rs *RegisterSheet) UpdateRows(columns []database.Column, nameToCol map[str
 	}
 }
 
-func (rs *RegisterSheet) populateCells(columns []database.Column, nameToCol map[string]string, transactions []*banking.Transaction) []*sheets.RowData {
+func (rs *RegisterSheet) populateCells(columns []repo.Column, nameToCol map[string]string, transactions []*banking.Transaction) []*sheets.RowData {
 	// rows will be returned be added to the sheet
 	rows := []*sheets.RowData{}
 	// this is the first empty row to be updated
@@ -465,7 +465,7 @@ func (rs *RegisterSheet) populateCells(columns []database.Column, nameToCol map[
 }
 
 // UpdateMonthlyCategories ...
-func (ss *SheetService) UpdateMonthlyCategories(tabName string, catAgg map[string]map[string]float64, columns []database.Column) {
+func (ss *SheetService) UpdateMonthlyCategories(tabName string, catAgg map[string]map[string]float64, columns []repo.Column) {
 	rows := populateMonthlyCategories(catAgg, columns)
 
 	id, err := ss.GetSheetID(tabName)
@@ -475,7 +475,7 @@ func (ss *SheetService) UpdateMonthlyCategories(tabName string, catAgg map[strin
 }
 
 // UpdateMonthlyPayees ...
-func (ss *SheetService) UpdateMonthlyPayees(tabName string, catAgg map[string]map[string]float64, columns []database.Column) {
+func (ss *SheetService) UpdateMonthlyPayees(tabName string, catAgg map[string]map[string]float64, columns []repo.Column) {
 	rows := populateMonthlyPayees(catAgg, columns)
 	id, err := ss.GetSheetID(tabName)
 	checkError(err)
@@ -510,7 +510,7 @@ func (ss *SheetService) updateMonthly(sheetID int64, rows []*sheets.RowData) {
 	checkError(err)
 }
 
-func populateMonthlyCategories(catAgg map[string]map[string]float64, cats []database.Column) []*sheets.RowData {
+func populateMonthlyCategories(catAgg map[string]map[string]float64, cats []repo.Column) []*sheets.RowData {
 	rows := []*sheets.RowData{}
 
 	// sort the months
@@ -529,7 +529,7 @@ func populateMonthlyCategories(catAgg map[string]map[string]float64, cats []data
 	return rows
 }
 
-func populateMonthlyPayees(payeeAgg map[string]map[string]float64, cols []database.Column) []*sheets.RowData {
+func populateMonthlyPayees(payeeAgg map[string]map[string]float64, cols []repo.Column) []*sheets.RowData {
 	rows := []*sheets.RowData{}
 
 	// sort the months
@@ -655,7 +655,7 @@ func sortKeys(aggMap *map[string]map[string]float64) *[]string {
 	return &keys
 }
 
-func columnNames(cats []database.Column) *[]string {
+func columnNames(cats []repo.Column) *[]string {
 	names := make([]string, 0, len(cats))
 	for _, c := range cats {
 		names = append(names, c.Name)

@@ -28,7 +28,7 @@ import (
 	"strings"
 
 	"register/pkg/config"
-	"register/pkg/database"
+	repo "register/pkg/repository"
 
 	"github.com/plaid/plaid-go/plaid"
 )
@@ -217,7 +217,7 @@ func (t *Transaction) PrintTransaction(n int) {
 }
 
 // FormatMerchants ...
-func (c *Client) FormatMerchants(trans []*Transaction, lookup []*database.DataRow) []*Transaction {
+func (c *Client) FormatMerchants(trans []*Transaction, lookup []*repo.DataRow) []*Transaction {
 	for i, t := range trans {
 		// if t.Name == "Venmo" && t.Amount == 150.00 {
 		// 	trans[i].BankName = "Margie Knight (Venmo)"
