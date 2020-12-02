@@ -222,9 +222,9 @@ func (rs *RegisterSheet) Read() ([]*RegisterEntry, map[string]bool, [][]interfac
 		values := rangeValues[i]
 
 		name := rs.getNameField(values)
-		if name == "VOID" || name == "Reallocation of funds" {
-			continue
-		}
+		// if name == "VOID" || name == "Reallocation of funds" {
+		// 	continue
+		// }
 		source := rs.getSourceField(values)
 		date := rs.getDateField(values)
 		amount := rs.getAmountFieldForKey(values)
@@ -511,11 +511,14 @@ func (ss *SheetService) updateMonthly(sheetID int64, rows []*sheets.RowData) {
 }
 
 func populateMonthlyCategories(catAgg map[string]map[string]float64, cats []database.Column) []*sheets.RowData {
+	rows := []*sheets.RowData{}
+
 	// sort the months
 	months := sortKeys(&catAgg)
 
 	// add the top row of months
-	rows := addSummaryTopRow(months)
+	row := addSummaryTopRow(months)
+	rows = append(rows, row)
 
 	// make a hash of column names
 	cNames := columnNames(cats)
@@ -527,11 +530,14 @@ func populateMonthlyCategories(catAgg map[string]map[string]float64, cats []data
 }
 
 func populateMonthlyPayees(payeeAgg map[string]map[string]float64, cols []database.Column) []*sheets.RowData {
+	rows := []*sheets.RowData{}
+
 	// sort the months
 	months := sortKeys(&payeeAgg)
 
 	// add the top row of months
-	rows := addSummaryTopRow(months)
+	row := addSummaryTopRow(months)
+	rows = append(rows, row)
 
 	// make a has of payees and sort
 	payees := sortKeys(&payeeAgg)
@@ -542,8 +548,7 @@ func populateMonthlyPayees(payeeAgg map[string]map[string]float64, cols []databa
 	return rows
 }
 
-func addSummaryTopRow(months *[]string) []*sheets.RowData {
-	rows := []*sheets.RowData{}
+func addSummaryTopRow(months *[]string) *sheets.RowData {
 	border := false
 	bgColor := "grey"
 
@@ -563,16 +568,16 @@ func addSummaryTopRow(months *[]string) []*sheets.RowData {
 	cells = append(cells, mkBoldStringCell("Monthly Average", "center", bgColor, border))
 
 	// add the cells to the row
-	row := &sheets.RowData{Values: cells}
-	return append(rows, row)
+	return &sheets.RowData{Values: cells}
 }
 
 func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float64, months, cats *[]string) []*sheets.RowData {
 	border := false
-	row := 2
+	r := 2
 	d := 10
+	numCats := len(*cats) - d
 
-	for i := 0; i < len(*cats)-d; i++ {
+	for i := 0; i < numCats; i++ {
 		c := (*cats)[d]
 		cells := []*sheets.CellData{}
 
@@ -583,27 +588,55 @@ func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float6
 		cells = append(cells, mkBoldStringCell(c, "left", bgColor, border))
 
 		// remaining columns: $value for each month
-		for i := 0; i < len(*months); i++ {
-			m := (*months)[i]
+		for j := 0; j < len(*months); j++ {
+			m := (*months)[j]
 			cells = append(cells, mkDollarsCell(aggData[m][c], "right", bgColor, border))
 		}
 
 		// add the totals and average in last 2 columns
-		f := mkDollarsCellFromFormulaString(fmt.Sprintf("=SUM(B%d:L%d) * -1", row, row), "right", bgColor, border)
+		f := mkDollarsCellFromFormulaString(fmt.Sprintf("=SUM(B%d:L%d) * -1", r, r), "right", bgColor, border)
 		f.UserEnteredFormat.TextFormat.Bold = true
 		cells = append(cells, f)
-		f = mkDollarsCellFromFormulaString(fmt.Sprintf("=AVERAGE(B%d:L%d) * -1", row, row), "right", bgColor, border)
+		f = mkDollarsCellFromFormulaString(fmt.Sprintf("=AVERAGE(B%d:L%d) * -1", r, r), "right", bgColor, border)
 		f.UserEnteredFormat.TextFormat.Bold = true
 		cells = append(cells, f)
 
-		row++
+		r++
 		d++
 
 		// add the cells to the row
 		row := &sheets.RowData{Values: cells}
 		rows = append(rows, row)
 	}
+	row := addSalaryRow(r, months, aggData)
+	rows = append(rows, row)
 	return rows
+}
+
+func addSalaryRow(rNum int, months *[]string, aggData map[string]map[string]float64) *sheets.RowData {
+	bgColor := "grey"
+	border := false
+	cells := []*sheets.CellData{}
+
+	// 1st column: category name
+	cells = append(cells, mkBoldStringCell("CrowdStrike Salary", "left", bgColor, border))
+
+	// remaining columns: $value for each month
+	for i := 0; i < len(*months); i++ {
+		m := (*months)[i]
+		cells = append(cells, mkDollarsCell(aggData[m]["CrowdStrike Salary"], "right", bgColor, border))
+	}
+
+	// add the totals and average in last 2 columns
+	f := mkDollarsCellFromFormulaString(fmt.Sprintf("=SUM(B%d:L%d) * -1", rNum, rNum), "right", bgColor, border)
+	f.UserEnteredFormat.TextFormat.Bold = true
+	cells = append(cells, f)
+	f = mkDollarsCellFromFormulaString(fmt.Sprintf("=AVERAGE(B%d:L%d) * -1", rNum, rNum), "right", bgColor, border)
+	f.UserEnteredFormat.TextFormat.Bold = true
+	cells = append(cells, f)
+
+	// add the cells to the row
+	return &sheets.RowData{Values: cells}
 }
 
 func rowColor(i int, even, odd string) string {

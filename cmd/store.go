@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	cfg "register/pkg/config"
 	"register/pkg/database"
 
@@ -40,9 +41,6 @@ var (
 func init() {
 	config = cfg.ReadConfig()
 	rootCmd.AddCommand(storeCmd)
-
-	storeCmd.Flags().BoolVarP(&print, "print", "p", false, "Print the data")
-	storeCmd.Flags().BoolVarP(&Debug, "debug", "d", false, "Debug mode")
 }
 
 func store(cmd *cobra.Command, args []string) {
@@ -53,7 +51,9 @@ func store(cmd *cobra.Command, args []string) {
 		DBPassword: config.DBPassword,
 	})
 
-	if print {
-		db.PrintData()
+	cols := db.GetColumns()
+	for i := 0; i < 10; i++ {
+		c := cols[i]
+		fmt.Printf("%s\n", c.Name)
 	}
 }

@@ -74,6 +74,10 @@ func monthly(cmd *cobra.Command, args []string) {
 	payeeAgg := make(map[string]map[string]float64)
 
 	cols := db.GetColumns()
+	// cols = append(cols, database.Column{
+	// 	Name:        "CrowdStrike Salary",
+	// 	ColumnIndex: 5,
+	// })
 
 	fmt.Println("Aggregating...")
 	for i, r := range register {
@@ -89,8 +93,14 @@ func monthly(cmd *cobra.Command, args []string) {
 			if _, ok := catAgg[k]; !ok {
 				catAgg[k] = make(map[string]float64)
 			}
+
+			if r.Name == "CrowdStrike Salary" {
+				catAgg[k]["CrowdStrike Salary"] += float64(r.Deposit)
+				continue
+			}
+
 			for j := 10; j < len(rangeValues[i*2]); j++ {
-				if cols[j].Name == "Credit Cards" || register[i].Deposit != 0 {
+				if cols[j].Name == "Credit Cards" || r.Deposit != 0 {
 					continue
 				}
 				f32 := regSrv.GetRegisterField(rangeValues[i*2], cols[j].ColumnIndex)

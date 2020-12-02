@@ -2,7 +2,7 @@ package database
 
 import (
 	"fmt"
-	"sort"
+	// "sort"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -114,11 +114,11 @@ func (c *Client) GetColumns() []Column {
 	var cols []Column
 
 	c.connect()
-	c.DB.Find(&cols)
+	c.DB.Order("column_index").Find(&cols)
 
-	sort.Slice(cols, func(i, j int) bool {
-		return cols[i].ColumnIndex == cols[j].ColumnIndex
-	})
+	// sort.Slice(cols, func(i, j int) bool {
+	// 	return cols[i].ColumnIndex == cols[j].ColumnIndex
+	// })
 
 	return cols
 }
