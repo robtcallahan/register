@@ -5,3 +5,4 @@ csv
 .vscode
 sql/*.bak
 .idea
+pkg/repository/postgres/register.sql
