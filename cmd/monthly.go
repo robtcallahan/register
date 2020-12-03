@@ -16,7 +16,7 @@ limitations under the License.
 
 package cmd
 
- import (
+import (
 	"fmt"
 	"regexp"
 
@@ -53,8 +53,9 @@ func monthly() {
 	}
 
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
-		Host:   "localhost",
-		Port:   "3306",
+		DBType: driver.DBType(config.DBType),
+		Host:   config.DBHost,
+		Port:   config.DBPort,
 		DBName: config.DBName,
 		User:   config.DBUsername,
 		Pass:   config.DBPassword,
@@ -78,10 +79,6 @@ func monthly() {
 	payeeAgg := make(map[string]map[string]float64)
 
 	cols := qHandler.GetColumns()
-	// cols = append(cols, database.Column{
-	// 	Name:        "CrowdStrike Salary",
-	// 	ColumnIndex: 5,
-	// })
 
 	fmt.Println("Aggregating...")
 	for i, r := range register {

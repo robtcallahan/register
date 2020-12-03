@@ -43,8 +43,9 @@ func init() {
 
 func store() {
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
-		Host:   "localhost",
-		Port:   "3306",
+		DBType: driver.DBType(config.DBType),
+		Host:   config.DBHost,
+		Port:   config.DBPort,
 		DBName: config.DBName,
 		User:   config.DBUsername,
 		Pass:   config.DBPassword,

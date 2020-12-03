@@ -39,6 +39,9 @@ type BankInfo struct {
 
 // Config ...
 type Config struct {
+	DBType                      string              `json:"db_type"`
+	DBHost                      string              `json:"db_host"`
+	DBPort                      string              `json:"db_port"`
 	DBName                      string              `json:"db_name"`
 	DBUsername                  string              `json:"db_username"`
 	DBPassword                  string              `json:"db_password"`

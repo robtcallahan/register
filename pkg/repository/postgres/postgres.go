@@ -1,4 +1,4 @@
-package mysql
+package postgres
 
 import (
 	"fmt"
@@ -9,25 +9,24 @@ import (
 	"gorm.io/gorm"
 )
 
-type mysqlQueryRepo struct {
+type postgresQueryRepo struct {
 	Conn *gorm.DB
 }
 
-// NewMySQLQueryRepo ...
-func NewMySQLQueryRepo(conn *gorm.DB) repo.QueryRepo {
-	return &mysqlQueryRepo{
+// NewPostgreSQLQueryRepo returns the implementation of post repository interface
+func NewPostgreSQLQueryRepo(conn *gorm.DB) repo.QueryRepo {
+	return &postgresQueryRepo{
 		Conn: conn,
 	}
 }
 
-// CreateDB ...
-func (r *mysqlQueryRepo) CreateDB(dbName string) (*gorm.DB, error) {
+func (r *postgresQueryRepo) CreateDB(dbName string) (*gorm.DB, error) {
 	db := r.Conn.Exec("CREATE DATABASE " + dbName)
 	return db, db.Error
 }
 
 // GetColumns ...
-func (r *mysqlQueryRepo) GetColumns() []models.Column {
+func (r *postgresQueryRepo) GetColumns() []models.Column {
 	var cols []models.Column
 
 	r.Conn.Order("column_index").Find(&cols)
@@ -36,7 +35,7 @@ func (r *mysqlQueryRepo) GetColumns() []models.Column {
 }
 
 // CreateMerchant ...
-func (r *mysqlQueryRepo) CreateMerchant(m *models.Merchant) {
+func (r *postgresQueryRepo) CreateMerchant(m *models.Merchant) {
 	result := r.Conn.Create(&models.Merchant{
 		Name:     m.Name,
 		BankName: m.BankName,
@@ -48,7 +47,7 @@ func (r *mysqlQueryRepo) CreateMerchant(m *models.Merchant) {
 }
 
 // GetLookupData ...
-func (r *mysqlQueryRepo) GetLookupData() []*models.DataRow {
+func (r *postgresQueryRepo) GetLookupData() []*models.DataRow {
 	var merchants []models.Merchant
 
 	r.Conn.Preload("Column").Find(&merchants)
@@ -68,7 +67,7 @@ func (r *mysqlQueryRepo) GetLookupData() []*models.DataRow {
 }
 
 // GetNameMapToColumn creates a map lookup from trans name to budget category/column names
-func (r *mysqlQueryRepo) GetNameMapToColumn() map[string]string {
+func (r *postgresQueryRepo) GetNameMapToColumn() map[string]string {
 	cols := r.GetLookupData()
 
 	nameToCol := make(map[string]string)
@@ -79,7 +78,7 @@ func (r *mysqlQueryRepo) GetNameMapToColumn() map[string]string {
 }
 
 // PrintData ...
-func (r *mysqlQueryRepo) PrintData() {
+func (r *postgresQueryRepo) PrintData() {
 	var merchants []models.Merchant
 	r.Conn.Preload("Column").Find(&merchants)
 
@@ -90,7 +89,7 @@ func (r *mysqlQueryRepo) PrintData() {
 }
 
 // PrintTable ...
-func (r *mysqlQueryRepo) PrintTable(table string) {
+func (r *postgresQueryRepo) PrintTable(table string) {
 	switch table {
 	case "merchants":
 		var merchants []models.Merchant

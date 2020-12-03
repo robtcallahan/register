@@ -5,17 +5,26 @@ import (
 	"register/pkg/models"
 	"register/pkg/repository"
 	"register/pkg/repository/mysql"
+	"register/pkg/repository/postgres"
 )
 
 // Query ...
 type Query struct {
-	repo repository.Repository
+	repo repository.QueryRepo
 }
 
 // NewQueryHandler ...
 func NewQueryHandler(db *driver.DB) *Query {
+	var repo repository.QueryRepo
+
+	switch db.DBType {
+	case driver.MySQL:
+		repo = mysql.NewMySQLQueryRepo(db.SQL)
+	case driver.PostgreSQL:
+		repo = postgres.NewPostgreSQLQueryRepo(db.SQL)
+	}
 	return &Query{
-		repo: mysql.NewQueryRepo(db.SQL),
+		repo: repo,
 	}
 }
 

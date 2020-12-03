@@ -2,10 +2,13 @@ package repository
 
 import (
 	"register/pkg/models"
+
+	"gorm.io/gorm"
 )
 
-// Repository represent the repositories
-type Repository interface {
+// QueryRepo represent the repositories
+type QueryRepo interface {
+	CreateDB(dbName string) (*gorm.DB, error)
 	GetColumns() []models.Column
 	CreateMerchant(m *models.Merchant)
 	GetLookupData() []*models.DataRow

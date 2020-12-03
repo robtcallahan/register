@@ -47,6 +47,7 @@ amounts from the appropriate budget category columns.`,
 		update()
 	},
 }
+
 /**/
 func init() {
 	config = cfg.ReadConfig()
@@ -66,8 +67,9 @@ func update() {
 	})
 
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
-		Host:   "localhost",
-		Port:   "3306",
+		DBType: driver.DBType(config.DBType),
+		Host:   config.DBHost,
+		Port:   config.DBPort,
 		DBName: config.DBName,
 		User:   config.DBUsername,
 		Pass:   config.DBPassword,
@@ -146,6 +148,7 @@ func needInfo(trans []*banking.Transaction) bool {
 	return false
 }
 
+//goland:noinspection GoNilness
 func getBankNameToName(db *handler.Query, trans []*banking.Transaction) []*banking.Transaction {
 	cols := db.GetColumns()
 	var filter []models.Column
