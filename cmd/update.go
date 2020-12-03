@@ -27,7 +27,9 @@ import (
 
 	"register/pkg/banking"
 	cfg "register/pkg/config"
-	repo "register/pkg/repository"
+	"register/pkg/driver"
+	"register/pkg/handler"
+	"register/pkg/models"
 	"register/pkg/sheets"
 
 	"github.com/spf13/cobra"
@@ -37,21 +39,21 @@ import (
 var updateCmd = &cobra.Command{
 	Use:   "update",
 	Short: "Reads bank transactions and updates the financial register spreadsheet",
-	Long: `Register reads bank and credit card transactions from Wells Fargo, Fidlity, Chase,
+	Long: `Register reads bank and credit card transactions from Wells Fargo, Fidelity, Chase,
 and Citi, both the Register and Budget tabs from your Google Sheets financial spreadsheet,
 removes duplicates and updates the Register tab with new transactions subtracting those
 amounts from the appropriate budget category columns.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		update(cmd, args)
+		update()
 	},
 }
-
+/**/
 func init() {
 	config = cfg.ReadConfig()
 	rootCmd.AddCommand(updateCmd)
 }
 
-func update(cmd *cobra.Command, args []string) {
+func update() {
 	var err error
 
 	bankClient := banking.New(&banking.ClientOptions{
@@ -63,12 +65,17 @@ func update(cmd *cobra.Command, args []string) {
 		PlaidSecret:   config.PlaidSecret,
 	})
 
-	db := repo.NewRepository(repo.NewRepositoryParams{
-		Debug:      Debug,
-		DBName:     config.DBName,
-		DBUsername: config.DBUsername,
-		DBPassword: config.DBPassword,
+	conn, err := driver.ConnectSQL(&driver.ConnectParams{
+		Host:   "localhost",
+		Port:   "3306",
+		DBName: config.DBName,
+		User:   config.DBUsername,
+		Pass:   config.DBPassword,
 	})
+	if err != nil {
+		panic(err)
+	}
+	qHandler := handler.NewQueryHandler(conn)
 
 	sheetService := &sheets.SheetService{
 		Service:       sheets.NewService(),
@@ -91,7 +98,7 @@ func update(cmd *cobra.Command, args []string) {
 	transactions = bankClient.FilterRows(transactions, regSrv.KeysMap)
 
 	fmt.Println("Updating merchants...")
-	lookupData := db.GetLookupData()
+	lookupData := qHandler.GetLookupData()
 	transactions = bankClient.FormatMerchants(transactions, lookupData)
 
 	if len(transactions) > 0 {
@@ -103,7 +110,7 @@ func update(cmd *cobra.Command, args []string) {
 
 	if needInfo := needInfo(transactions); needInfo {
 		fmt.Println("Info needed...")
-		transactions = getBankNameToName(db, transactions)
+		transactions = getBankNameToName(qHandler, transactions)
 	}
 
 	fmt.Printf("Reading Budget...\n")
@@ -121,8 +128,8 @@ func update(cmd *cobra.Command, args []string) {
 
 		if !Test {
 			fmt.Printf("Updating spreadsheet...\n")
-			cols := db.GetColumns()
-			nameToCol := db.GetNameMapToColumn()
+			cols := qHandler.GetColumns()
+			nameToCol := qHandler.GetNameMapToColumn()
 			regSrv.UpdateRows(cols, nameToCol, transactions)
 		}
 	} else {
@@ -139,9 +146,9 @@ func needInfo(trans []*banking.Transaction) bool {
 	return false
 }
 
-func getBankNameToName(db *mysql.db, trans []*banking.Transaction) []*banking.Transaction {
+func getBankNameToName(db *handler.Query, trans []*banking.Transaction) []*banking.Transaction {
 	cols := db.GetColumns()
-	filter := []repo.Column{}
+	var filter []models.Column
 	re := regexp.MustCompile(`old-\d+`)
 	for _, c := range cols {
 		chk := re.Match([]byte(c.Name))
@@ -181,7 +188,7 @@ func getBankNameToName(db *mysql.db, trans []*banking.Transaction) []*banking.Tr
 			colInx, _ := strconv.Atoi(s)
 			trans[i].ColumnIndex = colInx
 
-			db.CreateMerchant(&repo.Merchant{
+			db.CreateMerchant(&models.Merchant{
 				Name:     name,
 				BankName: t.BankName,
 				ColumnID: colInx,

@@ -18,8 +18,10 @@ package cmd
 
 import (
 	"fmt"
+
 	cfg "register/pkg/config"
-	repo "register/pkg/repository"
+	"register/pkg/driver"
+	"register/pkg/handler"
 
 	"github.com/spf13/cobra"
 )
@@ -30,27 +32,29 @@ var storeCmd = &cobra.Command{
 	Short: "Just a placeholder. Doesn't do anything yet.",
 	Long:  `Just a placeholder. Doesn't do anything yet.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		store(cmd, args)
+		store()
 	},
 }
-
-var (
-	print bool
-)
 
 func init() {
 	config = cfg.ReadConfig()
 	rootCmd.AddCommand(storeCmd)
 }
 
-func store(cmd *cobra.Command, args []string) {
-	r := repo.Repository.NewRepository(&repo.NewRepositoryParams{
-		Debug:      Debug,
-		DBName:     config.DBName,
-		DBUsername: config.DBUsername,
-		DBPassword: config.DBPassword,
+func store() {
+	conn, err := driver.ConnectSQL(&driver.ConnectParams{
+		Host:   "localhost",
+		Port:   "3306",
+		DBName: config.DBName,
+		User:   config.DBUsername,
+		Pass:   config.DBPassword,
 	})
-	cols := r.GetColumns()
+	if err != nil {
+		panic(err)
+	}
+	qHandler := handler.NewQueryHandler(conn)
+
+	cols := qHandler.GetColumns()
 	for i := 0; i < 10; i++ {
 		c := cols[i]
 		fmt.Printf("%s\n", c.Name)

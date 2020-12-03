@@ -16,14 +16,13 @@ limitations under the License.
 
 package cmd
 
-import (
+ import (
 	"fmt"
 	"regexp"
 
-	// "strconv"
-
 	cfg "register/pkg/config"
-	repo "register/pkg/repository"
+	"register/pkg/driver"
+	"register/pkg/handler"
 	"register/pkg/sheets"
 
 	"github.com/spf13/cobra"
@@ -32,10 +31,10 @@ import (
 // monthlyCmd represents the monthly command
 var monthlyCmd = &cobra.Command{
 	Use:   "monthly",
-	Short: "Monthly aggregates monthly budget category expenses and updates the montly summary tabs",
-	Long:  `Monthly aggregates monthly budget category expenses and updates the montly summary tabs`,
+	Short: "Monthly aggregates monthly budget category expenses and updates the monthly summary tabs",
+	Long:  `Monthly aggregates monthly budget category expenses and updates the monthly summary tabs`,
 	Run: func(cmd *cobra.Command, args []string) {
-		monthly(cmd, args)
+		monthly()
 	},
 }
 
@@ -47,18 +46,23 @@ func init() {
 	// 4698
 }
 
-func monthly(cmd *cobra.Command, args []string) {
+func monthly() {
 	sheetService := &sheets.SheetService{
 		Service:       sheets.NewService(),
 		SpreadsheetID: SpreadsheetID,
 	}
 
-	db := repo.NewRepository(repo.NewRepositoryParams{
-		Debug:      Debug,
-		DBName:     config.DBName,
-		DBUsername: config.DBUsername,
-		DBPassword: config.DBPassword,
+	conn, err := driver.ConnectSQL(&driver.ConnectParams{
+		Host:   "localhost",
+		Port:   "3306",
+		DBName: config.DBName,
+		User:   config.DBUsername,
+		Pass:   config.DBPassword,
 	})
+	if err != nil {
+		panic(err)
+	}
+	qHandler := handler.NewQueryHandler(conn)
 
 	fmt.Printf("Reading Register...\n")
 	regSrv := sheets.NewRegisterSheet(sheetService, *config, StartRow, EndRow, Debug)
@@ -73,7 +77,7 @@ func monthly(cmd *cobra.Command, args []string) {
 	// map of register entries by monty and payee
 	payeeAgg := make(map[string]map[string]float64)
 
-	cols := db.GetColumns()
+	cols := qHandler.GetColumns()
 	// cols = append(cols, database.Column{
 	// 	Name:        "CrowdStrike Salary",
 	// 	ColumnIndex: 5,
@@ -81,14 +85,14 @@ func monthly(cmd *cobra.Command, args []string) {
 
 	fmt.Println("Aggregating...")
 	for i, r := range register {
-		re := regexp.MustCompile(`(\d\d)\/\d\d\/20`)
+		re := regexp.MustCompile(`(\d\d)/\d\d/20`)
 		m := re.FindStringSubmatch(r.Date)
 		if len(m) > 0 {
 			k := m[1] + "/20"
 			if _, ok := payeeAgg[k]; !ok {
 				payeeAgg[k] = make(map[string]float64)
 			}
-			payeeAgg[k][r.Name] = payeeAgg[k][r.Name] + float64(r.Deposit-r.Withdrawl-r.CreditCard)
+			payeeAgg[k][r.Name] = payeeAgg[k][r.Name] + float64(r.Deposit-r.Withdrawal-r.CreditCard)
 
 			if _, ok := catAgg[k]; !ok {
 				catAgg[k] = make(map[string]float64)
@@ -111,5 +115,5 @@ func monthly(cmd *cobra.Command, args []string) {
 
 	fmt.Println("Updating...")
 	sheetService.UpdateMonthlyCategories("MonthlyCategories", catAgg, cols)
-	sheetService.UpdateMonthlyPayees("MonthlyPayees", payeeAgg, cols)
+	sheetService.UpdateMonthlyPayees("MonthlyPayees", payeeAgg)
 }

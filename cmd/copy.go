@@ -29,10 +29,10 @@ import (
 var copyCmd = &cobra.Command{
 	Use:   "copy",
 	Short: "Copies the last 2 rows of the Register spreadsheet -c <num> times",
-	Long: `Copies the last 2 rows of the Register spreadsheet then numer of times
+	Long: `Copies the last 2 rows of the Register spreadsheet then number of times
 specified using the -c <num> or --copy <num> options. `,
 	Run: func(cmd *cobra.Command, args []string) {
-		copy(cmd, args)
+		copyRows(cmd)
 	},
 }
 
@@ -41,13 +41,13 @@ func init() {
 	config = cfg.ReadConfig()
 
 	copyCmd.Flags().IntP("copies", "c", 0, "The number of times to copy the last 2 rows")
-	copyCmd.MarkFlagRequired("copies")
+	_ = copyCmd.MarkFlagRequired("copies")
 	copyCmd.Flags().Int64P("start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
 	copyCmd.Flags().Int64P("end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
 	copyCmd.Flags().StringP("id", "i", config.SpreadsheetID, "The Google spreadsheet id")
 }
 
-func copy(cmd *cobra.Command, args []string) {
+func copyRows(cmd *cobra.Command) {
 	var err error
 	ssID, _ := cmd.Flags().GetString("id")
 	copies, _ := cmd.Flags().GetInt("copies")

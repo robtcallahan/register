@@ -23,8 +23,6 @@ import (
 	cfg "register/pkg/config"
 
 	"github.com/spf13/cobra"
-	// homedir "github.com/mitchellh/go-homedir"
-	// "github.com/spf13/viper"
 )
 
 var (
@@ -39,21 +37,19 @@ var (
 	Debug bool
 	// Test ...
 	Test bool
-
-	err error
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "register",
 	Short: "Reads bank transactions and updates the financial register spreadsheet",
-	Long: `Register reads bank and credit card transactions from Wells Fargo, Fidlity, Chase,
+	Long: `Register reads bank and credit card transactions from Wells Fargo, Fidelity, Chase,
 and Citi, both the Register and Budget tabs from your Google Sheets financial spreadsheet,
 removes duplicates and updates the Register tab with new transactions subtracting those
 amounts from the appropriate budget category columns.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
-			cmd.Help()
+			_ = cmd.Help()
 			os.Exit(0)
 		}
 	},

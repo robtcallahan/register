@@ -17,9 +17,7 @@ limitations under the License.
 package banking
 
 import (
-	"bufio"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"regexp"
@@ -28,7 +26,7 @@ import (
 	"strings"
 
 	"register/pkg/config"
-	repo "register/pkg/repository"
+	"register/pkg/models"
 
 	"github.com/plaid/plaid-go/plaid"
 )
@@ -138,7 +136,7 @@ func (c *Client) getPlaidTransactions(cfg config.BankInfo, start, end string) pl
 
 // GetTransactions ...
 func (c *Client) GetTransactions() []*Transaction {
-	transactions := []*Transaction{}
+	var transactions []*Transaction
 	i := 1
 	for _, cfg := range c.BankInfo {
 		if i == 1 {
@@ -217,7 +215,7 @@ func (t *Transaction) PrintTransaction(n int) {
 }
 
 // FormatMerchants ...
-func (c *Client) FormatMerchants(trans []*Transaction, lookup []*repo.DataRow) []*Transaction {
+func (c *Client) FormatMerchants(trans []*Transaction, lookup []*models.DataRow) []*Transaction {
 	for i, t := range trans {
 		// if t.Name == "Venmo" && t.Amount == 150.00 {
 		// 	trans[i].BankName = "Margie Knight (Venmo)"
@@ -243,7 +241,7 @@ func (c *Client) FormatMerchants(trans []*Transaction, lookup []*repo.DataRow) [
 
 // FilterRows ...
 func (c *Client) FilterRows(trans []*Transaction, lookup map[string]bool) []*Transaction {
-	filter := []*Transaction{}
+	var filter []*Transaction
 	for _, r := range trans {
 		if _, ok := lookup[r.Key]; !ok {
 			filter = append(filter, r)
@@ -252,88 +250,88 @@ func (c *Client) FilterRows(trans []*Transaction, lookup map[string]bool) []*Tra
 	return filter
 }
 
-func (c *Client) createLinkToken() string {
-	countryCodes := strings.Split(c.Keys.CountryCodes, ",")
-	products := strings.Split(c.Keys.Products, ",")
-	configs := plaid.LinkTokenConfigs{
-		User: &plaid.LinkTokenUser{
-			// This should correspond to a unique id for the current user.
-			ClientUserID: "robtcallahan",
-		},
-		ClientName:        "Plaid Quickstart",
-		Products:          products,
-		CountryCodes:      countryCodes,
-		Language:          "en",
-		PaymentInitiation: nil,
-	}
-	resp, err := c.PlaidClient.CreateLinkToken(configs)
-	checkError(err)
-	return resp.LinkToken
-}
-
-func (c *Client) getLinkClient() (resp *plaid.LinkClientGetResponse) {
-	res, err := c.PlaidClient.LinkClientGet(&plaid.LinkClientGetRequest{
-		IntegrationMode:  1,
-		LinkPersistentID: c.Link.PersistentID,
-		LinkToken:        c.Link.Token,
-		LinkVersion:      c.Link.Version,
-	})
-	checkError(err)
-	fmt.Printf("res: %+v\n", res)
-	return res
-}
-
-func (c *Client) linkItemCreate() *plaid.LinkItemCreateResponse {
-	lic, err := ioutil.ReadFile("../json/link_item_create_dev.json")
-	checkError(err)
-
-	licStr := strings.Replace(string(lic), "LINK_TOKEN", c.Link.Token, 2)
-	licStr = strings.Replace(string(licStr), "LINK_OPEN_ID", c.Link.OpenID, 1)
-	licStr = strings.Replace(string(licStr), "LINK_PERSISTENT_ID", c.Link.PersistentID, 1)
-	licStr = strings.Replace(string(licStr), "LINK_SESSION_ID", c.Link.SessionID, 1)
-
-	res, err := c.PlaidClient.LinkItemCreate([]byte(licStr))
-	fmt.Printf("res: %+v\n", res)
-	checkError(err)
-	fmt.Printf("res: %+v\n", res)
-	return res
-}
-
-func (c *Client) getAccessToken() (string, string) {
-	res, err := c.PlaidClient.ExchangePublicToken(c.PublicToken)
-	checkError(err)
-	return res.AccessToken, res.ItemID
-}
-
-func (c *Client) linkItemMFA() (resp *plaid.LinkItemMFAResponse) {
-	resp, err := c.PlaidClient.LinkItemMFA(&plaid.LinkItemMFARequest{
-		LinkToken:        c.Link.Token,
-		LinkOpenID:       c.Link.OpenID,
-		LinkPersistentID: c.Link.PersistentID,
-		LinkSessionID:    c.Link.SessionID,
-		MFAType:          "device_list",
-		PublicToken:      c.PublicToken,
-		DisplayLanguage:  "en",
-		Responses:        []string{""},
-	})
-	checkError(err)
-	return resp
-}
-
-func (c *Client) sendMFACode(code string) (resp *plaid.LinkItemMFASendCodeResponse) {
-	resp, err := c.PlaidClient.LinkItemMFASendCode(&plaid.LinkItemMFARequest{
-		DisplayLanguage:  "en",
-		LinkOpenID:       c.Link.OpenID,
-		LinkPersistentID: c.Link.PersistentID,
-		LinkSessionID:    c.Link.SessionID,
-		LinkToken:        c.Link.Token,
-		MFAType:          "device",
-		PublicToken:      c.PublicToken,
-		Responses:        []string{code},
-	})
-	checkError(err)
-	return resp
-}
+//func (c *Client) createLinkToken() string {
+//	countryCodes := strings.Split(c.Keys.CountryCodes, ",")
+//	products := strings.Split(c.Keys.Products, ",")
+//	configs := plaid.LinkTokenConfigs{
+//		User: &plaid.LinkTokenUser{
+//			// This should correspond to a unique id for the current user.
+//			ClientUserID: "robtcallahan",
+//		},
+//		ClientName:        "Plaid Quickstart",
+//		Products:          products,
+//		CountryCodes:      countryCodes,
+//		Language:          "en",
+//		PaymentInitiation: nil,
+//	}
+//	resp, err := c.PlaidClient.CreateLinkToken(configs)
+//	checkError(err)
+//	return resp.LinkToken
+//}
+//
+//func (c *Client) getLinkClient() (resp *plaid.LinkClientGetResponse) {
+//	res, err := c.PlaidClient.LinkClientGet(&plaid.LinkClientGetRequest{
+//		IntegrationMode:  1,
+//		LinkPersistentID: c.Link.PersistentID,
+//		LinkToken:        c.Link.Token,
+//		LinkVersion:      c.Link.Version,
+//	})
+//	checkError(err)
+//	fmt.Printf("res: %+v\n", res)
+//	return res
+//}
+//
+//func (c *Client) linkItemCreate() *plaid.LinkItemCreateResponse {
+//	lic, err := ioutil.ReadFile("../json/link_item_create_dev.json")
+//	checkError(err)
+//
+//	licStr := strings.Replace(string(lic), "LINK_TOKEN", c.Link.Token, 2)
+//	licStr = strings.Replace(string(licStr), "LINK_OPEN_ID", c.Link.OpenID, 1)
+//	licStr = strings.Replace(string(licStr), "LINK_PERSISTENT_ID", c.Link.PersistentID, 1)
+//	licStr = strings.Replace(string(licStr), "LINK_SESSION_ID", c.Link.SessionID, 1)
+//
+//	res, err := c.PlaidClient.LinkItemCreate([]byte(licStr))
+//	fmt.Printf("res: %+v\n", res)
+//	checkError(err)
+//	fmt.Printf("res: %+v\n", res)
+//	return res
+//}
+//
+//func (c *Client) getAccessToken() (string, string) {
+//	res, err := c.PlaidClient.ExchangePublicToken(c.PublicToken)
+//	checkError(err)
+//	return res.AccessToken, res.ItemID
+//}
+//
+//func (c *Client) linkItemMFA() (resp *plaid.LinkItemMFAResponse) {
+//	resp, err := c.PlaidClient.LinkItemMFA(&plaid.LinkItemMFARequest{
+//		LinkToken:        c.Link.Token,
+//		LinkOpenID:       c.Link.OpenID,
+//		LinkPersistentID: c.Link.PersistentID,
+//		LinkSessionID:    c.Link.SessionID,
+//		MFAType:          "device_list",
+//		PublicToken:      c.PublicToken,
+//		DisplayLanguage:  "en",
+//		Responses:        []string{""},
+//	})
+//	checkError(err)
+//	return resp
+//}
+//
+//func (c *Client) sendMFACode(code string) (resp *plaid.LinkItemMFASendCodeResponse) {
+//	resp, err := c.PlaidClient.LinkItemMFASendCode(&plaid.LinkItemMFARequest{
+//		DisplayLanguage:  "en",
+//		LinkOpenID:       c.Link.OpenID,
+//		LinkPersistentID: c.Link.PersistentID,
+//		LinkSessionID:    c.Link.SessionID,
+//		LinkToken:        c.Link.Token,
+//		MFAType:          "device",
+//		PublicToken:      c.PublicToken,
+//		Responses:        []string{code},
+//	})
+//	checkError(err)
+//	return resp
+//}
 
 // GetAccounts ...
 func (c *Client) GetAccounts() plaid.GetAccountsResponse {
@@ -351,13 +349,13 @@ func (c *Client) getCheckingID(accts []plaid.Account) (checkingID string) {
 	return checkingID
 }
 
-func getCode() string {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter Code> ")
-	text, _ := reader.ReadString('\n')
-	text = strings.Replace(text, "\n", "", -1)
-	return text
-}
+//func getCode() string {
+//	reader := bufio.NewReader(os.Stdin)
+//	fmt.Print("Enter Code> ")
+//	text, _ := reader.ReadString('\n')
+//	text = strings.Replace(text, "\n", "", -1)
+//	return text
+//}
 
 func (c *Client) printIdent() {
 	fmt.Println("Ident:")
@@ -366,13 +364,6 @@ func (c *Client) printIdent() {
 	fmt.Println("    RequestID: " + c.RequestID)
 	fmt.Println("    AccessToken: " + c.AccessToken)
 	fmt.Println("    ItemID: " + c.ItemID)
-	fmt.Println("")
-}
-
-func printAccounts(accts []plaid.Account) {
-	for i, acct := range accts {
-		fmt.Printf("[%d] %s %s %s %s %s\n", i, acct.AccountID, acct.Name, acct.OfficialName, acct.Type, acct.Subtype)
-	}
 	fmt.Println("")
 }
 
@@ -387,7 +378,7 @@ func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) {
 		_, err = f.WriteString(fmt.Sprintf("%s,%.2f,%s\n", t.Date, t.Amount, t.Name))
 		checkError(err)
 	}
-	f.Sync()
+	_ = f.Sync()
 }
 
 func formatDate(date string) string {
@@ -398,12 +389,6 @@ func formatDate(date string) string {
 	dd, _ := strconv.Atoi(m[0][4])
 	d := fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
 	return d
-}
-
-func printTrans(trans []plaid.Transaction) {
-	for _, t := range trans {
-		fmt.Printf("%s,%.2f,%s\n", t.Date, -t.Amount, t.Name)
-	}
 }
 
 func checkError(err error) {

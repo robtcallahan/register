@@ -4,3 +4,4 @@ register
 csv
 .vscode
 sql/*.bak
+.idea
