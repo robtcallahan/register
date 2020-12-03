@@ -91,7 +91,6 @@ type RegisterSheet struct {
 	Config           cfg.Config
 	ID               int64
 	SpreadsheetID    string
-	PaycheckName     string
 	TabName          string
 	StartRow         int64
 	EndRow           int64
@@ -361,10 +360,10 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 	// loop over all the transactions to be added, duplicates have been previously filtered out
 	for _, trans := range transactions {
 		// TODO: should filter this out sooner
-		if trans.Name == "Credit Card Payment" || trans.Name == "PAYMENT THANK YOU" {
-			// we don't show these.
-			continue
-		}
+		//if trans.Name == "Credit Card Payment" || trans.Name == "PAYMENT THANK YOU" {
+		//	// we don't show these.
+		//	continue
+		//}
 
 		// cells will be added to row
 		var cells []*sheets.CellData
@@ -373,7 +372,7 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 
 		// paycheck rows are marked green (like this font color)
 		bgColor := "white"
-		if trans.Name == rs.PaycheckName {
+		if trans.Name == rs.Config.PaycheckName {
 			bgColor = "green"
 		}
 
@@ -438,7 +437,7 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 					cells = append(cells, mkDollarsCell(trans.CreditCard, "left", "yellow", true))
 				} else if _, ok := nameToCol[trans.Name]; ok && col.Name == nameToCol[trans.Name] {
 					// enter a negative value in the budget category column
-					cells = append(cells, mkDollarsCell(-1*trans.CreditCard, "left", col.Color, true))
+					cells = append(cells, mkDollarsCell(-1 * trans.Amount, "left", col.Color, true))
 				} else {
 					// this cell doesn't apply. Just create an empty (opaque) cell.
 					cells = append(cells, mkOpaqueCell(col.Color, true))

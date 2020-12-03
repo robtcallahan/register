@@ -221,21 +221,23 @@ func (c *Client) FormatMerchants(trans []*Transaction, lookup []*models.DataRow)
 		if t.BankName == "Venmo" {
 			if t.Amount == 150.00 {
 				trans[i].Name = "Margie Knight (Venmo)"
-				trans[i].ColumnIndex = 46
 				trans[i].Color = "blue"
+				trans[i].ColumnIndex = 46
+				trans[i].IsCategory = true
 			} else if t.Amount == 5.00 || t.Amount == 10.00 {
 				trans[i].Name = "AA Meeting (Venmo)"
-				trans[i].ColumnIndex = 41
 				trans[i].Color = "blue"
+				trans[i].ColumnIndex = 41
+				trans[i].IsCategory = true
 			}
-		}
-
-		for _, l := range lookup {
-			if strings.Contains(t.BankName, l.BankName) {
-				trans[i].Name = l.Name
-				trans[i].Color = l.Color
-				trans[i].ColumnIndex = l.ColumnIndex
-				trans[i].IsCategory = l.IsCategory
+		} else {
+			for _, l := range lookup {
+				if strings.Contains(t.BankName, l.BankName) {
+					trans[i].Name = l.Name
+					trans[i].Color = l.Color
+					trans[i].ColumnIndex = l.ColumnIndex
+					trans[i].IsCategory = l.IsCategory
+				}
 			}
 		}
 		fmt.Printf("key: %s, name: %s, bankName: %s, amt: %.2f \n", trans[i].Key, trans[i].Name, trans[i].BankName, trans[i].Amount)
