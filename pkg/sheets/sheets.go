@@ -77,7 +77,7 @@ type RegisterEntry struct {
 	Date         string
 	Name         string
 	Amount       float64
-	Withdrawal    float32
+	Withdrawal   float32
 	Deposit      float32
 	CreditCard   float32
 	BankRegister float32
@@ -238,7 +238,7 @@ func (rs *RegisterSheet) Read() ([]*RegisterEntry, map[string]bool, [][]interfac
 			Source:       source,
 			Date:         date,
 			Name:         name,
-			Withdrawal:    rs.GetRegisterField(values, rs.Config.RegisterIndexes["Withdrawals"]),
+			Withdrawal:   rs.GetRegisterField(values, rs.Config.RegisterIndexes["Withdrawals"]),
 			Deposit:      rs.GetRegisterField(values, rs.Config.RegisterIndexes["Deposits"]),
 			CreditCard:   rs.GetRegisterField(values, rs.Config.RegisterIndexes["CreditCards"]),
 			BankRegister: rs.GetRegisterField(values, rs.Config.RegisterIndexes["BankRegister"]),
@@ -361,7 +361,7 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 	// loop over all the transactions to be added, duplicates have been previously filtered out
 	for _, trans := range transactions {
 		// TODO: should filter this out sooner
-		if trans.Name == "Credit Card Payment" {
+		if trans.Name == "Credit Card Payment" || trans.Name == "PAYMENT THANK YOU" {
 			// we don't show these.
 			continue
 		}
@@ -411,7 +411,7 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 		colOffset := 7
 
 		// salary deposit
-		if trans.Name == "CrowdStrike Salary" {
+		if trans.Name == "CrowdStrike Salary" || trans.BankName == "Direct Deposit from CROWDSTRIKE INC" {
 			// allocate out budgeted amounts and set background color appropriately
 			for i := 0; i < len(columns)-colOffset; i++ {
 				col := columns[colOffset+i]

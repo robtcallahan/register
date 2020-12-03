@@ -18,6 +18,7 @@ package banking
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"regexp"
@@ -217,15 +218,15 @@ func (t *Transaction) PrintTransaction(n int) {
 // FormatMerchants ...
 func (c *Client) FormatMerchants(trans []*Transaction, lookup []*models.DataRow) []*Transaction {
 	for i, t := range trans {
-		// if t.Name == "Venmo" && t.Amount == 150.00 {
-		// 	trans[i].BankName = "Margie Knight (Venmo)"
-		// 	trans[i].ColumnIndex = 46
-		// 	trans[i].Color = "blue"
-		// } else if t.BankName == "Venmo" && t.Amount == 5.00 {
-		// 	trans[i].Name = "AA Meeting (Venmo)"
-		// 	trans[i].ColumnIndex = 41
-		// 	trans[i].Color = "blue"
-		// }
+		if t.Name == "Venmo" && t.Amount == 150.00 {
+			trans[i].BankName = "Margie Knight (Venmo)"
+			trans[i].ColumnIndex = 46
+			trans[i].Color = "blue"
+		} else if t.BankName == "Venmo" && t.Amount == 5.00 {
+			trans[i].Name = "AA Meeting (Venmo)"
+			trans[i].ColumnIndex = 41
+			trans[i].Color = "blue"
+		}
 
 		for _, l := range lookup {
 			if strings.Contains(t.BankName, l.BankName) {
@@ -235,6 +236,7 @@ func (c *Client) FormatMerchants(trans []*Transaction, lookup []*models.DataRow)
 				trans[i].IsCategory = l.IsCategory
 			}
 		}
+		fmt.Printf("%s %s %s %.2f \n", trans[i].Key, trans[i].Name, trans[i].BankName, trans[i].Amount)
 	}
 	return trans
 }
@@ -250,88 +252,88 @@ func (c *Client) FilterRows(trans []*Transaction, lookup map[string]bool) []*Tra
 	return filter
 }
 
-//func (c *Client) createLinkToken() string {
-//	countryCodes := strings.Split(c.Keys.CountryCodes, ",")
-//	products := strings.Split(c.Keys.Products, ",")
-//	configs := plaid.LinkTokenConfigs{
-//		User: &plaid.LinkTokenUser{
-//			// This should correspond to a unique id for the current user.
-//			ClientUserID: "robtcallahan",
-//		},
-//		ClientName:        "Plaid Quickstart",
-//		Products:          products,
-//		CountryCodes:      countryCodes,
-//		Language:          "en",
-//		PaymentInitiation: nil,
-//	}
-//	resp, err := c.PlaidClient.CreateLinkToken(configs)
-//	checkError(err)
-//	return resp.LinkToken
-//}
-//
-//func (c *Client) getLinkClient() (resp *plaid.LinkClientGetResponse) {
-//	res, err := c.PlaidClient.LinkClientGet(&plaid.LinkClientGetRequest{
-//		IntegrationMode:  1,
-//		LinkPersistentID: c.Link.PersistentID,
-//		LinkToken:        c.Link.Token,
-//		LinkVersion:      c.Link.Version,
-//	})
-//	checkError(err)
-//	fmt.Printf("res: %+v\n", res)
-//	return res
-//}
-//
-//func (c *Client) linkItemCreate() *plaid.LinkItemCreateResponse {
-//	lic, err := ioutil.ReadFile("../json/link_item_create_dev.json")
-//	checkError(err)
-//
-//	licStr := strings.Replace(string(lic), "LINK_TOKEN", c.Link.Token, 2)
-//	licStr = strings.Replace(string(licStr), "LINK_OPEN_ID", c.Link.OpenID, 1)
-//	licStr = strings.Replace(string(licStr), "LINK_PERSISTENT_ID", c.Link.PersistentID, 1)
-//	licStr = strings.Replace(string(licStr), "LINK_SESSION_ID", c.Link.SessionID, 1)
-//
-//	res, err := c.PlaidClient.LinkItemCreate([]byte(licStr))
-//	fmt.Printf("res: %+v\n", res)
-//	checkError(err)
-//	fmt.Printf("res: %+v\n", res)
-//	return res
-//}
-//
-//func (c *Client) getAccessToken() (string, string) {
-//	res, err := c.PlaidClient.ExchangePublicToken(c.PublicToken)
-//	checkError(err)
-//	return res.AccessToken, res.ItemID
-//}
-//
-//func (c *Client) linkItemMFA() (resp *plaid.LinkItemMFAResponse) {
-//	resp, err := c.PlaidClient.LinkItemMFA(&plaid.LinkItemMFARequest{
-//		LinkToken:        c.Link.Token,
-//		LinkOpenID:       c.Link.OpenID,
-//		LinkPersistentID: c.Link.PersistentID,
-//		LinkSessionID:    c.Link.SessionID,
-//		MFAType:          "device_list",
-//		PublicToken:      c.PublicToken,
-//		DisplayLanguage:  "en",
-//		Responses:        []string{""},
-//	})
-//	checkError(err)
-//	return resp
-//}
-//
-//func (c *Client) sendMFACode(code string) (resp *plaid.LinkItemMFASendCodeResponse) {
-//	resp, err := c.PlaidClient.LinkItemMFASendCode(&plaid.LinkItemMFARequest{
-//		DisplayLanguage:  "en",
-//		LinkOpenID:       c.Link.OpenID,
-//		LinkPersistentID: c.Link.PersistentID,
-//		LinkSessionID:    c.Link.SessionID,
-//		LinkToken:        c.Link.Token,
-//		MFAType:          "device",
-//		PublicToken:      c.PublicToken,
-//		Responses:        []string{code},
-//	})
-//	checkError(err)
-//	return resp
-//}
+func (c *Client) createLinkToken() string {
+	countryCodes := strings.Split(c.Keys.CountryCodes, ",")
+	products := strings.Split(c.Keys.Products, ",")
+	configs := plaid.LinkTokenConfigs{
+		User: &plaid.LinkTokenUser{
+			// This should correspond to a unique id for the current user.
+			ClientUserID: "robtcallahan",
+		},
+		ClientName:        "Plaid Quickstart",
+		Products:          products,
+		CountryCodes:      countryCodes,
+		Language:          "en",
+		PaymentInitiation: nil,
+	}
+	resp, err := c.PlaidClient.CreateLinkToken(configs)
+	checkError(err)
+	return resp.LinkToken
+}
+
+func (c *Client) getLinkClient() (resp *plaid.LinkClientGetResponse) {
+	res, err := c.PlaidClient.LinkClientGet(&plaid.LinkClientGetRequest{
+		IntegrationMode:  1,
+		LinkPersistentID: c.Link.PersistentID,
+		LinkToken:        c.Link.Token,
+		LinkVersion:      c.Link.Version,
+	})
+	checkError(err)
+	fmt.Printf("res: %+v\n", res)
+	return res
+}
+
+func (c *Client) linkItemCreate() *plaid.LinkItemCreateResponse {
+	lic, err := ioutil.ReadFile("../json/link_item_create_dev.json")
+	checkError(err)
+
+	licStr := strings.Replace(string(lic), "LINK_TOKEN", c.Link.Token, 2)
+	licStr = strings.Replace(licStr, "LINK_OPEN_ID", c.Link.OpenID, 1)
+	licStr = strings.Replace(licStr, "LINK_PERSISTENT_ID", c.Link.PersistentID, 1)
+	licStr = strings.Replace(licStr, "LINK_SESSION_ID", c.Link.SessionID, 1)
+
+	res, err := c.PlaidClient.LinkItemCreate([]byte(licStr))
+	fmt.Printf("res: %+v\n", res)
+	checkError(err)
+	fmt.Printf("res: %+v\n", res)
+	return res
+}
+
+func (c *Client) getAccessToken() (string, string) {
+	res, err := c.PlaidClient.ExchangePublicToken(c.PublicToken)
+	checkError(err)
+	return res.AccessToken, res.ItemID
+}
+
+func (c *Client) linkItemMFA() (resp *plaid.LinkItemMFAResponse) {
+	resp, err := c.PlaidClient.LinkItemMFA(&plaid.LinkItemMFARequest{
+		LinkToken:        c.Link.Token,
+		LinkOpenID:       c.Link.OpenID,
+		LinkPersistentID: c.Link.PersistentID,
+		LinkSessionID:    c.Link.SessionID,
+		MFAType:          "device_list",
+		PublicToken:      c.PublicToken,
+		DisplayLanguage:  "en",
+		Responses:        []string{""},
+	})
+	checkError(err)
+	return resp
+}
+
+func (c *Client) sendMFACode(code string) (resp *plaid.LinkItemMFASendCodeResponse) {
+	resp, err := c.PlaidClient.LinkItemMFASendCode(&plaid.LinkItemMFARequest{
+		DisplayLanguage:  "en",
+		LinkOpenID:       c.Link.OpenID,
+		LinkPersistentID: c.Link.PersistentID,
+		LinkSessionID:    c.Link.SessionID,
+		LinkToken:        c.Link.Token,
+		MFAType:          "device",
+		PublicToken:      c.PublicToken,
+		Responses:        []string{code},
+	})
+	checkError(err)
+	return resp
+}
 
 // GetAccounts ...
 func (c *Client) GetAccounts() plaid.GetAccountsResponse {
@@ -340,8 +342,8 @@ func (c *Client) GetAccounts() plaid.GetAccountsResponse {
 	return res
 }
 
-func (c *Client) getCheckingID(accts []plaid.Account) (checkingID string) {
-	for _, acct := range accts {
+func (c *Client) getCheckingID(accounts []plaid.Account) (checkingID string) {
+	for _, acct := range accounts {
 		if acct.Type == "depository" && acct.Subtype == "checking" {
 			checkingID = acct.AccountID
 		}

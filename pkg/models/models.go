@@ -1,12 +1,9 @@
 package models
 
-import (
-	"gorm.io/gorm"
-)
-
 // Merchant ...
 type Merchant struct {
-	gorm.Model
+	//gorm.Model
+	ID       int
 	BankName string
 	Name     string
 	ColumnID int
@@ -15,6 +12,7 @@ type Merchant struct {
 
 // Column ...
 type Column struct {
+	//gorm.Model
 	ID          int
 	Name        string
 	Color       string
@@ -25,6 +23,8 @@ type Column struct {
 
 // DataRow ...
 type DataRow struct {
+	//gorm.Model
+	ID          int
 	Name        string
 	BankName    string
 	ColumnName  string

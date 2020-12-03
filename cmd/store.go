@@ -55,9 +55,12 @@ func store() {
 	}
 	qHandler := handler.NewQueryHandler(conn)
 
-	cols := qHandler.GetColumns()
-	for i := 0; i < 10; i++ {
-		c := cols[i]
-		fmt.Printf("%s\n", c.Name)
-	}
+	data := qHandler.GetLookupData()
+	fmt.Println(data)
+
+	//cols := qHandler.GetColumns()
+	//for i := 0; i < 10; i++ {
+	//	c := cols[i]
+	//	fmt.Printf("%s\n", c.Name)
+	//}
 }

@@ -93,15 +93,15 @@ func update() {
 	fmt.Println("Getting transactions...")
 	transactions := bankClient.GetTransactions()
 
-	fmt.Printf("Sorting...\n")
-	transactions = bankClient.SortTransactions(transactions)
+	fmt.Println("Updating merchants...")
+	lookupData := qHandler.GetLookupData()
+	transactions = bankClient.FormatMerchants(transactions, lookupData)
 
 	fmt.Printf("Filtering rows...\n")
 	transactions = bankClient.FilterRows(transactions, regSrv.KeysMap)
 
-	fmt.Println("Updating merchants...")
-	lookupData := qHandler.GetLookupData()
-	transactions = bankClient.FormatMerchants(transactions, lookupData)
+	fmt.Printf("Sorting...\n")
+	transactions = bankClient.SortTransactions(transactions)
 
 	if len(transactions) > 0 {
 		fmt.Printf("Transaction updates...\n")
