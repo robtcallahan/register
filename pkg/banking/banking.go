@@ -138,12 +138,7 @@ func (c *Client) getPlaidTransactions(cfg config.BankInfo, start, end string) pl
 // GetTransactions ...
 func (c *Client) GetTransactions() []*Transaction {
 	var transactions []*Transaction
-	i := 1
 	for _, cfg := range c.BankInfo {
-		if i == 1 {
-			i++
-			continue
-		}
 		fmt.Printf("    %s...", cfg.Name)
 
 		c.SetBank(cfg)
@@ -152,6 +147,9 @@ func (c *Client) GetTransactions() []*Transaction {
 		c.WriteCSV(cfg.FileName, transResp.Transactions)
 
 		for _, t := range transResp.Transactions {
+			if strings.Contains(strings.ToLower(t.Name), "payment thank you") {
+				continue
+			}
 			tran := &Transaction{
 				Date:         formatDate(t.Date),
 				Name:         "",
@@ -218,14 +216,18 @@ func (t *Transaction) PrintTransaction(n int) {
 // FormatMerchants ...
 func (c *Client) FormatMerchants(trans []*Transaction, lookup []*models.DataRow) []*Transaction {
 	for i, t := range trans {
-		if t.Name == "Venmo" && t.Amount == 150.00 {
-			trans[i].BankName = "Margie Knight (Venmo)"
-			trans[i].ColumnIndex = 46
-			trans[i].Color = "blue"
-		} else if t.BankName == "Venmo" && t.Amount == 5.00 {
-			trans[i].Name = "AA Meeting (Venmo)"
-			trans[i].ColumnIndex = 41
-			trans[i].Color = "blue"
+		trans[i].Name = t.BankName
+
+		if t.BankName == "Venmo" {
+			if t.Amount == 150.00 {
+				trans[i].Name = "Margie Knight (Venmo)"
+				trans[i].ColumnIndex = 46
+				trans[i].Color = "blue"
+			} else if t.Amount == 5.00 || t.Amount == 10.00 {
+				trans[i].Name = "AA Meeting (Venmo)"
+				trans[i].ColumnIndex = 41
+				trans[i].Color = "blue"
+			}
 		}
 
 		for _, l := range lookup {
@@ -236,7 +238,7 @@ func (c *Client) FormatMerchants(trans []*Transaction, lookup []*models.DataRow)
 				trans[i].IsCategory = l.IsCategory
 			}
 		}
-		fmt.Printf("%s %s %s %.2f \n", trans[i].Key, trans[i].Name, trans[i].BankName, trans[i].Amount)
+		fmt.Printf("key: %s, name: %s, bankName: %s, amt: %.2f \n", trans[i].Key, trans[i].Name, trans[i].BankName, trans[i].Amount)
 	}
 	return trans
 }
@@ -377,7 +379,7 @@ func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) {
 	_, err = f.WriteString("Date,Amount,Description\n")
 	checkError(err)
 	for _, t := range trans {
-		_, err = f.WriteString(fmt.Sprintf("%s,%.2f,%s\n", t.Date, t.Amount, t.Name))
+		_, err = f.WriteString(fmt.Sprintf("%s,%.2f,%s,%s\n", t.Date, t.Amount, t.Name, t.MerchantName))
 		checkError(err)
 	}
 	_ = f.Sync()

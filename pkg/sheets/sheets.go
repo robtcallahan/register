@@ -387,7 +387,7 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 			if trans.Amount < 0 {
 				// value is < 0 if it is a deposit
 				cells = append(cells, mkStringCell("", "left", bgColor, false))
-				cells = append(cells, mkDollarsCell(trans.Amount, "right", bgColor, false))
+				cells = append(cells, mkDollarsCell(-1*trans.Amount, "right", bgColor, false))
 			} else {
 				// show the withdrawal
 				cells = append(cells, mkDollarsCell(trans.Amount, "right", bgColor, false))
@@ -411,7 +411,7 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 		colOffset := 7
 
 		// salary deposit
-		if trans.Name == "CrowdStrike Salary" || trans.BankName == "Direct Deposit from CROWDSTRIKE INC" {
+		if trans.Name == "CrowdStrike Salary" {
 			// allocate out budgeted amounts and set background color appropriately
 			for i := 0; i < len(columns)-colOffset; i++ {
 				col := columns[colOffset+i]

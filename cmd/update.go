@@ -93,6 +93,8 @@ func update() {
 	fmt.Println("Getting transactions...")
 	transactions := bankClient.GetTransactions()
 
+	//os.Exit(0)
+
 	fmt.Println("Updating merchants...")
 	lookupData := qHandler.GetLookupData()
 	transactions = bankClient.FormatMerchants(transactions, lookupData)
