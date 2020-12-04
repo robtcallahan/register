@@ -42,7 +42,7 @@ func ConnectSQL(c *ConnectParams) (*DB, error) {
 	switch c.DBType {
 	case MySQL:
 		dsn := fmt.Sprintf(
-			"%s:%s@tcp(%s:%s)/%s?charset=utf8",
+			"%s:%s@tcp(%s:%s)/%s?charset=utf8&parseTime=true",
 			c.User,
 			c.Pass,
 			c.Host,

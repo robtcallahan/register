@@ -20,6 +20,10 @@ func NewPostgreSQLQueryRepo(conn *gorm.DB) repo.QueryRepo {
 	}
 }
 
+func (r *postgresQueryRepo) UpdateTransactionTables(trans []*models.Transaction) {
+
+}
+
 func (r *postgresQueryRepo) CreateDB(dbName string) (*gorm.DB, error) {
 	db := r.Conn.Exec("CREATE DATABASE " + dbName)
 	return db, db.Error
@@ -28,10 +32,15 @@ func (r *postgresQueryRepo) CreateDB(dbName string) (*gorm.DB, error) {
 // GetColumns ...
 func (r *postgresQueryRepo) GetColumns() []models.Column {
 	var cols []models.Column
-
 	r.Conn.Order("column_index").Find(&cols)
-
 	return cols
+}
+
+// GetMerchants ...
+func (r *postgresQueryRepo) GetMerchants() []models.Merchant {
+	var merch []models.Merchant
+	r.Conn.Order("name").Find(&merch)
+	return merch
 }
 
 // CreateMerchant ...

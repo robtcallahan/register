@@ -18,6 +18,8 @@ package cmd
 
 import (
 	"fmt"
+	"register/pkg/banking"
+	"register/pkg/models"
 
 	cfg "register/pkg/config"
 	"register/pkg/driver"
@@ -42,6 +44,15 @@ func init() {
 }
 
 func store() {
+	bankClient := banking.New(&banking.ClientOptions{
+		StartDate:     config.StartDate,
+		EndDate:       config.EndDate,
+		BankInfo:      config.BankInfo,
+		Debug:         Debug,
+		PlaidClientID: config.PlaidClientID,
+		PlaidSecret:   config.PlaidSecret,
+	})
+
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
 		DBType: driver.DBType(config.DBType),
 		Host:   config.DBHost,
@@ -55,12 +66,35 @@ func store() {
 	}
 	qHandler := handler.NewQueryHandler(conn)
 
-	data := qHandler.GetLookupData()
-	fmt.Println(data)
+	fmt.Println("Getting transactions...")
+	trans := bankClient.GetTransactions()
 
-	//cols := qHandler.GetColumns()
-	//for i := 0; i < 10; i++ {
-	//	c := cols[i]
-	//	fmt.Printf("%s\n", c.Name)
-	//}
+	fmt.Println("Updating transactions")
+	qHandler.UpdateTransactionTables(trans)
+}
+
+func printTables(h *handler.Query) {
+	fmt.Println("Columns...")
+	cols := h.GetColumns()
+	printColumns(cols, 20)
+	fmt.Println("")
+
+	fmt.Println("Merchants...")
+	merch := h.GetMerchants()
+	printMerchants(merch, 20)
+	fmt.Println("")
+}
+
+func printMerchants(merch []models.Merchant, num int) {
+	for i := 0; i < num; i++ {
+		m := merch[i]
+		fmt.Printf("    %-35s %s\n", m.CreatedAt, m.BankName)
+	}
+}
+
+func printColumns(cols []models.Column, num int) {
+	for i := 0; i < num; i++ {
+		c := cols[i]
+		fmt.Printf("    %-35s %s\n", c.CreatedAt, c.Name)
+	}
 }

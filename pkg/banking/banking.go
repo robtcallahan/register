@@ -32,66 +32,6 @@ import (
 	"github.com/plaid/plaid-go/plaid"
 )
 
-// Keys ...
-type Keys struct {
-	Products     string
-	CountryCodes string
-}
-
-// Link ...
-type Link struct {
-	Version      string
-	Token        string
-	OpenID       string
-	PersistentID string
-	SessionID    string
-}
-
-// ClientOptions ...
-type ClientOptions struct {
-	Keys          *Keys
-	StartDate     string
-	EndDate       string
-	BankInfo      map[string]config.BankInfo
-	PlaidClientID string
-	PlaidSecret   string
-	Merchants     map[string]string
-	Debug         bool
-}
-
-// Client ...
-type Client struct {
-	Keys        *Keys
-	Link        *Link
-	AccessToken string
-	PublicToken string
-	ItemID      string
-	RequestID   string
-	PlaidClient *plaid.Client
-	StartDate   string
-	EndDate     string
-	BankInfo    map[string]config.BankInfo
-	ClientID    string
-	Secret      string
-	Debug       bool
-}
-
-// Transaction ...
-type Transaction struct {
-	Key          string
-	Source       string
-	Date         string
-	Name         string
-	BankName     string
-	MerchantName string
-	Amount       float64
-	Withdrawal   float64
-	Deposit      float64
-	CreditCard   float64
-	ColumnIndex  int
-	Color        string
-	IsCategory   bool
-}
 
 // New ...
 func New(o *ClientOptions) *Client {
@@ -136,8 +76,8 @@ func (c *Client) getPlaidTransactions(cfg config.BankInfo, start, end string) pl
 }
 
 // GetTransactions ...
-func (c *Client) GetTransactions() []*Transaction {
-	var transactions []*Transaction
+func (c *Client) GetTransactions() []*models.Transaction {
+	var transactions []*models.Transaction
 	for _, cfg := range c.BankInfo {
 		fmt.Printf("    %s...", cfg.Name)
 
@@ -150,7 +90,7 @@ func (c *Client) GetTransactions() []*Transaction {
 			if strings.Contains(strings.ToLower(t.Name), "payment thank you") {
 				continue
 			}
-			tran := &Transaction{
+			tran := &models.Transaction{
 				Date:         formatDate(t.Date),
 				Name:         "",
 				BankName:     t.Name,
@@ -191,7 +131,7 @@ func (c *Client) GetTransactions() []*Transaction {
 }
 
 // SortTransactions ...
-func (c *Client) SortTransactions(trans []*Transaction) []*Transaction {
+func (c *Client) SortTransactions(trans []*models.Transaction) []*models.Transaction {
 	sort.Slice(trans, func(i, j int) bool {
 		if trans[i].Date == trans[j].Date {
 			return trans[i].Name < trans[j].Name
@@ -207,14 +147,8 @@ func (c *Client) PrintTransactionHead() {
 		"Key", "Name", "Bank Name", "Merchant Name", "Withdrawal", "Deposit", "Credit Card", "Amount", "ColIndx", "Color")
 }
 
-// PrintTransaction ...
-func (t *Transaction) PrintTransaction(n int) {
-	fmt.Printf("    [%3d] %-25s %-32s %-40s %-40s %12.2f %12.2f %12.2f %12.2f %7d %-5s\n",
-		n+1, t.Key, t.Name, t.BankName, t.MerchantName, t.Withdrawal, t.Deposit, t.CreditCard, t.Amount, t.ColumnIndex, t.Color)
-}
-
 // FormatMerchants ...
-func (c *Client) FormatMerchants(trans []*Transaction, lookup []*models.DataRow) []*Transaction {
+func (c *Client) FormatMerchants(trans []*models.Transaction, lookup []*models.DataRow) []*models.Transaction {
 	for i, t := range trans {
 		trans[i].Name = t.BankName
 
@@ -240,14 +174,16 @@ func (c *Client) FormatMerchants(trans []*Transaction, lookup []*models.DataRow)
 				}
 			}
 		}
-		fmt.Printf("key: %s, name: %s, bankName: %s, amt: %.2f \n", trans[i].Key, trans[i].Name, trans[i].BankName, trans[i].Amount)
+		if c.Debug {
+			fmt.Printf("key: %s, name: %s, bankName: %s, amt: %.2f \n", trans[i].Key, trans[i].Name, trans[i].BankName, trans[i].Amount)
+		}
 	}
 	return trans
 }
 
 // FilterRows ...
-func (c *Client) FilterRows(trans []*Transaction, lookup map[string]bool) []*Transaction {
-	var filter []*Transaction
+func (c *Client) FilterRows(trans []*models.Transaction, lookup map[string]bool) []*models.Transaction {
+	var filter []*models.Transaction
 	for _, r := range trans {
 		if _, ok := lookup[r.Key]; !ok {
 			filter = append(filter, r)

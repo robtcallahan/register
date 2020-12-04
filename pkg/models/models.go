@@ -1,8 +1,28 @@
 package models
 
+import "gorm.io/gorm"
+
+// Transaction ...
+type Transaction struct {
+	gorm.Model
+	Key          string
+	Source       string
+	Date         string
+	Name         string
+	BankName     string
+	MerchantName string
+	Amount       float64
+	Withdrawal   float64
+	Deposit      float64
+	CreditCard   float64
+	ColumnIndex  int
+	Color        string
+	IsCategory   bool
+}
+
 // Merchant ...
 type Merchant struct {
-	//gorm.Model
+	gorm.Model
 	ID       int
 	BankName string
 	Name     string
@@ -12,7 +32,7 @@ type Merchant struct {
 
 // Column ...
 type Column struct {
-	//gorm.Model
+	gorm.Model
 	ID          int
 	Name        string
 	Color       string
@@ -23,7 +43,6 @@ type Column struct {
 
 // DataRow ...
 type DataRow struct {
-	//gorm.Model
 	ID          int
 	Name        string
 	BankName    string

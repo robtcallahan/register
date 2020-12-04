@@ -2,7 +2,7 @@ package mysql
 
 import (
 	"fmt"
-
+	"gorm.io/gorm/clause"
 	"register/pkg/models"
 	repo "register/pkg/repository"
 
@@ -20,6 +20,20 @@ func NewMySQLQueryRepo(conn *gorm.DB) repo.QueryRepo {
 	}
 }
 
+// UpdateTransactionTables ...
+func (r *mysqlQueryRepo) UpdateTransactionTables(trans []*models.Transaction) {
+	_ = r.Conn.AutoMigrate(&models.Transaction{})
+
+	for _, t := range trans {
+		result := r.Conn.Clauses(clause.OnConflict{
+			UpdateAll: true,
+		}).Create(t)
+		if result.Error != nil {
+			panic(result.Error)
+		}
+	}
+}
+
 // CreateDB ...
 func (r *mysqlQueryRepo) CreateDB(dbName string) (*gorm.DB, error) {
 	db := r.Conn.Exec("CREATE DATABASE " + dbName)
@@ -29,10 +43,15 @@ func (r *mysqlQueryRepo) CreateDB(dbName string) (*gorm.DB, error) {
 // GetColumns ...
 func (r *mysqlQueryRepo) GetColumns() []models.Column {
 	var cols []models.Column
-
 	r.Conn.Order("column_index").Find(&cols)
-
 	return cols
+}
+
+// GetColumns ...
+func (r *mysqlQueryRepo) GetMerchants() []models.Merchant {
+	var merch []models.Merchant
+	r.Conn.Order("name").Find(&merch)
+	return merch
 }
 
 // CreateMerchant ...

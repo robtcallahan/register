@@ -93,8 +93,6 @@ func update() {
 	fmt.Println("Getting transactions...")
 	transactions := bankClient.GetTransactions()
 
-	//os.Exit(0)
-
 	fmt.Println("Updating merchants...")
 	lookupData := qHandler.GetLookupData()
 	transactions = bankClient.FormatMerchants(transactions, lookupData)
@@ -105,12 +103,8 @@ func update() {
 	fmt.Printf("Sorting...\n")
 	transactions = bankClient.SortTransactions(transactions)
 
-	if len(transactions) > 0 {
-		fmt.Printf("Transaction updates...\n")
-		if Debug {
-			printTransactions(bankClient, transactions)
-		}
-	}
+	fmt.Println("Updating transactions table...")
+	qHandler.UpdateTransactionTables(transactions)
 
 	if needInfo := needInfo(transactions); needInfo {
 		fmt.Println("Info needed...")
@@ -141,7 +135,7 @@ func update() {
 	}
 }
 
-func needInfo(trans []*banking.Transaction) bool {
+func needInfo(trans []*models.Transaction) bool {
 	for _, t := range trans {
 		if t.Name == "" {
 			return true
@@ -151,7 +145,7 @@ func needInfo(trans []*banking.Transaction) bool {
 }
 
 //goland:noinspection GoNilness
-func getBankNameToName(db *handler.Query, trans []*banking.Transaction) []*banking.Transaction {
+func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models.Transaction {
 	cols := db.GetColumns()
 	var filter []models.Column
 	re := regexp.MustCompile(`old-\d+`)
@@ -203,13 +197,13 @@ func getBankNameToName(db *handler.Query, trans []*banking.Transaction) []*banki
 	return trans
 }
 
-func printTransactions(client *banking.Client, trans []*banking.Transaction) {
-	fmt.Println("")
-	client.PrintTransactionHead()
-	for i, t := range trans {
-		t.PrintTransaction(i)
-	}
-}
+//func printTransactions(client *banking.Client, trans []*models.Transaction) {
+//	fmt.Println("")
+//	client.PrintTransactionHead()
+//	for i, t := range trans {
+//		t.PrintTransaction(i)
+//	}
+//}
 
 func checkError(err error) {
 	if err != nil {

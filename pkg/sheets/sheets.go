@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"register/pkg/auth"
-	"register/pkg/banking"
 	"register/pkg/config"
 	cfg "register/pkg/config"
 	"register/pkg/models"
@@ -319,7 +318,7 @@ func (rs *RegisterSheet) readRange(readRange string) []string {
 }
 
 // UpdateRows ...
-func (rs *RegisterSheet) UpdateRows(columns []models.Column, nameToCol map[string]string, transactions []*banking.Transaction) {
+func (rs *RegisterSheet) UpdateRows(columns []models.Column, nameToCol map[string]string, transactions []*models.Transaction) {
 	var requests []*sheets.Request
 	rows := rs.populateCells(columns, nameToCol, transactions)
 
@@ -351,7 +350,7 @@ func (rs *RegisterSheet) UpdateRows(columns []models.Column, nameToCol map[strin
 	}
 }
 
-func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[string]string, transactions []*banking.Transaction) []*sheets.RowData {
+func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[string]string, transactions []*models.Transaction) []*sheets.RowData {
 	// rows will be returned be added to the sheet
 	var rows []*sheets.RowData
 	// this is the first empty row to be updated

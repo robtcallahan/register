@@ -28,9 +28,18 @@ func NewQueryHandler(db *driver.DB) *Query {
 	}
 }
 
+func (q *Query) UpdateTransactionTables(trans []*models.Transaction) {
+	q.repo.UpdateTransactionTables(trans)
+}
+
 // GetColumns get all columns
 func (q *Query) GetColumns() []models.Column {
 	return q.repo.GetColumns()
+}
+
+// GetMerchants get all merchants
+func (q *Query) GetMerchants() []models.Merchant {
+	return q.repo.GetMerchants()
 }
 
 // CreateMerchant ...
