@@ -52,6 +52,9 @@ amounts from the appropriate budget category columns.`,
 func init() {
 	config = cfg.ReadConfig()
 	rootCmd.AddCommand(updateCmd)
+
+	updateCmd.Flags().BoolVarP(&Test, "test", "t", false, "Test mode; no updates performed")
+	updateCmd.Flags().BoolVarP(&Debug, "debug", "d", false, "Debug mode")
 }
 
 func update() {
@@ -121,7 +124,7 @@ func update() {
 	if len(transactions) > 0 {
 		fmt.Printf("Transaction updates...\n")
 		for i, r := range transactions {
-			fmt.Printf("    (%2d) %-5s %-10s %8.2f %s\n", i+1, r.Source, r.Date, r.Amount, r.Name)
+			fmt.Printf("    (%2d) [%-28s] %-5s %-10s %8.2f %s\n", i+1, r.Key, r.Source, r.Date, r.Amount, r.Name)
 		}
 
 		if !Test {

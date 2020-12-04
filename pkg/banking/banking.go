@@ -99,26 +99,26 @@ func (c *Client) GetTransactions() []*models.Transaction {
 
 			switch cfg.Name {
 			case "Wells Fargo Checking":
-				tran.Source = "-"
+				tran.Source = "WellsFargo"
 				tran.Amount = t.Amount
 				if t.Amount < 0 {
 					tran.Deposit = -1 * t.Amount
 				} else {
 					tran.Withdrawal = t.Amount
 				}
-				tran.Key = fmt.Sprintf("-:%s:%.2f", formatDate(t.Date), -1*t.Amount)
+				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, formatDate(t.Date), -1*t.Amount)
 			case "Fidelity Visa":
-				tran.Source = "VISA"
+				tran.Source = "Fidelity"
 				tran.Amount = t.Amount
 				tran.CreditCard = t.Amount
 				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, formatDate(t.Date), -1*t.Amount)
 			case "Chase Visa":
-				tran.Source = "CHASE"
+				tran.Source = "Chase"
 				tran.Amount = t.Amount
 				tran.CreditCard = t.Amount
 				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, formatDate(t.Date), -1*t.Amount)
 			case "Citi Visa":
-				tran.Source = "CITI"
+				tran.Source = "Citi"
 				tran.Amount = t.Amount
 				tran.CreditCard = t.Amount
 				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, formatDate(t.Date), -1*t.Amount)

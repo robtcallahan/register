@@ -220,9 +220,6 @@ func (rs *RegisterSheet) Read() ([]*RegisterEntry, map[string]bool, [][]interfac
 		values := rangeValues[i]
 
 		name := rs.getNameField(values)
-		// if name == "VOID" || name == "Reallocation of funds" {
-		// 	continue
-		// }
 		source := rs.getSourceField(values)
 		date := rs.getDateField(values)
 		amount := rs.getAmountFieldForKey(values)
@@ -380,7 +377,7 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 		cells = append(cells, mkDateCell(trans.Date, "center", bgColor, false))
 		cells = append(cells, mkStringCell(trans.Name, "left", bgColor, false))
 
-		if trans.Source == "-" {
+		if trans.Source == "WellsFargo" {
 			// Wells Fargo Bank transaction
 			if trans.Amount < 0 {
 				// value is < 0 if it is a deposit
@@ -431,7 +428,7 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 				if ok := intInSlice(i, []int{0, 1, 2}); ok {
 					// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here
 					cells = append(cells, mkDollarsCellFromFormulaString(totalsFormulas[i], "right", col.Color, false))
-				} else if trans.Source != "-" && col.Name == rs.Config.CreditCardColumnName {
+				} else if trans.Source != "WellsFargo" && col.Name == rs.Config.CreditCardColumnName {
 					// enter a positive value in the credit card column
 					cells = append(cells, mkDollarsCell(trans.CreditCard, "left", "yellow", true))
 				} else if _, ok := nameToCol[trans.Name]; ok && col.Name == nameToCol[trans.Name] {
@@ -926,7 +923,7 @@ func (rs *RegisterSheet) getSourceField(values []interface{}) string {
 	regI := rs.Config.RegisterIndexes
 	source := fmt.Sprintf("%v", values[regI["Source"]])
 	if fmt.Sprintf("%v", values[regI["Source"]]) == "" {
-		source = "-"
+		source = "WellsFargo"
 	}
 	return source
 }
