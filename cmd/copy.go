@@ -45,6 +45,9 @@ func init() {
 	copyCmd.Flags().Int64P("start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
 	copyCmd.Flags().Int64P("end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
 	copyCmd.Flags().StringP("id", "i", config.SpreadsheetID, "The Google spreadsheet id")
+
+	copyCmd.Flags().BoolVarP(&Test, "test", "t", false, "Test mode; no updates performed")
+	copyCmd.Flags().BoolVarP(&Debug, "debug", "d", false, "Debug mode")
 }
 
 func copyRows(cmd *cobra.Command) {

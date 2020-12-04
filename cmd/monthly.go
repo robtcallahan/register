@@ -40,10 +40,10 @@ var monthlyCmd = &cobra.Command{
 
 func init() {
 	config = cfg.ReadConfig()
-
 	rootCmd.AddCommand(monthlyCmd)
 
-	// 4698
+	monthlyCmd.Flags().BoolVarP(&Test, "test", "t", false, "Test mode; no updates performed")
+	monthlyCmd.Flags().BoolVarP(&Debug, "debug", "d", false, "Debug mode")
 }
 
 func monthly() {

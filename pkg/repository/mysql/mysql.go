@@ -20,6 +20,16 @@ func NewMySQLQueryRepo(conn *gorm.DB) repo.QueryRepo {
 	}
 }
 
+func (r *mysqlQueryRepo) GetTransactions() []models.Transaction {
+	var trans []models.Transaction
+	r.Conn.Order("date").Find(&trans)
+	return trans
+}
+
+func (r *mysqlQueryRepo) SaveTransaction(trans *models.Transaction) {
+	r.Conn.Save(trans)
+}
+
 // UpdateTransactionTables ...
 func (r *mysqlQueryRepo) UpdateTransactionTables(trans []*models.Transaction) {
 	_ = r.Conn.AutoMigrate(&models.Transaction{})

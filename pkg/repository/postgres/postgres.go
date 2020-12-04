@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"gorm.io/gorm/clause"
 
 	"register/pkg/models"
 	repo "register/pkg/repository"
@@ -20,8 +21,27 @@ func NewPostgreSQLQueryRepo(conn *gorm.DB) repo.QueryRepo {
 	}
 }
 
-func (r *postgresQueryRepo) UpdateTransactionTables(trans []*models.Transaction) {
+func (r *postgresQueryRepo) GetTransactions() []models.Transaction {
+	var trans []models.Transaction
+	r.Conn.Order("date").Find(&trans)
+	return trans
+}
 
+func (r *postgresQueryRepo) SaveTransaction(trans *models.Transaction) {
+	r.Conn.Save(trans)
+}
+
+func (r *postgresQueryRepo) UpdateTransactionTables(trans []*models.Transaction) {
+	_ = r.Conn.AutoMigrate(&models.Transaction{})
+
+	for _, t := range trans {
+		result := r.Conn.Clauses(clause.OnConflict{
+			UpdateAll: true,
+		}).Create(t)
+		if result.Error != nil {
+			panic(result.Error)
+		}
+	}
 }
 
 func (r *postgresQueryRepo) CreateDB(dbName string) (*gorm.DB, error) {

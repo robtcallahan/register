@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"register/pkg/banking"
 	cfg "register/pkg/config"
@@ -96,6 +97,9 @@ func update() {
 	fmt.Println("Getting transactions...")
 	transactions := bankClient.GetTransactions()
 
+	fmt.Println("Getting Wells Fargo account balance...")
+	wfAccount := bankClient.GetAccount(config.BankInfo["wellsfargo"], "depository")
+
 	fmt.Println("Updating merchants...")
 	lookupData := qHandler.GetLookupData()
 	transactions = bankClient.FormatMerchants(transactions, lookupData)
@@ -126,13 +130,19 @@ func update() {
 		for i, r := range transactions {
 			fmt.Printf("    (%2d) [%-28s] %-5s %-10s %8.2f %s\n", i+1, r.Key, r.Source, r.Date, r.Amount, r.Name)
 		}
-
-		if !Test {
-			fmt.Printf("Updating spreadsheet...\n")
-			cols := qHandler.GetColumns()
-			nameToCol := qHandler.GetNameMapToColumn()
-			regSrv.UpdateRows(cols, nameToCol, transactions)
+		if Test {
+			return
 		}
+
+		fmt.Printf("Updating spreadsheet...\n")
+		cols := qHandler.GetColumns()
+		nameToCol := qHandler.GetNameMapToColumn()
+		regSrv.UpdateRows(cols, nameToCol, transactions)
+
+		lastRowUpdated := regSrv.FirstRowToUpdate + int64(len(transactions) * 2) + 1
+		regSrv.WriteCell("F1", time.Now().Format("01/02/2006"))
+		regSrv.WriteCell("G2", fmt.Sprintf("=SUM(G1-I%d)", lastRowUpdated))
+		regSrv.WriteCell("G1", wfAccount.Balances.Available)
 	} else {
 		fmt.Println("No updates needed")
 	}
@@ -151,6 +161,7 @@ func needInfo(trans []*models.Transaction) bool {
 func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models.Transaction {
 	cols := db.GetColumns()
 	var filter []models.Column
+
 	re := regexp.MustCompile(`old-\d+`)
 	for _, c := range cols {
 		chk := re.Match([]byte(c.Name))
@@ -174,6 +185,7 @@ func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models
 	for ; i < remItems; i++ {
 		fmt.Printf("%2d %-30s \n", filter[i].ID, filter[i].Name)
 	}
+
 
 	reader := bufio.NewReader(os.Stdin)
 	for i, t := range trans {

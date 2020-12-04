@@ -63,6 +63,18 @@ func (c *Client) SetBank(b config.BankInfo) {
 	c.AccessToken = b.PlaidAccessToken
 }
 
+func (c *Client) GetAccount(cfg config.BankInfo, aType string) *plaid.Account {
+	res, err := c.PlaidClient.GetAccounts(cfg.PlaidAccessToken)
+	checkError(err)
+
+	for i, a := range res.Accounts {
+		if a.Type == aType {
+			return &res.Accounts[i]
+		}
+	}
+	return nil
+}
+
 func (c *Client) getPlaidTransactions(cfg config.BankInfo, start, end string) plaid.GetTransactionsResponse {
 	res, err := c.PlaidClient.GetTransactionsWithOptions(c.AccessToken, plaid.GetTransactionsOptions{
 		StartDate:  start,
@@ -79,7 +91,7 @@ func (c *Client) getPlaidTransactions(cfg config.BankInfo, start, end string) pl
 func (c *Client) GetTransactions() []*models.Transaction {
 	var transactions []*models.Transaction
 	for _, cfg := range c.BankInfo {
-		fmt.Printf("    %s...", cfg.Name)
+		fmt.Printf( "    %s...", cfg.Name)
 
 		c.SetBank(cfg)
 		transResp := c.getPlaidTransactions(cfg, c.StartDate, c.EndDate)
@@ -91,7 +103,7 @@ func (c *Client) GetTransactions() []*models.Transaction {
 				continue
 			}
 			tran := &models.Transaction{
-				Date:         formatDate(t.Date),
+				Date:         readDateValue(t.Date),
 				Name:         "",
 				BankName:     t.Name,
 				MerchantName: t.MerchantName,
@@ -106,22 +118,22 @@ func (c *Client) GetTransactions() []*models.Transaction {
 				} else {
 					tran.Withdrawal = t.Amount
 				}
-				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, formatDate(t.Date), -1*t.Amount)
+				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(t.Date), -1*t.Amount)
 			case "Fidelity Visa":
 				tran.Source = "Fidelity"
 				tran.Amount = t.Amount
 				tran.CreditCard = t.Amount
-				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, formatDate(t.Date), -1*t.Amount)
+				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(t.Date), -1*t.Amount)
 			case "Chase Visa":
 				tran.Source = "Chase"
 				tran.Amount = t.Amount
 				tran.CreditCard = t.Amount
-				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, formatDate(t.Date), -1*t.Amount)
+				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(t.Date), -1*t.Amount)
 			case "Citi Visa":
 				tran.Source = "Citi"
 				tran.Amount = t.Amount
 				tran.CreditCard = t.Amount
-				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, formatDate(t.Date), -1*t.Amount)
+				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(t.Date), -1*t.Amount)
 			}
 			transactions = append(transactions, tran)
 		}
@@ -150,8 +162,6 @@ func (c *Client) PrintTransactionHead() {
 // FormatMerchants ...
 func (c *Client) FormatMerchants(trans []*models.Transaction, lookup []*models.DataRow) []*models.Transaction {
 	for i, t := range trans {
-		trans[i].Name = t.BankName
-
 		if t.BankName == "Venmo" {
 			if t.Amount == 150.00 {
 				trans[i].Name = "Margie Knight (Venmo)"
@@ -323,7 +333,7 @@ func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) {
 	_ = f.Sync()
 }
 
-func formatDate(date string) string {
+func readDateValue(date string) string {
 	re := regexp.MustCompile(`(20)?(\d\d)-(\d\d)-(\d\d)`)
 	m := re.FindAllStringSubmatch(date, -1)
 	yy, _ := strconv.Atoi(m[0][2])

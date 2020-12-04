@@ -18,12 +18,14 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"register/pkg/banking"
-	"register/pkg/models"
-
 	cfg "register/pkg/config"
 	"register/pkg/driver"
 	"register/pkg/handler"
+	"register/pkg/models"
+	"register/pkg/sheets"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -41,6 +43,9 @@ var storeCmd = &cobra.Command{
 func init() {
 	config = cfg.ReadConfig()
 	rootCmd.AddCommand(storeCmd)
+
+	storeCmd.Flags().BoolVarP(&Test, "test", "t", false, "Test mode; no updates performed")
+	storeCmd.Flags().BoolVarP(&Debug, "debug", "d", false, "Debug mode")
 }
 
 func store() {
@@ -53,6 +58,45 @@ func store() {
 		PlaidSecret:   config.PlaidSecret,
 	})
 
+	acc := bankClient.GetAccount(config.BankInfo["wellsfargo"], "depository")
+	fmt.Printf("current: %.2f, avail: %.2f\n", acc.Balances.Current, acc.Balances.Available)
+
+	sheetService := &sheets.SheetService{
+		Service:       sheets.NewService(),
+		SpreadsheetID: SpreadsheetID,
+	}
+
+	fmt.Printf("Reading Register...\n")
+	regSrv := sheets.NewRegisterSheet(sheetService, *config, StartRow, EndRow, Debug)
+	//regSrv.ID, err = sheetService.GetSheetID(config.TabNames["register"])
+	//checkError(err)
+	//regSrv.Register, regSrv.KeysMap, _ = regSrv.Read()
+
+
+	//curBal := regSrv.ReadDollarsCell("G1")
+	//fmt.Printf("Current Balance: %.2f\n", curBal)
+
+	// Mon Jan 2 15:04:05 -0700 MST 2006
+	//curDate := time.Now().Format("01/02/2006")
+	//curDate := regSrv.ReadDateCell("F1")
+	//fmt.Printf("Current Date: %s\n", curDate)
+
+	//reconFormula := "=SUM(G1-I6406)"
+	//reconValue := regSrv.ReadDollarsCell("G2")
+	//fmt.Printf("Recon Value: %.2f\n", reconValue)
+
+	regSrv.WriteCell("G2", "=SUM(G1-I6468)")
+	//regSrv.WriteCell("F1", time.Now().Format("01/02/2006"))
+	//regSrv.WriteCell("G1", acc.Balances.Available)
+}
+
+func checkErr(err error) {
+	if err != nil {
+		log.Fatalf("unable to retrieve data from sheet: %v", err)
+	}
+}
+
+func fixTransactionTable() {
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
 		DBType: driver.DBType(config.DBType),
 		Host:   config.DBHost,
@@ -66,11 +110,25 @@ func store() {
 	}
 	qHandler := handler.NewQueryHandler(conn)
 
-	fmt.Println("Getting transactions...")
-	trans := bankClient.GetTransactions()
+	trans := qHandler.GetTransactions()
+	for _, t := range trans {
+		tri := strings.Split(t.Key, ":")
+		if tri[0] == "-" {
+			tri[0] = "WellsFargo"
+		} else {
+			tri[0] = strings.Title(strings.ToLower(tri[0]))
+		}
+		t.Key = strings.Join(tri, ":")
 
-	fmt.Println("Updating transactions")
-	qHandler.UpdateTransactionTables(trans)
+		if t.Source == "-" {
+			t.Source = "WellsFargo"
+		} else {
+			t.Source = strings.Title(strings.ToLower(t.Source))
+		}
+
+		qHandler.SaveTransaction(&t)
+		fmt.Println(t.Key)
+	}
 }
 
 func printTables(h *handler.Query) {

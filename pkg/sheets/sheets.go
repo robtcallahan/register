@@ -183,11 +183,11 @@ func (bs *BudgetSheet) Read() {
 		}
 		entry := &BudgetEntry{
 			Category: category,
-			// Weekly:             getDollarsField(v[2]),
-			// Monthly:            getDollarsField(v[3]),
-			// Every2Weeks:        getDollarsField(v[4]),
-			TwiceMonthly: getDollarsField(v[5]),
-			// Yearly:             getDollarsField(v[6]),
+			// Weekly:             readDollarsValue(v[2]),
+			// Monthly:            readDollarsValue(v[3]),
+			// Every2Weeks:        readDollarsValue(v[4]),
+			TwiceMonthly: readDollarsValue(v[5]),
+			// Yearly:             readDollarsValue(v[6]),
 			// RegisterColumnName: config.BudgetCategories[category],
 		}
 		entries = append(entries, entry)
@@ -250,6 +250,62 @@ func (rs *RegisterSheet) Read() ([]*RegisterEntry, map[string]bool, [][]interfac
 	return register, keysMap, rangeValues
 }
 
+func (rs *RegisterSheet) ReadStringCell(cell string) string {
+	return readStringValue(rs.readCell(cell, "string"))
+}
+
+func (rs *RegisterSheet) ReadDollarsCell(cell string) float64 {
+	return readDollarsValue(rs.readCell(cell, "dollars"))
+}
+
+func (rs *RegisterSheet) ReadFormulaCell(cell string) string {
+	return readStringValue(rs.readCell(cell, "formula"))
+}
+
+func (rs *RegisterSheet) ReadDateCell(cell string) string {
+	return readDateValue(rs.readCell(cell, "date"))
+}
+
+func (rs *RegisterSheet) readCell(cell string, dType string) interface{} {
+	var val interface{}
+	readRange := fmt.Sprintf("%s!%s:%s", rs.TabName, cell, cell)
+
+	if dType == "formula" {
+		call := rs.Service.Spreadsheets.Values.BatchGet(rs.SpreadsheetID)
+		call.ValueRenderOption("FORMULA")
+		call.Ranges(readRange)
+		resp, err := call.Do()
+		if err != nil {
+			log.Fatalf("unable to retrieve data from sheet: %v", err)
+		}
+		val = resp.ValueRanges[0].Values[0]
+	} else {
+		resp, err := rs.Service.Spreadsheets.Values.Get(rs.SpreadsheetID, readRange).Do()
+		if err != nil {
+			log.Fatalf("unable to retrieve data from sheet: %v", err)
+		}
+		val = resp.Values[0][0]
+	}
+	return val
+}
+
+func (rs *RegisterSheet) WriteCell(cell string, value interface{}) *sheets.UpdateValuesResponse {
+	var v [][]interface{}
+	v = append(v, []interface{}{value})
+
+	writeRange := fmt.Sprintf("%s!%s:%s", rs.TabName, cell, cell)
+	vRange :=&sheets.ValueRange{
+		Values: v,
+	}
+	call := rs.Service.Spreadsheets.Values.Update(rs.SpreadsheetID, writeRange, vRange)
+	call.ValueInputOption("USER_ENTERED")
+	resp, err := call.Do()
+	if err != nil {
+		log.Fatalf("unable to write cell data: %s", err.Error())
+	}
+	return resp
+}
+
 // CopyRows ...
 func (rs *RegisterSheet) CopyRows(numCopies int) {
 	// loop to copy NumberOfCopy times
@@ -293,7 +349,7 @@ func (rs *RegisterSheet) CopyRows(numCopies int) {
 	}
 }
 
-func (rs *RegisterSheet) readRange(readRange string) []string {
+func (rs *RegisterSheet) readRangeFormulas(readRange string) []string {
 	call := rs.Service.Spreadsheets.Values.BatchGet(rs.SpreadsheetID)
 	call.ValueRenderOption("FORMULA")
 	call.Ranges(readRange)
@@ -355,12 +411,6 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 
 	// loop over all the transactions to be added, duplicates have been previously filtered out
 	for _, trans := range transactions {
-		// TODO: should filter this out sooner
-		//if trans.Name == "Credit Card Payment" || trans.Name == "PAYMENT THANK YOU" {
-		//	// we don't show these.
-		//	continue
-		//}
-
 		// cells will be added to row
 		var cells []*sheets.CellData
 		// each row appended to rows and then rows is returned
@@ -400,7 +450,7 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 
 		// create the read range to read the 3 adjacent cell formulas for Register, Cleared & Delta
 		readRange := fmt.Sprintf("%s!H%d:J%d", rs.Config.TabNames["register"], rowIndex+1, rowIndex+1)
-		totalsFormulas := rs.readRange(readRange)
+		totalsFormulas := rs.readRangeFormulas(readRange)
 
 		// colOffset is because we've already taken care of cols A-G (0-6)
 		colOffset := 7
@@ -718,8 +768,8 @@ func mkDateCell(dateString, align, colorName string, bordersOn bool) *sheets.Cel
 	checkError(err)
 	sinceTime := csvTime.Sub(serialTime)
 	days := sinceTime.Hours() / 24.0
-	serialFormatString := fmt.Sprintf("%.0f.0", days)
-	serialFormatFloat, err := strconv.ParseFloat(serialFormatString, 64)
+	serialreadStringValue := fmt.Sprintf("%.0f.0", days)
+	serialFormatFloat, err := strconv.ParseFloat(serialreadStringValue, 64)
 	checkError(err)
 
 	uev := &sheets.ExtendedValue{
@@ -848,18 +898,6 @@ func color(name string) *sheets.Color {
 }
 
 // the following "get" functions read and interpret cell data from Google Sheets
-func getDollarsField(value interface{}) float64 {
-	dollars := fmt.Sprintf("%v", value)
-	re := regexp.MustCompile(`[\s$,]`)
-	dollars = re.ReplaceAllString(dollars, "")
-	if dollars == "-" || dollars == "" {
-		return 0
-	}
-	f, err := strconv.ParseFloat(dollars, 32)
-	checkError(err)
-	return f
-}
-
 func (rs *RegisterSheet) getAmountFieldForKey(values []interface{}) string {
 	regI := rs.Config.RegisterIndexes
 
@@ -912,11 +950,11 @@ func (rs *RegisterSheet) getDateField(values []interface{}) string {
 	if dateString == "" {
 		return ""
 	}
-	return formatDate(dateString)
+	return readDateValue(dateString)
 }
 
 func (rs *RegisterSheet) getNameField(values []interface{}) string {
-	return fmt.Sprintf("%v", values[rs.Config.RegisterIndexes["Description"]])
+	return readStringValue(values[rs.Config.RegisterIndexes["Description"]])
 }
 
 func (rs *RegisterSheet) getSourceField(values []interface{}) string {
@@ -948,7 +986,31 @@ func formatYear(date string) string {
 	return re.ReplaceAllString(date, "${1}/${2}")
 }
 
-func formatDate(date string) string {
+// read different types of cells
+func readStringValue(text interface{}) string {
+	return fmt.Sprintf("%v", text)
+}
+
+func readDollarsValue(value interface{}) float64 {
+	dollars := fmt.Sprintf("%v", value)
+	re := regexp.MustCompile(`[\s$,]`)
+	dollars = re.ReplaceAllString(dollars, "")
+	if dollars == "-" || dollars == "" {
+		return 0
+	}
+
+	re = regexp.MustCompile(`[()]`)
+	if re.Match([]byte(dollars)) {
+		dollars = "-" + re.ReplaceAllString(dollars, "")
+	}
+
+	f, err := strconv.ParseFloat(dollars, 64)
+	checkError(err)
+	return f
+}
+
+func readDateValue(dateStr interface{}) string {
+	date:= fmt.Sprintf("%v", dateStr)
 	re := regexp.MustCompile(`(\d+)/(\d+)/(20)?(\d+)`)
 	m := re.FindAllStringSubmatch(date, -1)
 	mm, _ := strconv.Atoi(m[0][1])

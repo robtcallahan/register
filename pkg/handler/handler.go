@@ -28,6 +28,14 @@ func NewQueryHandler(db *driver.DB) *Query {
 	}
 }
 
+func (q *Query) GetTransactions() []models.Transaction {
+	return q.repo.GetTransactions()
+}
+
+func (q *Query) SaveTransaction(trans *models.Transaction) {
+	q.repo.SaveTransaction(trans)
+}
+
 func (q *Query) UpdateTransactionTables(trans []*models.Transaction) {
 	q.repo.UpdateTransactionTables(trans)
 }
