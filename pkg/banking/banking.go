@@ -115,7 +115,14 @@ func (c *Client) createTransaction(bankName string, p plaid.Transaction) *models
 
 	switch bankName {
 	case "Wells Fargo Checking":
-		tran.Source = "WellsFargo"
+		re := regexp.MustCompile(`CHECK # (\d\d\d\d)`)
+		m := re.FindStringSubmatch(p.Code)
+		if len(m) > 0 {
+			tran.Source = m[1]
+		} else {
+			tran.Source = "WellsFargo"
+		}
+
 		tran.Amount = p.Amount
 		if p.Amount < 0 {
 			tran.Deposit = -1 * p.Amount
@@ -321,10 +328,10 @@ func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) {
 
 func readDateValue(date string) string {
 	re := regexp.MustCompile(`(20)?(\d\d)-(\d\d)-(\d\d)`)
-	m := re.FindAllStringSubmatch(date, -1)
-	yy, _ := strconv.Atoi(m[0][2])
-	mm, _ := strconv.Atoi(m[0][3])
-	dd, _ := strconv.Atoi(m[0][4])
+	m := re.FindStringSubmatch(date)
+	yy, _ := strconv.Atoi(m[2])
+	mm, _ := strconv.Atoi(m[3])
+	dd, _ := strconv.Atoi(m[4])
 	d := fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
 	return d
 }
