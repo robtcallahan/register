@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-
 	"regexp"
 	"sort"
 	"strconv"
@@ -72,6 +71,7 @@ type BudgetSheet struct {
 // RegisterEntry ...
 type RegisterEntry struct {
 	RowID        int64
+	Key          string
 	Reconciled   string
 	Source       string
 	Date         string
@@ -88,7 +88,7 @@ type RegisterEntry struct {
 // RegisterSheet ...
 type RegisterSheet struct {
 	Service          *sheets.Service
-	Config           cfg.Config
+	Config           *cfg.Config
 	ID               int64
 	SpreadsheetID    string
 	TabName          string
@@ -103,6 +103,7 @@ type RegisterSheet struct {
 	CategoriesMap    map[string]*BudgetEntry
 	KeysMap          map[string]bool
 	Debug            bool
+	Verbose          bool
 }
 
 // NewService ...
@@ -116,7 +117,7 @@ func NewService() *sheets.Service {
 }
 
 // NewRegisterSheet ...
-func NewRegisterSheet(ss *SheetService, config cfg.Config, startRow, endRow int64, debug bool) *RegisterSheet {
+func NewRegisterSheet(ss *SheetService, config *cfg.Config, options *cfg.Options, startRow, endRow int64) *RegisterSheet {
 	sheet := RegisterSheet{
 		Service:        ss.Service,
 		Config:         config,
@@ -126,7 +127,8 @@ func NewRegisterSheet(ss *SheetService, config cfg.Config, startRow, endRow int6
 		EndRow:         endRow,
 		EndColumnName:  "BB",
 		EndColumnIndex: config.ColumnIndexes["BB"],
-		Debug:          debug,
+		Debug:          options.Debug,
+		Verbose:        options.Verbose,
 	}
 	return &sheet
 }
@@ -229,6 +231,7 @@ func (rs *RegisterSheet) Read() ([]*RegisterEntry, map[string]bool, [][]interfac
 		keysMap[key] = true
 
 		c := &RegisterEntry{
+			Key:          key,
 			RowID:        rs.StartRow + int64(i),
 			Reconciled:   getStringField(values, rs.Config.RegisterIndexes["Withdrawals"]),
 			Source:       source,
@@ -421,6 +424,8 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 		bgColor := "white"
 		if trans.Name == rs.Config.PaycheckName {
 			bgColor = "green"
+		} else if trans.TaxDeductible {
+			bgColor = "yellow"
 		}
 
 		// first 4 columns

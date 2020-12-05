@@ -91,6 +91,7 @@ func (r *mysqlQueryRepo) GetLookupData() []*models.DataRow {
 			ColumnIndex: m.Column.ColumnIndex,
 			Color:       m.Column.Color,
 			IsCategory:  m.Column.IsCategory,
+			TaxDeductible: m.TaxDeductible,
 		})
 	}
 	return data

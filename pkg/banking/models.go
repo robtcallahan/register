@@ -30,6 +30,7 @@ type ClientOptions struct {
 	PlaidSecret   string
 	Merchants     map[string]string
 	Debug         bool
+	Verbose       bool
 }
 
 // Client ...
@@ -47,4 +48,5 @@ type Client struct {
 	ClientID    string
 	Secret      string
 	Debug       bool
+	Verbose     bool
 }

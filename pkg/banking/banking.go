@@ -42,6 +42,7 @@ func New(o *ClientOptions) *Client {
 		EndDate:   o.EndDate,
 		BankInfo:  o.BankInfo,
 		Debug:     o.Debug,
+		Verbose:   o.Verbose,
 		ClientID:  o.PlaidClientID,
 		Secret:    o.PlaidSecret,
 	}
@@ -185,6 +186,7 @@ func (c *Client) FormatMerchants(trans []*models.Transaction, lookup []*models.D
 					trans[i].Color = l.Color
 					trans[i].ColumnIndex = l.ColumnIndex
 					trans[i].IsCategory = l.IsCategory
+					trans[i].TaxDeductible = l.TaxDeductible
 				}
 			}
 		}
@@ -195,11 +197,12 @@ func (c *Client) FormatMerchants(trans []*models.Transaction, lookup []*models.D
 	return trans
 }
 
-func (c *Client) FilterRows(trans []*models.Transaction, lookup map[string]bool) []*models.Transaction {
+func (c *Client) FilterRows(trans []*models.Transaction, regLookup map[string]bool) []*models.Transaction {
 	var filter []*models.Transaction
-	for _, r := range trans {
-		if _, ok := lookup[r.Key]; !ok {
-			filter = append(filter, r)
+	for i, t := range trans {
+		if _, ok := regLookup[t.Key]; !ok {
+			filter = append(filter, t)
+			fmt.Printf("    NOT FOUND (%2d) [%-28s] %-12s %-10s %8.2f %s\n", i+1, t.Key, t.Source, t.Date, t.Amount, t.Name)
 		}
 	}
 	return filter

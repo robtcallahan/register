@@ -50,7 +50,7 @@ func copyRows() {
 		Service:       sheets.NewService(),
 		SpreadsheetID: options.SpreadsheetID,
 	}
-	reg := sheets.NewRegisterSheet(srv, *config, options.StartRow, options.EndRow, options.Debug)
+	reg := sheets.NewRegisterSheet(srv, config, options, config.RegisterStartRow, config.RegisterEndRow)
 
 	fmt.Printf("Reading Register...\n")
 	reg.ID, err = srv.GetSheetID(config.TabNames["register"])

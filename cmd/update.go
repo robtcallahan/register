@@ -63,6 +63,7 @@ func update() {
 		EndDate:       config.EndDate,
 		BankInfo:      config.BankInfo,
 		Debug:         options.Debug,
+		Verbose:       options.Verbose,
 		PlaidClientID: config.PlaidClientID,
 		PlaidSecret:   config.PlaidSecret,
 	})
@@ -86,13 +87,19 @@ func update() {
 	}
 
 	fmt.Printf("Reading Register...\n")
-	regSrv := sheets.NewRegisterSheet(sheetService, *config, options.StartRow, options.EndRow, options.Debug)
+	regSrv := sheets.NewRegisterSheet(sheetService, config, options, config.RegisterStartRow, config.RegisterEndRow)
 	regSrv.ID, err = sheetService.GetSheetID(config.TabNames["register"])
 	checkError(err)
 	regSrv.Register, regSrv.KeysMap, _ = regSrv.Read()
+	if options.Verbose {
+		printRegister(regSrv.Register)
+	}
 
 	fmt.Println("Getting transactions...")
 	transactions := bankClient.GetTransactions()
+	if options.Verbose {
+		printTransactions(transactions)
+	}
 
 	fmt.Println("Getting Wells Fargo account balance...")
 	wfAccount := bankClient.GetAccount(config.BankInfo["wellsfargo"], "depository")
@@ -100,6 +107,9 @@ func update() {
 	fmt.Println("Updating merchants...")
 	lookupData := qHandler.GetLookupData()
 	transactions = bankClient.FormatMerchants(transactions, lookupData)
+	if options.Verbose {
+		printTransactions(transactions)
+	}
 
 	fmt.Printf("Filtering rows...\n")
 	transactions = bankClient.FilterRows(transactions, regSrv.KeysMap)
@@ -125,7 +135,7 @@ func update() {
 	if len(transactions) > 0 {
 		fmt.Printf("Transaction updates...\n")
 		for i, r := range transactions {
-			fmt.Printf("    (%2d) [%-28s] %-5s %-10s %8.2f %s\n", i+1, r.Key, r.Source, r.Date, r.Amount, r.Name)
+			fmt.Printf("    (%2d) [%-28s] %-12s %-10s %8.2f %s\n", i+1, r.Key, r.Source, r.Date, r.Amount, r.Name)
 		}
 		if options.Test {
 			return
@@ -136,13 +146,27 @@ func update() {
 		nameToCol := qHandler.GetNameMapToColumn()
 		regSrv.UpdateRows(cols, nameToCol, transactions)
 
-		lastRowUpdated := regSrv.FirstRowToUpdate + int64(len(transactions)*2) + 1
+		lastRowUpdated := regSrv.FirstRowToUpdate + int64(len(transactions) * 2) + 1
 		regSrv.WriteCell("F1", time.Now().Format("01/02/2006"))
 		regSrv.WriteCell("G2", fmt.Sprintf("=SUM(G1-I%d)", lastRowUpdated))
 		regSrv.WriteCell("G1", wfAccount.Balances.Available)
 	} else {
 		fmt.Println("No updates needed")
 	}
+}
+
+func printTransactions(trans []*models.Transaction) {
+	for i, t := range trans {
+		fmt.Printf("    (%2d) [%-28s] %-12s %-10s %8.2f %-30s %s\n", i+1, t.Key, t.Source, t.Date, t.Amount, t.Name, t.BankName)
+	}
+	fmt.Println("")
+}
+
+func printRegister(trans []*sheets.RegisterEntry) {
+	for i, t := range trans {
+		fmt.Printf("    (%2d) [%-28s] %-12s %-10s %8.2f %s\n", i+1, t.Key, t.Source, t.Date, t.Amount, t.Name)
+	}
+	fmt.Println("")
 }
 
 func needInfo(trans []*models.Transaction) bool {
@@ -182,6 +206,7 @@ func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models
 	for ; i < remItems; i++ {
 		fmt.Printf("%2d %-30s \n", filter[i].ID, filter[i].Name)
 	}
+
 
 	reader := bufio.NewReader(os.Stdin)
 	for i, t := range trans {

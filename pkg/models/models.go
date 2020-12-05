@@ -5,19 +5,20 @@ import "gorm.io/gorm"
 // Transaction ...
 type Transaction struct {
 	gorm.Model
-	Key          string
-	Source       string
-	Date         string
-	Name         string
-	BankName     string
-	MerchantName string
-	Amount       float64
-	Withdrawal   float64
-	Deposit      float64
-	CreditCard   float64
-	ColumnIndex  int
-	Color        string
-	IsCategory   bool
+	Key           string
+	Source        string
+	Date          string
+	Name          string
+	BankName      string
+	MerchantName  string
+	Amount        float64
+	Withdrawal    float64
+	Deposit       float64
+	CreditCard    float64
+	ColumnIndex   int
+	Color         string
+	IsCategory    bool
+	TaxDeductible bool
 }
 
 // Merchant ...
@@ -28,6 +29,7 @@ type Merchant struct {
 	Name     string
 	ColumnID int
 	Column   Column
+	TaxDeductible bool
 }
 
 // Column ...
@@ -43,11 +45,12 @@ type Column struct {
 
 // DataRow ...
 type DataRow struct {
-	ID          int
-	Name        string
-	BankName    string
-	ColumnName  string
-	ColumnIndex int
-	Color       string
-	IsCategory  bool
+	ID            int
+	Name          string
+	BankName      string
+	ColumnName    string
+	ColumnIndex   int
+	Color         string
+	IsCategory    bool
+	TaxDeductible bool
 }

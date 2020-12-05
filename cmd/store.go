@@ -71,7 +71,7 @@ func store() {
 	}
 
 	fmt.Printf("Reading Register...\n")
-	regSrv := sheets.NewRegisterSheet(sheetService, *config, options.StartRow, options.EndRow, options.Debug)
+	regSrv := sheets.NewRegisterSheet(sheetService, config, options, config.RegisterStartRow, config.RegisterEndRow)
 	//regSrv.ID, err = sheetService.GetSheetID(config.TabNames["register"])
 	//checkError(err)
 	//regSrv.Register, regSrv.KeysMap, _ = regSrv.Read()

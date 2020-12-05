@@ -61,7 +61,7 @@ func monthly() {
 	qHandler := handler.NewQueryHandler(conn)
 
 	fmt.Printf("Reading Register...\n")
-	regSrv := sheets.NewRegisterSheet(sheetService, *config, config.MonthlyStartRow, config.MonthlyEndRow, options.Debug)
+	regSrv := sheets.NewRegisterSheet(sheetService, config, options, config.MonthlyStartRow, config.MonthlyEndRow)
 	id, err := sheetService.GetSheetID(config.TabNames["register"])
 	regSrv.ID = id
 	checkError(err)
