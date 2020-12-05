@@ -25,7 +25,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// copyCmd represents the copy command
 var copyCmd = &cobra.Command{
 	Use:   "copy",
 	Short: "Copies the last 2 rows of the Register spreadsheet -c <num> times",
@@ -40,34 +39,31 @@ func init() {
 	rootCmd.AddCommand(copyCmd)
 	config = cfg.ReadConfig()
 
-	copyCmd.Flags().IntP("copies", "c", 0, "The number of times to copy the last 2 rows")
+	copyCmd.Flags().IntVarP(&options.Copies, "copies", "c", 0, "The number of times to copy the last 2 rows")
 	_ = copyCmd.MarkFlagRequired("copies")
-	copyCmd.Flags().Int64P("start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
-	copyCmd.Flags().Int64P("end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
-	copyCmd.Flags().StringP("id", "i", config.SpreadsheetID, "The Google spreadsheet id")
 
-	copyCmd.Flags().BoolVarP(&Test, "test", "t", false, "Test mode; no updates performed")
-	copyCmd.Flags().BoolVarP(&Debug, "debug", "d", false, "Debug mode")
+	copyCmd.Flags().StringVarP(&options.SpreadsheetID, "id", "i", config.SpreadsheetID, "The Google spreadsheet id")
+	copyCmd.Flags().Int64VarP(&options.StartRow, "start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
+	copyCmd.Flags().Int64VarP(&options.EndRow, "end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
+
+	copyCmd.Flags().BoolVarP(&options.Test, "test", "t", false, "Test mode; no updates performed")
+	copyCmd.Flags().BoolVarP(&options.Debug, "debug", "d", false, "Debug mode")
 }
 
 func copyRows(cmd *cobra.Command) {
 	var err error
-	ssID, _ := cmd.Flags().GetString("id")
-	copies, _ := cmd.Flags().GetInt("copies")
-	startRow, _ := cmd.Flags().GetInt64("start")
-	endRow, _ := cmd.Flags().GetInt64("end")
 
 	srv := &sheets.SheetService{
 		Service:       sheets.NewService(),
-		SpreadsheetID: ssID,
+		SpreadsheetID: options.SpreadsheetID,
 	}
-	reg := sheets.NewRegisterSheet(srv, *config, startRow, endRow, Debug)
+	reg := sheets.NewRegisterSheet(srv, *config, options.StartRow, options.EndRow, options.Debug)
 
 	fmt.Printf("Reading Register...\n")
 	reg.ID, err = srv.GetSheetID(config.TabNames["register"])
 	checkError(err)
 	reg.Read()
 
-	fmt.Printf("Copying rows %d times...\n", copies)
-	reg.CopyRows(copies)
+	fmt.Printf("Copying rows %d times...\n", options.Copies)
+	reg.CopyRows(options.Copies)
 }

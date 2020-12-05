@@ -42,14 +42,18 @@ func init() {
 	config = cfg.ReadConfig()
 	rootCmd.AddCommand(monthlyCmd)
 
-	monthlyCmd.Flags().BoolVarP(&Test, "test", "t", false, "Test mode; no updates performed")
-	monthlyCmd.Flags().BoolVarP(&Debug, "debug", "d", false, "Debug mode")
+	monthlyCmd.Flags().StringVarP(&options.SpreadsheetID, "id", "i", config.SpreadsheetID, "The Google spreadsheet id")
+	monthlyCmd.Flags().Int64VarP(&options.StartRow, "start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
+	monthlyCmd.Flags().Int64VarP(&options.EndRow, "end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
+
+	monthlyCmd.Flags().BoolVarP(&options.Test, "test", "t", false, "Test mode; no updates performed")
+	monthlyCmd.Flags().BoolVarP(&options.Debug, "debug", "d", false, "Debug mode")
 }
 
 func monthly() {
 	sheetService := &sheets.SheetService{
 		Service:       sheets.NewService(),
-		SpreadsheetID: SpreadsheetID,
+		SpreadsheetID: options.SpreadsheetID,
 	}
 
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
@@ -66,7 +70,7 @@ func monthly() {
 	qHandler := handler.NewQueryHandler(conn)
 
 	fmt.Printf("Reading Register...\n")
-	regSrv := sheets.NewRegisterSheet(sheetService, *config, StartRow, EndRow, Debug)
+	regSrv := sheets.NewRegisterSheet(sheetService, *config, options.StartRow, options.EndRow, options.Debug)
 	id, err := sheetService.GetSheetID(config.TabNames["register"])
 	regSrv.ID = id
 	checkError(err)

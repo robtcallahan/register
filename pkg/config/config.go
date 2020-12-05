@@ -61,6 +61,8 @@ type Config struct {
 	BudgetEndRow                int64               `json:"budget_end_row"`
 	RegisterStartRow            int64               `json:"register_start_row"`
 	RegisterEndRow              int64               `json:"register_end_row"`
+	MonthlyStartRow             int64               `json:"monthly_start_row"`
+	MonthlyEndRow               int64               `json:"monthly_end_row"`
 	TabNames                    map[string]string   `json:"tab_names"`
 	RegisterCategoryStartColumn string              `json:"register_category_start_column"`
 	RegisterCategoryEndColumn   string              `json:"register_category_end_column"`

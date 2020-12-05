@@ -44,8 +44,12 @@ func init() {
 	config = cfg.ReadConfig()
 	rootCmd.AddCommand(storeCmd)
 
-	storeCmd.Flags().BoolVarP(&Test, "test", "t", false, "Test mode; no updates performed")
-	storeCmd.Flags().BoolVarP(&Debug, "debug", "d", false, "Debug mode")
+	storeCmd.Flags().StringVarP(&options.SpreadsheetID, "id", "i", config.SpreadsheetID, "The Google spreadsheet id")
+	storeCmd.Flags().Int64VarP(&options.StartRow, "start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
+	storeCmd.Flags().Int64VarP(&options.EndRow, "end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
+
+	storeCmd.Flags().BoolVarP(&options.Test, "test", "t", false, "Test mode; no updates performed")
+	storeCmd.Flags().BoolVarP(&options.Debug, "debug", "d", false, "Debug mode")
 }
 
 func store() {
@@ -53,7 +57,7 @@ func store() {
 		StartDate:     config.StartDate,
 		EndDate:       config.EndDate,
 		BankInfo:      config.BankInfo,
-		Debug:         Debug,
+		Debug:         options.Debug,
 		PlaidClientID: config.PlaidClientID,
 		PlaidSecret:   config.PlaidSecret,
 	})
@@ -63,11 +67,11 @@ func store() {
 
 	sheetService := &sheets.SheetService{
 		Service:       sheets.NewService(),
-		SpreadsheetID: SpreadsheetID,
+		SpreadsheetID: options.SpreadsheetID,
 	}
 
 	fmt.Printf("Reading Register...\n")
-	regSrv := sheets.NewRegisterSheet(sheetService, *config, StartRow, EndRow, Debug)
+	regSrv := sheets.NewRegisterSheet(sheetService, *config, options.StartRow, options.EndRow, options.Debug)
 	//regSrv.ID, err = sheetService.GetSheetID(config.TabNames["register"])
 	//checkError(err)
 	//regSrv.Register, regSrv.KeysMap, _ = regSrv.Read()

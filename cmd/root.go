@@ -19,27 +19,11 @@ package cmd
 import (
 	"fmt"
 	"os"
-
 	cfg "register/pkg/config"
 
 	"github.com/spf13/cobra"
 )
 
-var (
-	config *cfg.Config
-	// SpreadsheetID ...
-	SpreadsheetID string
-	// StartRow ...
-	StartRow int64
-	// EndRow ...
-	EndRow int64
-	// Debug ...
-	Debug bool
-	// Test ...
-	Test bool
-)
-
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "register",
 	Short: "Reads bank transactions and updates the financial register spreadsheet",
@@ -55,6 +39,18 @@ amounts from the appropriate budget category columns.`,
 	},
 }
 
+type Options struct {
+	SpreadsheetID string
+	StartRow int64
+	EndRow int64
+	Copies int
+	Debug bool
+	Test bool
+}
+
+var config *cfg.Config
+var options *Options
+
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
@@ -65,39 +61,5 @@ func Execute() {
 }
 
 func init() {
-	// cobra.OnInitialize(initConfig)
 	cobra.OnInitialize()
-
-	rootCmd.Flags().Int64VarP(&StartRow, "start", "s", config.RegisterStartRow, "The first row to start reading in the spreadsheet")
-	rootCmd.Flags().Int64VarP(&EndRow, "end", "e", config.RegisterEndRow, "The last row to read in the spreadsheet")
-	rootCmd.Flags().StringVarP(&SpreadsheetID, "id", "i", config.SpreadsheetID, "The Google spreadsheet id")
-
-	rootCmd.Flags().BoolVarP(&Test, "test", "t", false, "Test mode; no updates performed")
-	rootCmd.Flags().BoolVarP(&Debug, "debug", "d", false, "Debug mode")
 }
-
-// initConfig reads in config file and ENV variables if set.
-// func initConfig() {
-// 	if cfgFile != "" {
-// 		// Use config file from the flag.
-// 		viper.SetConfigFile(cfgFile)
-// 	} else {
-// 		// Find home directory.
-// 		home, err := homedir.Dir()
-// 		if err != nil {
-// 			fmt.Println(err)
-// 			os.Exit(1)
-// 		}
-
-// 		// Search config in home directory with name ".register" (without extension).
-// 		viper.AddConfigPath(home)
-// 		viper.SetConfigName(".register")
-// 	}
-
-// 	viper.AutomaticEnv() // read in environment variables that match
-
-// 	// If a config file is found, read it in.
-// 	if err := viper.ReadInConfig(); err == nil {
-// 		fmt.Println("Using config file:", viper.ConfigFileUsed())
-// 	}
-// }
