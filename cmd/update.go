@@ -215,11 +215,11 @@ func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models
 
 			fmt.Printf("    Name: ")
 			name, _ := reader.ReadString('\n')
-			trans[i].Name = strings.Replace(name, "\n", "", -1)
+			trans[i].Name = strings.ReplaceAll(name, "\r\n", "")
 
 			fmt.Printf("    Column Index: ")
 			s, _ := reader.ReadString('\n')
-			s = strings.Replace(s, "\n", "", -1)
+			s = strings.ReplaceAll(s, "\r\n", "")
 			colInx, _ := strconv.Atoi(s)
 			trans[i].ColumnIndex = colInx
 
@@ -232,14 +232,6 @@ func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models
 	}
 	return trans
 }
-
-//func printTransactions(client *banking.Client, trans []*models.Transaction) {
-//	fmt.Println("")
-//	client.PrintTransactionHead()
-//	for i, t := range trans {
-//		t.PrintTransaction(i)
-//	}
-//}
 
 func checkError(err error) {
 	if err != nil {
