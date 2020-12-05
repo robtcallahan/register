@@ -41,15 +41,16 @@ amounts from the appropriate budget category columns.`,
 
 type Options struct {
 	SpreadsheetID string
-	StartRow int64
-	EndRow int64
-	Copies int
-	Debug bool
-	Test bool
+	StartRow      int64
+	EndRow        int64
+	Copies        int
+	Debug         bool
+	Verbose       bool
+	Test          bool
 }
 
+var options = &Options{}
 var config *cfg.Config
-var options *Options
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
@@ -62,4 +63,14 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize()
+
+	config = cfg.ReadConfig()
+
+	rootCmd.PersistentFlags().StringVarP(&options.SpreadsheetID, "id", "i", config.SpreadsheetID, "The Google spreadsheet id")
+	rootCmd.PersistentFlags().Int64VarP(&options.StartRow, "start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
+	rootCmd.PersistentFlags().Int64VarP(&options.EndRow, "end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
+
+	rootCmd.PersistentFlags().BoolVarP(&options.Test, "test", "t", false, "Test mode; no updates performed")
+	rootCmd.PersistentFlags().BoolVarP(&options.Debug, "debug", "d", false, "Debug mode")
+	rootCmd.PersistentFlags().BoolVarP(&options.Verbose, "verbose", "v", false, "verbose output")
 }

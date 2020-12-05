@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"regexp"
 
-	cfg "register/pkg/config"
 	"register/pkg/driver"
 	"register/pkg/handler"
 	"register/pkg/sheets"
@@ -39,15 +38,7 @@ var monthlyCmd = &cobra.Command{
 }
 
 func init() {
-	config = cfg.ReadConfig()
 	rootCmd.AddCommand(monthlyCmd)
-
-	monthlyCmd.Flags().StringVarP(&options.SpreadsheetID, "id", "i", config.SpreadsheetID, "The Google spreadsheet id")
-	monthlyCmd.Flags().Int64VarP(&options.StartRow, "start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
-	monthlyCmd.Flags().Int64VarP(&options.EndRow, "end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
-
-	monthlyCmd.Flags().BoolVarP(&options.Test, "test", "t", false, "Test mode; no updates performed")
-	monthlyCmd.Flags().BoolVarP(&options.Debug, "debug", "d", false, "Debug mode")
 }
 
 func monthly() {
@@ -70,7 +61,7 @@ func monthly() {
 	qHandler := handler.NewQueryHandler(conn)
 
 	fmt.Printf("Reading Register...\n")
-	regSrv := sheets.NewRegisterSheet(sheetService, *config, options.StartRow, options.EndRow, options.Debug)
+	regSrv := sheets.NewRegisterSheet(sheetService, *config, config.MonthlyStartRow, config.MonthlyEndRow, options.Debug)
 	id, err := sheetService.GetSheetID(config.TabNames["register"])
 	regSrv.ID = id
 	checkError(err)
@@ -93,14 +84,14 @@ func monthly() {
 			if _, ok := payeeAgg[k]; !ok {
 				payeeAgg[k] = make(map[string]float64)
 			}
-			payeeAgg[k][r.Name] = payeeAgg[k][r.Name] + float64(r.Deposit-r.Withdrawal-r.CreditCard)
+			payeeAgg[k][r.Name] = payeeAgg[k][r.Name] + r.Deposit - r.Withdrawal - r.CreditCard
 
 			if _, ok := catAgg[k]; !ok {
 				catAgg[k] = make(map[string]float64)
 			}
 
 			if r.Name == "CrowdStrike Salary" {
-				catAgg[k]["CrowdStrike Salary"] += float64(r.Deposit)
+				catAgg[k]["CrowdStrike Salary"] += r.Deposit
 				continue
 			}
 
@@ -109,7 +100,7 @@ func monthly() {
 					continue
 				}
 				f32 := regSrv.GetRegisterField(rangeValues[i*2], cols[j].ColumnIndex)
-				catAgg[k][cols[j].Name] = catAgg[k][cols[j].Name] + float64(f32)
+				catAgg[k][cols[j].Name] = catAgg[k][cols[j].Name] + f32
 			}
 		}
 	}

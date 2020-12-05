@@ -31,7 +31,7 @@ var copyCmd = &cobra.Command{
 	Long: `Copies the last 2 rows of the Register spreadsheet then number of times
 specified using the -c <num> or --copy <num> options. `,
 	Run: func(cmd *cobra.Command, args []string) {
-		copyRows(cmd)
+		copyRows()
 	},
 }
 
@@ -41,16 +41,9 @@ func init() {
 
 	copyCmd.Flags().IntVarP(&options.Copies, "copies", "c", 0, "The number of times to copy the last 2 rows")
 	_ = copyCmd.MarkFlagRequired("copies")
-
-	copyCmd.Flags().StringVarP(&options.SpreadsheetID, "id", "i", config.SpreadsheetID, "The Google spreadsheet id")
-	copyCmd.Flags().Int64VarP(&options.StartRow, "start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
-	copyCmd.Flags().Int64VarP(&options.EndRow, "end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
-
-	copyCmd.Flags().BoolVarP(&options.Test, "test", "t", false, "Test mode; no updates performed")
-	copyCmd.Flags().BoolVarP(&options.Debug, "debug", "d", false, "Debug mode")
 }
 
-func copyRows(cmd *cobra.Command) {
+func copyRows() {
 	var err error
 
 	srv := &sheets.SheetService{

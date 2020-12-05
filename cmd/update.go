@@ -53,13 +53,6 @@ amounts from the appropriate budget category columns.`,
 func init() {
 	config = cfg.ReadConfig()
 	rootCmd.AddCommand(updateCmd)
-
-	updateCmd.Flags().StringVarP(&options.SpreadsheetID, "id", "i", config.SpreadsheetID, "The Google spreadsheet id")
-	updateCmd.Flags().Int64VarP(&options.StartRow, "start", "s", config.RegisterStartRow, "The last used row in the spreadsheet")
-	updateCmd.Flags().Int64VarP(&options.EndRow, "end", "e", config.RegisterEndRow, "The last used row in the spreadsheet")
-
-	updateCmd.Flags().BoolVarP(&options.Test, "test", "t", false, "Test mode; no updates performed")
-	updateCmd.Flags().BoolVarP(&options.Debug, "debug", "d", false, "Debug mode")
 }
 
 func update() {
@@ -143,7 +136,7 @@ func update() {
 		nameToCol := qHandler.GetNameMapToColumn()
 		regSrv.UpdateRows(cols, nameToCol, transactions)
 
-		lastRowUpdated := regSrv.FirstRowToUpdate + int64(len(transactions) * 2) + 1
+		lastRowUpdated := regSrv.FirstRowToUpdate + int64(len(transactions)*2) + 1
 		regSrv.WriteCell("F1", time.Now().Format("01/02/2006"))
 		regSrv.WriteCell("G2", fmt.Sprintf("=SUM(G1-I%d)", lastRowUpdated))
 		regSrv.WriteCell("G1", wfAccount.Balances.Available)
@@ -189,7 +182,6 @@ func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models
 	for ; i < remItems; i++ {
 		fmt.Printf("%2d %-30s \n", filter[i].ID, filter[i].Name)
 	}
-
 
 	reader := bufio.NewReader(os.Stdin)
 	for i, t := range trans {

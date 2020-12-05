@@ -19,6 +19,7 @@ package sheets
 import (
 	"fmt"
 	"log"
+	"math"
 
 	"regexp"
 	"sort"
@@ -76,12 +77,12 @@ type RegisterEntry struct {
 	Date         string
 	Name         string
 	Amount       float64
-	Withdrawal   float32
-	Deposit      float32
-	CreditCard   float32
-	BankRegister float32
-	Cleared      float32
-	Delta        float32
+	Withdrawal   float64
+	Deposit      float64
+	CreditCard   float64
+	BankRegister float64
+	Cleared      float64
+	Delta        float64
 }
 
 // RegisterSheet ...
@@ -222,7 +223,7 @@ func (rs *RegisterSheet) Read() ([]*RegisterEntry, map[string]bool, [][]interfac
 		name := rs.getNameField(values)
 		source := rs.getSourceField(values)
 		date := rs.getDateField(values)
-		amount := rs.getAmountFieldForKey(values)
+		amount := rs.getAmount(values)
 
 		key := fmt.Sprintf("%s:%s:%s", source, date, amount)
 		keysMap[key] = true
@@ -294,7 +295,7 @@ func (rs *RegisterSheet) WriteCell(cell string, value interface{}) *sheets.Updat
 	v = append(v, []interface{}{value})
 
 	writeRange := fmt.Sprintf("%s!%s:%s", rs.TabName, cell, cell)
-	vRange :=&sheets.ValueRange{
+	vRange := &sheets.ValueRange{
 		Values: v,
 	}
 	call := rs.Service.Spreadsheets.Values.Update(rs.SpreadsheetID, writeRange, vRange)
@@ -422,73 +423,21 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 			bgColor = "green"
 		}
 
-		cells = append(cells, mkNumberCell(4, "center", bgColor, false))
-		cells = append(cells, mkStringCell(trans.Source, "center", bgColor, false))
-		cells = append(cells, mkDateCell(trans.Date, "center", bgColor, false))
-		cells = append(cells, mkStringCell(trans.Name, "left", bgColor, false))
-
-		if trans.Source == "WellsFargo" {
-			// Wells Fargo Bank transaction
-			if trans.Amount < 0 {
-				// value is < 0 if it is a deposit
-				cells = append(cells, mkStringCell("", "left", bgColor, false))
-				cells = append(cells, mkDollarsCell(-1*trans.Amount, "right", bgColor, false))
-			} else {
-				// show the withdrawal
-				cells = append(cells, mkDollarsCell(trans.Amount, "right", bgColor, false))
-				cells = append(cells, mkStringCell("", "left", bgColor, false))
-			}
-			// credit card cell is blank
-			cells = append(cells, mkStringCell("", "left", bgColor, false))
-		} else {
-			// credit card transaction
-			// first 2 cells are blank
-			cells = append(cells, mkStringCell("", "left", bgColor, false))
-			cells = append(cells, mkStringCell("", "left", bgColor, false))
-			cells = append(cells, mkDollarsCell(trans.CreditCard, "right", bgColor, false))
-		}
+		// first 4 columns
+		cells = rs.addSourceDateNameCells(cells, trans, bgColor)
+		// amount: deposit, withdrawal, credit
+		cells = rs.addAmountCells(cells, trans, bgColor)
 
 		// create the read range to read the 3 adjacent cell formulas for Register, Cleared & Delta
 		readRange := fmt.Sprintf("%s!H%d:J%d", rs.Config.TabNames["register"], rowIndex+1, rowIndex+1)
 		totalsFormulas := rs.readRangeFormulas(readRange)
 
-		// colOffset is because we've already taken care of cols A-G (0-6)
-		colOffset := 7
-
-		// salary deposit
-		if trans.Name == "CrowdStrike Salary" {
-			// allocate out budgeted amounts and set background color appropriately
-			for i := 0; i < len(columns)-colOffset; i++ {
-				col := columns[colOffset+i]
-				if ok := intInSlice(i, []int{0, 1, 2}); ok {
-					// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here
-					cells = append(cells, mkDollarsCellFromFormulaString(totalsFormulas[i], "right", col.Color, false))
-				} else if col.Name != "" {
-					// enter the budgeted amount in this category column
-					entry := rs.CategoriesMap[col.Name]
-					cells = append(cells, mkDollarsCell(entry.TwiceMonthly, "left", col.Color, true))
-				} else {
-					// this cell doesn't apply. Just create an empty (opaque) cell.
-					cells = append(cells, mkOpaqueCell(col.Color, true))
-				}
-			}
+		if trans.Name == rs.Config.PaycheckName {
+			// salary deposit
+			cells = rs.addSalaryCells(cells, columns, totalsFormulas)
 		} else {
-			for i := 0; i < len(columns)-colOffset; i++ {
-				col := columns[colOffset+i]
-				if ok := intInSlice(i, []int{0, 1, 2}); ok {
-					// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here
-					cells = append(cells, mkDollarsCellFromFormulaString(totalsFormulas[i], "right", col.Color, false))
-				} else if trans.Source != "WellsFargo" && col.Name == rs.Config.CreditCardColumnName {
-					// enter a positive value in the credit card column
-					cells = append(cells, mkDollarsCell(trans.CreditCard, "left", "yellow", true))
-				} else if _, ok := nameToCol[trans.Name]; ok && col.Name == nameToCol[trans.Name] {
-					// enter a negative value in the budget category column
-					cells = append(cells, mkDollarsCell(-1 * trans.Amount, "left", col.Color, true))
-				} else {
-					// this cell doesn't apply. Just create an empty (opaque) cell.
-					cells = append(cells, mkOpaqueCell(col.Color, true))
-				}
-			}
+			// all other transaction entries
+			cells = rs.addCategoryCells(cells, trans, columns, nameToCol, totalsFormulas)
 		}
 
 		row.Values = cells
@@ -504,7 +453,81 @@ func (rs *RegisterSheet) populateCells(columns []models.Column, nameToCol map[st
 	return rows
 }
 
-// UpdateMonthlyCategories ...
+func (rs *RegisterSheet) addSourceDateNameCells(cells []*sheets.CellData, trans *models.Transaction, bgColor string) []*sheets.CellData {
+	cells = append(cells, mkNumberCell(4, "center", bgColor, false))
+	cells = append(cells, mkStringCell(trans.Source, "center", bgColor, false))
+	cells = append(cells, mkDateCell(trans.Date, "center", bgColor, false))
+	cells = append(cells, mkStringCell(trans.Name, "left", bgColor, false))
+	return cells
+}
+
+func (rs *RegisterSheet) addAmountCells(cells []*sheets.CellData, trans *models.Transaction, bgColor string) []*sheets.CellData {
+	if trans.Name == rs.Config.PaycheckName {
+		// Wells Fargo Bank transaction
+		if trans.Amount < 0 {
+			// value is < 0 if it is a deposit
+			cells = append(cells, mkStringCell("", "left", bgColor, false))
+			cells = append(cells, mkDollarsCell(-1*trans.Amount, "right", bgColor, false))
+		} else {
+			// show the withdrawal
+			cells = append(cells, mkDollarsCell(trans.Amount, "right", bgColor, false))
+			cells = append(cells, mkStringCell("", "left", bgColor, false))
+		}
+		// credit card cell is blank
+		cells = append(cells, mkStringCell("", "left", bgColor, false))
+	} else {
+		// credit card transaction - first 2 cells are blank
+		cells = append(cells, mkStringCell("", "left", bgColor, false))
+		cells = append(cells, mkStringCell("", "left", bgColor, false))
+		cells = append(cells, mkDollarsCell(trans.CreditCard, "right", bgColor, false))
+	}
+	return cells
+}
+
+func (rs *RegisterSheet) addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, columns []models.Column, nameToCol map[string]string, totalsFormulas []string) []*sheets.CellData {
+	// colOffset is because we've already taken care of cols A-G (0-6)
+	colOffset := 7
+	for i := 0; i < len(columns)-colOffset; i++ {
+		col := columns[colOffset+i]
+		if ok := intInSlice(i, []int{0, 1, 2}); ok {
+			// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here
+			cells = append(cells, mkDollarsCellFromFormulaString(totalsFormulas[i], "right", col.Color, false))
+		} else if trans.Source != "WellsFargo" && col.Name == rs.Config.CreditCardColumnName {
+			// enter a positive value in the credit card column
+			cells = append(cells, mkDollarsCell(trans.CreditCard, "left", "yellow", true))
+		} else if _, ok := nameToCol[trans.Name]; ok && col.Name == nameToCol[trans.Name] {
+			// enter a negative value in the budget category column
+			cells = append(cells, mkDollarsCell(-1*trans.Amount, "left", col.Color, true))
+		} else {
+			// this cell doesn't apply. Just create an empty (opaque) cell.
+			cells = append(cells, mkOpaqueCell(col.Color, true))
+		}
+	}
+	return cells
+}
+
+func (rs *RegisterSheet) addSalaryCells(cells []*sheets.CellData, columns []models.Column, totalsFormulas []string) []*sheets.CellData {
+	// colOffset is because we've already taken care of cols A-G (0-6)
+	colOffset := 7
+
+	// allocate out budgeted amounts and set background color appropriately
+	for i := 0; i < len(columns)-colOffset; i++ {
+		col := columns[colOffset+i]
+		if ok := intInSlice(i, []int{0, 1, 2}); ok {
+			// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here
+			cells = append(cells, mkDollarsCellFromFormulaString(totalsFormulas[i], "right", col.Color, false))
+		} else if col.Name != "" {
+			// enter the budgeted amount in this category column
+			entry := rs.CategoriesMap[col.Name]
+			cells = append(cells, mkDollarsCell(entry.TwiceMonthly, "left", col.Color, true))
+		} else {
+			// this cell doesn't apply. Just create an empty (opaque) cell.
+			cells = append(cells, mkOpaqueCell(col.Color, true))
+		}
+	}
+	return cells
+}
+
 func (ss *SheetService) UpdateMonthlyCategories(tabName string, catAgg map[string]map[string]float64, columns []models.Column) {
 	rows := populateMonthlyCategories(catAgg, columns)
 
@@ -514,7 +537,6 @@ func (ss *SheetService) UpdateMonthlyCategories(tabName string, catAgg map[strin
 	ss.updateMonthly(id, rows)
 }
 
-// UpdateMonthlyPayees ...
 func (ss *SheetService) UpdateMonthlyPayees(tabName string, catAgg map[string]map[string]float64) {
 	rows := populateMonthlyPayees(catAgg)
 	id, err := ss.GetSheetID(tabName)
@@ -720,8 +742,8 @@ func mkBoldStringCell(value, align, color string, bordersOn bool) *sheets.CellDa
 	return &c
 }
 
-func mkNumberCell(value float32, align, color string, bordersOn bool) *sheets.CellData {
-	v := float64(value)
+func mkNumberCell(value float64, align, color string, bordersOn bool) *sheets.CellData {
+	v := math.Round(value*100) / 100
 	return &sheets.CellData{
 		UserEnteredValue: &sheets.ExtendedValue{
 			NumberValue: &v,
@@ -731,9 +753,10 @@ func mkNumberCell(value float32, align, color string, bordersOn bool) *sheets.Ce
 }
 
 func mkDollarsCell(value float64, align, colorName string, bordersOn bool) *sheets.CellData {
+	v := math.Round(value*100) / 100
 	return &sheets.CellData{
 		UserEnteredValue: &sheets.ExtendedValue{
-			NumberValue: &value,
+			NumberValue: &v,
 		},
 		UserEnteredFormat: &sheets.CellFormat{
 			HorizontalAlignment: strings.ToUpper(align),
@@ -822,6 +845,91 @@ func dateFormat() *sheets.NumberFormat {
 	}
 }
 
+func getStringField(values []interface{}, i int) string {
+	return fmt.Sprintf("%v", values[i])
+}
+
+func (rs *RegisterSheet) getAmount(values []interface{}) string {
+	regI := rs.Config.RegisterIndexes
+
+	amt := ""
+	v := ""
+	if v = fmt.Sprintf("%v", values[regI["Withdrawals"]]); v != "" {
+		amt = "-" + v
+	} else if v = fmt.Sprintf("%v", values[regI["Deposits"]]); v != "" {
+		amt = v
+	} else if v = fmt.Sprintf("%v", values[regI["CreditCards"]]); v != "" {
+		re := regexp.MustCompile(`[()]`)
+		if re.Match([]byte(v)) {
+			amt = re.ReplaceAllString(v, "")
+		} else {
+			amt = "-" + v
+		}
+	}
+	re := regexp.MustCompile(`[\s$,]`)
+	amt = re.ReplaceAllString(amt, "")
+	return amt
+}
+
+func (rs *RegisterSheet) GetRegisterField(values []interface{}, i int) float64 {
+	return readDollarsValue(values[i])
+}
+
+func (rs *RegisterSheet) getDateField(values []interface{}) string {
+	dateString := fmt.Sprintf("%v", values[rs.Config.RegisterIndexes["Date"]])
+	if dateString == "" {
+		return ""
+	}
+	return readDateValue(dateString)
+}
+
+func (rs *RegisterSheet) getNameField(values []interface{}) string {
+	return readStringValue(values[rs.Config.RegisterIndexes["Description"]])
+}
+
+func (rs *RegisterSheet) getSourceField(values []interface{}) string {
+	regI := rs.Config.RegisterIndexes
+	source := fmt.Sprintf("%v", values[regI["Source"]])
+	if fmt.Sprintf("%v", values[regI["Source"]]) == "" {
+		source = "WellsFargo"
+	}
+	return source
+}
+
+// read different types of cells
+func readStringValue(text interface{}) string {
+	return fmt.Sprintf("%v", text)
+}
+
+func readDollarsValue(value interface{}) float64 {
+	dollars := fmt.Sprintf("%v", value)
+	re := regexp.MustCompile(`[\s$,]`)
+	dollars = re.ReplaceAllString(dollars, "")
+	if dollars == "-" || dollars == "" {
+		return 0
+	}
+
+	re = regexp.MustCompile(`[()]`)
+	if re.Match([]byte(dollars)) {
+		dollars = "-" + re.ReplaceAllString(dollars, "")
+	}
+
+	f, err := strconv.ParseFloat(dollars, 64)
+	checkError(err)
+	return f
+}
+
+func readDateValue(dateStr interface{}) string {
+	date := fmt.Sprintf("%v", dateStr)
+	re := regexp.MustCompile(`(\d+)/(\d+)/(20)?(\d+)`)
+	m := re.FindAllStringSubmatch(date, -1)
+	mm, _ := strconv.Atoi(m[0][1])
+	dd, _ := strconv.Atoi(m[0][2])
+	yy, _ := strconv.Atoi(m[0][4])
+	d := fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
+	return d
+}
+
 func borders(on bool) *sheets.Borders {
 	if !on {
 		return &sheets.Borders{}
@@ -897,75 +1005,6 @@ func color(name string) *sheets.Color {
 	return colors[name]
 }
 
-// the following "get" functions read and interpret cell data from Google Sheets
-func (rs *RegisterSheet) getAmountFieldForKey(values []interface{}) string {
-	regI := rs.Config.RegisterIndexes
-
-	amt := ""
-	v := ""
-	if v = fmt.Sprintf("%v", values[regI["Withdrawals"]]); v != "" {
-		amt = "-" + v
-	} else if v = fmt.Sprintf("%v", values[regI["Deposits"]]); v != "" {
-		amt = v
-	} else if v = fmt.Sprintf("%v", values[regI["CreditCards"]]); v != "" {
-		re := regexp.MustCompile(`[()]`)
-		if re.Match([]byte(v)) {
-			amt = re.ReplaceAllString(v, "")
-		} else {
-			amt = "-" + v
-		}
-	}
-	re := regexp.MustCompile(`[\s$,]`)
-	amt = re.ReplaceAllString(amt, "")
-	return amt
-}
-
-func getStringField(values []interface{}, i int) string {
-	return fmt.Sprintf("%v", values[i])
-}
-
-// GetRegisterField ...
-func (rs *RegisterSheet) GetRegisterField(values []interface{}, i int) float32 {
-	amt := fmt.Sprintf("%s", values[i])
-	re := regexp.MustCompile(`[\s$,-]`)
-	amt = re.ReplaceAllString(amt, "")
-	if amt == "" {
-		return 0
-	}
-
-	re = regexp.MustCompile(`[()]`)
-	if re.Match([]byte(amt)) {
-		amt = "-" + re.ReplaceAllString(amt, "")
-	}
-	f, err := strconv.ParseFloat(amt, 32)
-	if err != nil {
-		fmt.Printf("error: amt: %s\n", amt)
-		panic(err)
-	}
-	return float32(f)
-}
-
-func (rs *RegisterSheet) getDateField(values []interface{}) string {
-	dateString := fmt.Sprintf("%v", values[rs.Config.RegisterIndexes["Date"]])
-	if dateString == "" {
-		return ""
-	}
-	return readDateValue(dateString)
-}
-
-func (rs *RegisterSheet) getNameField(values []interface{}) string {
-	return readStringValue(values[rs.Config.RegisterIndexes["Description"]])
-}
-
-func (rs *RegisterSheet) getSourceField(values []interface{}) string {
-	regI := rs.Config.RegisterIndexes
-	source := fmt.Sprintf("%v", values[regI["Source"]])
-	if fmt.Sprintf("%v", values[regI["Source"]]) == "" {
-		source = "WellsFargo"
-	}
-	return source
-}
-
 func intInSlice(a int, list []int) bool {
 	for _, b := range list {
 		if b == a {
@@ -984,38 +1023,4 @@ func checkError(err error) {
 func formatYear(date string) string {
 	re := regexp.MustCompile(`(\d+/\d+)/20(\d+)`)
 	return re.ReplaceAllString(date, "${1}/${2}")
-}
-
-// read different types of cells
-func readStringValue(text interface{}) string {
-	return fmt.Sprintf("%v", text)
-}
-
-func readDollarsValue(value interface{}) float64 {
-	dollars := fmt.Sprintf("%v", value)
-	re := regexp.MustCompile(`[\s$,]`)
-	dollars = re.ReplaceAllString(dollars, "")
-	if dollars == "-" || dollars == "" {
-		return 0
-	}
-
-	re = regexp.MustCompile(`[()]`)
-	if re.Match([]byte(dollars)) {
-		dollars = "-" + re.ReplaceAllString(dollars, "")
-	}
-
-	f, err := strconv.ParseFloat(dollars, 64)
-	checkError(err)
-	return f
-}
-
-func readDateValue(dateStr interface{}) string {
-	date:= fmt.Sprintf("%v", dateStr)
-	re := regexp.MustCompile(`(\d+)/(\d+)/(20)?(\d+)`)
-	m := re.FindAllStringSubmatch(date, -1)
-	mm, _ := strconv.Atoi(m[0][1])
-	dd, _ := strconv.Atoi(m[0][2])
-	yy, _ := strconv.Atoi(m[0][4])
-	d := fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
-	return d
 }

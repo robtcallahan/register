@@ -32,8 +32,6 @@ import (
 	"github.com/plaid/plaid-go/plaid"
 )
 
-
-// New ...
 func New(o *ClientOptions) *Client {
 	c := &Client{
 		Keys: &Keys{
@@ -57,7 +55,6 @@ func New(o *ClientOptions) *Client {
 	return c
 }
 
-// SetBank ...
 func (c *Client) SetBank(b config.BankInfo) {
 	c.ItemID = b.PlaidItemID
 	c.AccessToken = b.PlaidAccessToken
@@ -87,11 +84,10 @@ func (c *Client) getPlaidTransactions(cfg config.BankInfo, start, end string) pl
 	return res
 }
 
-// GetTransactions ...
 func (c *Client) GetTransactions() []*models.Transaction {
 	var transactions []*models.Transaction
 	for _, cfg := range c.BankInfo {
-		fmt.Printf( "    %s...", cfg.Name)
+		fmt.Printf("    %s...", cfg.Name)
 
 		c.SetBank(cfg)
 		transResp := c.getPlaidTransactions(cfg, c.StartDate, c.EndDate)
@@ -102,47 +98,50 @@ func (c *Client) GetTransactions() []*models.Transaction {
 			if strings.Contains(strings.ToLower(t.Name), "payment thank you") {
 				continue
 			}
-			tran := &models.Transaction{
-				Date:         readDateValue(t.Date),
-				Name:         "",
-				BankName:     t.Name,
-				MerchantName: t.MerchantName,
-			}
-
-			switch cfg.Name {
-			case "Wells Fargo Checking":
-				tran.Source = "WellsFargo"
-				tran.Amount = t.Amount
-				if t.Amount < 0 {
-					tran.Deposit = -1 * t.Amount
-				} else {
-					tran.Withdrawal = t.Amount
-				}
-				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(t.Date), -1*t.Amount)
-			case "Fidelity Visa":
-				tran.Source = "Fidelity"
-				tran.Amount = t.Amount
-				tran.CreditCard = t.Amount
-				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(t.Date), -1*t.Amount)
-			case "Chase Visa":
-				tran.Source = "Chase"
-				tran.Amount = t.Amount
-				tran.CreditCard = t.Amount
-				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(t.Date), -1*t.Amount)
-			case "Citi Visa":
-				tran.Source = "Citi"
-				tran.Amount = t.Amount
-				tran.CreditCard = t.Amount
-				tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(t.Date), -1*t.Amount)
-			}
-			transactions = append(transactions, tran)
+			transactions = append(transactions, c.createTransaction(cfg.Name, t))
 		}
 		fmt.Println("done")
 	}
 	return transactions
 }
 
-// SortTransactions ...
+func (c *Client) createTransaction(bankName string, p plaid.Transaction) *models.Transaction {
+	tran := &models.Transaction{
+		Date:         readDateValue(p.Date),
+		Name:         "",
+		BankName:     p.Name,
+		MerchantName: p.MerchantName,
+	}
+
+	switch bankName {
+	case "Wells Fargo Checking":
+		tran.Source = "WellsFargo"
+		tran.Amount = p.Amount
+		if p.Amount < 0 {
+			tran.Deposit = -1 * p.Amount
+		} else {
+			tran.Withdrawal = p.Amount
+		}
+		tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(p.Date), -1*p.Amount)
+	case "Fidelity Visa":
+		tran.Source = "Fidelity"
+		tran.Amount = p.Amount
+		tran.CreditCard = p.Amount
+		tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(p.Date), -1*p.Amount)
+	case "Chase Visa":
+		tran.Source = "Chase"
+		tran.Amount = p.Amount
+		tran.CreditCard = p.Amount
+		tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(p.Date), -1*p.Amount)
+	case "Citi Visa":
+		tran.Source = "Citi"
+		tran.Amount = p.Amount
+		tran.CreditCard = p.Amount
+		tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(p.Date), -1*p.Amount)
+	}
+	return tran
+}
+
 func (c *Client) SortTransactions(trans []*models.Transaction) []*models.Transaction {
 	sort.Slice(trans, func(i, j int) bool {
 		if trans[i].Date == trans[j].Date {
@@ -153,13 +152,11 @@ func (c *Client) SortTransactions(trans []*models.Transaction) []*models.Transac
 	return trans
 }
 
-// PrintTransactionHead ...
 func (c *Client) PrintTransactionHead() {
 	fmt.Printf("    [Num] %-25s %-32s %-40s %-40s %12s %12s %12s %12s %7s %5s\n",
 		"Key", "Name", "Bank Name", "Merchant Name", "Withdrawal", "Deposit", "Credit Card", "Amount", "ColIndx", "Color")
 }
 
-// FormatMerchants ...
 func (c *Client) FormatMerchants(trans []*models.Transaction, lookup []*models.DataRow) []*models.Transaction {
 	for i, t := range trans {
 		if t.BankName == "Venmo" {
@@ -191,7 +188,6 @@ func (c *Client) FormatMerchants(trans []*models.Transaction, lookup []*models.D
 	return trans
 }
 
-// FilterRows ...
 func (c *Client) FilterRows(trans []*models.Transaction, lookup map[string]bool) []*models.Transaction {
 	var filter []*models.Transaction
 	for _, r := range trans {
@@ -285,7 +281,6 @@ func (c *Client) sendMFACode(code string) (resp *plaid.LinkItemMFASendCodeRespon
 	return resp
 }
 
-// GetAccounts ...
 func (c *Client) GetAccounts() plaid.GetAccountsResponse {
 	res, err := c.PlaidClient.GetAccounts(c.AccessToken)
 	checkError(err)
@@ -301,14 +296,6 @@ func (c *Client) getCheckingID(accounts []plaid.Account) (checkingID string) {
 	return checkingID
 }
 
-//func getCode() string {
-//	reader := bufio.NewReader(os.Stdin)
-//	fmt.Print("Enter Code> ")
-//	text, _ := reader.ReadString('\n')
-//	text = strings.Replace(text, "\n", "", -1)
-//	return text
-//}
-
 func (c *Client) printIdent() {
 	fmt.Println("Ident:")
 	fmt.Println("    LinkToken: ", c.Link.Token)
@@ -319,7 +306,6 @@ func (c *Client) printIdent() {
 	fmt.Println("")
 }
 
-// WriteCSV ...
 func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) {
 	f, err := os.Create("csv/" + fileName)
 	checkError(err)
@@ -348,24 +334,3 @@ func checkError(err error) {
 		panic(err)
 	}
 }
-
-// client.Link.Token = client.createLinkToken()
-// resp := client.getLinkClient()
-// client.Link.SessionID = resp.LinkSessionID
-// client.RequestID = resp.RequestID
-// resp2 := client.linkItemCreate()
-// client.PublicToken = resp2.PublicToken
-// client.RequestID = resp2.RequestID
-// if len(resp2.DeviceList) > 0 {
-//     mfaReqResp := client.linkItemMFA()
-//     fmt.Printf("MFA req resp msg: %s\n", mfaReqResp.Device.DisplayMessage)
-//     code := getCode()
-//     sentCodeResp := client.sendMFACode(code)
-//     client.AccessToken, client.ItemID = client.getAccessToken()
-//     client.printIdent()
-//     acctsResp := client.getAccounts()
-//     printAccounts(acctsResp.Accounts)
-//     checkingID := client.getCheckingID(acctsResp.Accounts)
-//     transResp := client.getTransactions(checkingID)
-//     writeCSV(transResp.Transactions)
-// }
