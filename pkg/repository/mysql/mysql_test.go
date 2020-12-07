@@ -1,5 +1,0 @@
-package mysql
-
-func here() {
-
-}

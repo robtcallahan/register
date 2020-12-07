@@ -95,6 +95,8 @@ func update() {
 		printRegister(regSrv.Register)
 	}
 
+	os.Exit(0)
+
 	fmt.Println("Getting transactions...")
 	transactions := bankClient.GetTransactions()
 	if options.Verbose {
@@ -164,7 +166,7 @@ func printTransactions(trans []*models.Transaction) {
 
 func printRegister(trans []*sheets.RegisterEntry) {
 	for i, t := range trans {
-		fmt.Printf("    (%2d) [%-28s] %-12s %-10s %8.2f %s\n", i+1, t.Key, t.Source, t.Date, t.Amount, t.Name)
+		fmt.Printf("    (%2d) [%-28s] %-12s %-10s %8.2f %8.2f %8.2f %s\n", i+1, t.Key, t.Source, t.Date, t.Withdrawal, t.Deposit, t.CreditCard, t.Name)
 	}
 	fmt.Println("")
 }

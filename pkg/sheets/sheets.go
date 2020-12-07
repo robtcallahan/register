@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"register/api/services/sheets_service"
 	"register/pkg/auth"
 	"register/pkg/config"
 	cfg "register/pkg/config"
@@ -162,7 +163,6 @@ func (ss *SheetService) GetSheetID(tabName string) (int64, error) {
 	return 0, fmt.Errorf("could not get sheet id: %v", err)
 }
 
-// Read ...
 func (bs *BudgetSheet) Read() {
 	readRange := fmt.Sprintf("%s!B%d:%s%d", bs.TabName, bs.StartRow, bs.EndColumnName, bs.EndRow)
 	resp, err := bs.Service.Spreadsheets.Values.Get(bs.SpreadsheetID, readRange).Do()
@@ -203,15 +203,15 @@ func (bs *BudgetSheet) Read() {
 // Read ...
 func (rs *RegisterSheet) Read() ([]*RegisterEntry, map[string]bool, [][]interface{}) {
 	readRange := fmt.Sprintf("%s!A%d:%s%d", rs.TabName, rs.StartRow, rs.EndColumnName, rs.EndRow)
-	resp, err := rs.Service.Spreadsheets.Values.Get(rs.SpreadsheetID, readRange).Do()
+	sheetsService := sheets_service.New(rs.Service)
+	resp, err := sheetsService.GetValues(rs.SpreadsheetID, readRange)
 	if err != nil {
 		log.Fatalf("unable to retrieve data from sheet: %v", err)
 	}
 
-	// rangeValues := resp.ValueRanges[0].Values
 	rangeValues := resp.Values
 	if len(rangeValues) == 0 {
-		log.Fatalf("No data found")
+		//log.Fatalf("No data found")
 	}
 
 	// determine last used row in the spreadsheet
