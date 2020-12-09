@@ -1,0 +1,124 @@
+{
+  "values": [
+    {
+      "userEnteredFormat": {
+        "backgroundColor": {
+          "alpha": 1,
+          "blue": 0.8,
+          "green": 0.8,
+          "red": 0.8
+        },
+        "borders": {},
+        "horizontalAlignment": "LEFT",
+        "textFormat": {
+          "bold": true,
+          "fontFamily": "Arial",
+          "fontSize": 10
+        }
+      },
+      "userEnteredValue": {
+        "stringValue": "Category"
+      }
+    },
+    {
+      "userEnteredFormat": {
+        "backgroundColor": {
+          "alpha": 1,
+          "blue": 0.8,
+          "green": 0.8,
+          "red": 0.8
+        },
+        "borders": {},
+        "horizontalAlignment": "CENTER",
+        "textFormat": {
+          "bold": true,
+          "fontFamily": "Arial",
+          "fontSize": 10
+        }
+      },
+      "userEnteredValue": {
+        "stringValue": "Jan"
+      }
+    },
+    {
+      "userEnteredFormat": {
+        "backgroundColor": {
+          "alpha": 1,
+          "blue": 0.8,
+          "green": 0.8,
+          "red": 0.8
+        },
+        "borders": {},
+        "horizontalAlignment": "CENTER",
+        "textFormat": {
+          "bold": true,
+          "fontFamily": "Arial",
+          "fontSize": 10
+        }
+      },
+      "userEnteredValue": {
+        "stringValue": "Feb"
+      }
+    },
+    {
+      "userEnteredFormat": {
+        "backgroundColor": {
+          "alpha": 1,
+          "blue": 0.8,
+          "green": 0.8,
+          "red": 0.8
+        },
+        "borders": {},
+        "horizontalAlignment": "CENTER",
+        "textFormat": {
+          "bold": true,
+          "fontFamily": "Arial",
+          "fontSize": 10
+        }
+      },
+      "userEnteredValue": {
+        "stringValue": "Mar"
+      }
+    },
+    {
+      "userEnteredFormat": {
+        "backgroundColor": {
+          "alpha": 1,
+          "blue": 0.8,
+          "green": 0.8,
+          "red": 0.8
+        },
+        "borders": {},
+        "horizontalAlignment": "CENTER",
+        "textFormat": {
+          "bold": true,
+          "fontFamily": "Arial",
+          "fontSize": 10
+        }
+      },
+      "userEnteredValue": {
+        "stringValue": "Yearly Totals"
+      }
+    },
+    {
+      "userEnteredFormat": {
+        "backgroundColor": {
+          "alpha": 1,
+          "blue": 0.8,
+          "green": 0.8,
+          "red": 0.8
+        },
+        "borders": {},
+        "horizontalAlignment": "CENTER",
+        "textFormat": {
+          "bold": true,
+          "fontFamily": "Arial",
+          "fontSize": 10
+        }
+      },
+      "userEnteredValue": {
+        "stringValue": "Monthly Average"
+      }
+    }
+  ]
+}

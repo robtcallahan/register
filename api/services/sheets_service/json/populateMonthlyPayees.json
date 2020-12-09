@@ -1,0 +1,1350 @@
+[
+  {
+    "values": [
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "LEFT",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "Category"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "01/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "02/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "03/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "04/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "05/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "06/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "07/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "08/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "09/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "10/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "11/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "12/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "Yearly Totals"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "CENTER",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "Monthly Average"
+        }
+      }
+    ]
+  },
+  {
+    "values": [
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "LEFT",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "11/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "formulaValue": "=SUM(B2:L2) * -1"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 1,
+            "green": 1,
+            "red": 1
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "formulaValue": "=AVERAGE(B2:L2) * -1"
+        }
+      }
+    ]
+  },
+  {
+    "values": [
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "LEFT",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "12/20"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "formulaValue": "=SUM(B3:L3) * -1"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.937,
+            "green": 0.937,
+            "red": 0.937
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "formulaValue": "=AVERAGE(B3:L3) * -1"
+        }
+      }
+    ]
+  },
+  {
+    "values": [
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "LEFT",
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "stringValue": "CrowdStrike Salary"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 6118.61
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 6118.61
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 6118.61
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 6118.93
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 6118.93
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 6139.84
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 6118.93
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 6446.09
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 6576.97
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 6942.32
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 6902.17
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "numberValue": 0
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "formulaValue": "=SUM(B4:L4) * -1"
+        }
+      },
+      {
+        "userEnteredFormat": {
+          "backgroundColor": {
+            "alpha": 1,
+            "blue": 0.8,
+            "green": 0.8,
+            "red": 0.8
+          },
+          "borders": {},
+          "horizontalAlignment": "RIGHT",
+          "numberFormat": {
+            "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+            "type": "CURRENCY"
+          },
+          "textFormat": {
+            "bold": true,
+            "fontFamily": "Arial",
+            "fontSize": 10
+          }
+        },
+        "userEnteredValue": {
+          "formulaValue": "=AVERAGE(B4:L4) * -1"
+        }
+      }
+    ]
+  }
+]

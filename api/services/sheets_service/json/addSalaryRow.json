@@ -1,0 +1,141 @@
+{
+  "values": [
+    {
+      "userEnteredFormat": {
+        "backgroundColor": {
+          "alpha": 1,
+          "blue": 0.8,
+          "green": 0.8,
+          "red": 0.8
+        },
+        "borders": {},
+        "horizontalAlignment": "LEFT",
+        "textFormat": {
+          "bold": true,
+          "fontFamily": "Arial",
+          "fontSize": 10
+        }
+      },
+      "userEnteredValue": {
+        "stringValue": "CrowdStrike Salary"
+      }
+    },
+    {
+      "userEnteredFormat": {
+        "backgroundColor": {
+          "alpha": 1,
+          "blue": 0.8,
+          "green": 0.8,
+          "red": 0.8
+        },
+        "borders": {},
+        "horizontalAlignment": "RIGHT",
+        "numberFormat": {
+          "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+          "type": "CURRENCY"
+        },
+        "textFormat": {
+          "fontFamily": "Arial",
+          "fontSize": 10
+        }
+      },
+      "userEnteredValue": {
+        "numberValue": 10
+      }
+    },
+    {
+      "userEnteredFormat": {
+        "backgroundColor": {
+          "alpha": 1,
+          "blue": 0.8,
+          "green": 0.8,
+          "red": 0.8
+        },
+        "borders": {},
+        "horizontalAlignment": "RIGHT",
+        "numberFormat": {
+          "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+          "type": "CURRENCY"
+        },
+        "textFormat": {
+          "fontFamily": "Arial",
+          "fontSize": 10
+        }
+      },
+      "userEnteredValue": {
+        "numberValue": 10
+      }
+    },
+    {
+      "userEnteredFormat": {
+        "backgroundColor": {
+          "alpha": 1,
+          "blue": 0.8,
+          "green": 0.8,
+          "red": 0.8
+        },
+        "borders": {},
+        "horizontalAlignment": "RIGHT",
+        "numberFormat": {
+          "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+          "type": "CURRENCY"
+        },
+        "textFormat": {
+          "fontFamily": "Arial",
+          "fontSize": 10
+        }
+      },
+      "userEnteredValue": {
+        "numberValue": 10
+      }
+    },
+    {
+      "userEnteredFormat": {
+        "backgroundColor": {
+          "alpha": 1,
+          "blue": 0.8,
+          "green": 0.8,
+          "red": 0.8
+        },
+        "borders": {},
+        "horizontalAlignment": "RIGHT",
+        "numberFormat": {
+          "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+          "type": "CURRENCY"
+        },
+        "textFormat": {
+          "bold": true,
+          "fontFamily": "Arial",
+          "fontSize": 10
+        }
+      },
+      "userEnteredValue": {
+        "formulaValue": "=SUM(B10:L10) * -1"
+      }
+    },
+    {
+      "userEnteredFormat": {
+        "backgroundColor": {
+          "alpha": 1,
+          "blue": 0.8,
+          "green": 0.8,
+          "red": 0.8
+        },
+        "borders": {},
+        "horizontalAlignment": "RIGHT",
+        "numberFormat": {
+          "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+          "type": "CURRENCY"
+        },
+        "textFormat": {
+          "bold": true,
+          "fontFamily": "Arial",
+          "fontSize": 10
+        }
+      },
+      "userEnteredValue": {
+        "formulaValue": "=AVERAGE(B10:L10) * -1"
+      }
+    }
+  ]
+}
