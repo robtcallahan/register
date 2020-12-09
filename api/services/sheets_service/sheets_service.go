@@ -24,7 +24,7 @@ import (
 const (
 	PayCheckName         = "CrowdStrike Salary"
 	CreditCardColumnName = "Credit Cards"
-	JSONDir = "/Users/rcallahan/workspace/go/src/register/api/services/sheets_service/json/"
+	JSONDir = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
 	//Reconciled = 0
 	Source       = 1
 	Date         = 2
@@ -160,7 +160,8 @@ func (ss *sheetsService) NewBudgetSheet(startRow, endRow int64) error {
 
 func (ss *sheetsService) ReadRegisterSheet() error {
 	range_ := fmt.Sprintf("%s!A%d:%s%d", ss.RegisterSheet.TabName, ss.RegisterSheet.StartRow, ss.RegisterSheet.EndColumnName, ss.RegisterSheet.EndRow)
-	resp, err := sheets_provider.SheetsProvider.GetValues(range_)
+	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
+	resp, err := provider.GetValues(range_)
 	if err != nil {
 		log.Fatalf("could not get sheet values: %s\n", err.Error())
 	}
@@ -215,7 +216,8 @@ func (ss *sheetsService) ReadRegisterSheet() error {
 
 func (ss *sheetsService) ReadBudgetSheet() error {
 	range_ := fmt.Sprintf("%s!B%d:%s%d", ss.BudgetSheet.TabName, ss.BudgetSheet.StartRow, ss.BudgetSheet.EndColumnName, ss.BudgetSheet.EndRow)
-	resp, err := sheets_provider.SheetsProvider.GetValues(range_)
+	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
+	resp, err := provider.GetValues(range_)
 	if err != nil {
 		return fmt.Errorf("could not get sheet values: %s\n", err.Error())
 	}
@@ -344,7 +346,8 @@ func (ss *sheetsService) updateMonthly(sheetID int64, rows []*sheets.RowData) {
 	}
 
 	// execute the request
-	resp, err := sheets_provider.SheetsProvider.BatchUpdate(&batchUpdateRequest)
+	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
+	resp, err := provider.BatchUpdate(&batchUpdateRequest)
 	checkError(err)
 	WriteJSONFile(JSONDir + "updateMonthly.json", resp)
 }
@@ -384,8 +387,8 @@ func (ss *sheetsService) CopyRows(numCopies int) {
 	}
 
 	// execute the request
-	//provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
-	_, err := sheets_provider.SheetsProvider.BatchUpdate(&batchUpdateRequest)
+	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
+	_, err := provider.BatchUpdate(&batchUpdateRequest)
 	if err != nil {
 		log.Fatalf("could not perform copy/paste action: %v", err)
 	}
@@ -431,7 +434,8 @@ func (ss *sheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 }
 
 func (ss *sheetsService) readRangeFormulas(readRange string) []string {
-	resp, err := sheets_provider.SheetsProvider.GetFormula(readRange)
+	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
+	resp, err := provider.GetFormula(readRange)
 	if err != nil {
 		log.Fatalf("unable to retrieve data from sheet: %v", err)
 	}
@@ -466,15 +470,16 @@ func (ss *sheetsService) ReadDateCell(cell string) string {
 func (ss *sheetsService) readCell(cell string, dType string) interface{} {
 	var val interface{}
 	readRange := fmt.Sprintf("%s!%s:%s", ss.RegisterSheet.TabName, cell, cell)
+	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
 
 	if dType == "formula" {
-		resp, err := sheets_provider.SheetsProvider.GetFormula(readRange)
+		resp, err := provider.GetFormula(readRange)
 		if err != nil {
 			log.Fatalf("unable to retrieve data from sheet: %v", err)
 		}
 		val = resp.Values[0][0]
 	} else {
-		resp, err := sheets_provider.SheetsProvider.GetValues(readRange)
+		resp, err := provider.GetValues(readRange)
 		if err != nil {
 			log.Fatalf("unable to retrieve data from sheet: %v", err)
 		}
@@ -491,7 +496,8 @@ func (ss *sheetsService) WriteCell(cell string, value interface{}) *sheets.Updat
 	vRange := &sheets.ValueRange{
 		Values: v,
 	}
-	resp, err := sheets_provider.SheetsProvider.Update(writeRange, vRange)
+	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
+	resp, err := provider.Update(writeRange, vRange)
 	if err != nil {
 		log.Fatalf("unable to write cell data: %s", err.Error())
 	}
@@ -524,7 +530,8 @@ func (ss *sheetsService) UpdateRows(columns []models.Column, nameToCol map[strin
 	}
 
 	// execute the request
-	resp, err := sheets_provider.SheetsProvider.BatchUpdate(&batchUpdateRequest)
+	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
+	resp, err := provider.BatchUpdate(&batchUpdateRequest)
 	if err != nil {
 		log.Fatalf("could not perform update action: %v", err)
 	}

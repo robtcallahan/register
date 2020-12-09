@@ -47,7 +47,7 @@ func copyRows() {
 
 	sheetsService, err := sheets_service.New(options.SpreadsheetID, options.Verbose)
 	checkError(err)
-	err = sheetsService.NewRegisterSheet(config.MonthlyStartRow, config.MonthlyEndRow)
+	err = sheetsService.NewRegisterSheet(config.RegisterStartRow, config.RegisterEndRow)
 	checkError(err)
 
 	fmt.Printf("Reading Register...\n")

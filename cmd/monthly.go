@@ -41,6 +41,8 @@ func init() {
 	rootCmd.AddCommand(monthlyCmd)
 }
 
+const jsonDir = "/Users/rob/ws/go/src/register/services/sheets_service/json"
+
 func monthly() {
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
 		DBType: driver.DBType(config.DBType),
@@ -68,6 +70,11 @@ func monthly() {
 
 	fmt.Println("Aggregating...")
 	catAgg, payeeAgg := sheetsService.Aggregate(cols)
+
+	sheets_service.WriteJSONFile(jsonDir+"columns.json", cols)
+	sheets_service.WriteJSONFile(jsonDir+"register.json", sheetsService.RegisterSheet.Register)
+	sheets_service.WriteJSONFile(jsonDir+"cat_agg.json", catAgg)
+	sheets_service.WriteJSONFile(jsonDir+"payee_agg.json", payeeAgg)
 
 	fmt.Println("Updating...")
 	sheetsService.UpdateMonthlyCategories("MonthlyCategories", catAgg, cols)

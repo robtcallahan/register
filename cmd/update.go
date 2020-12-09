@@ -85,7 +85,7 @@ func update() {
 	checkError(err)
 
 	fmt.Printf("Reading Register...\n")
-	err = sheetsService.NewRegisterSheet(config.MonthlyStartRow, config.MonthlyEndRow)
+	err = sheetsService.NewRegisterSheet(config.RegisterStartRow, config.RegisterEndRow)
 	checkError(err)
 	err = sheetsService.ReadRegisterSheet()
 	checkError(err)
@@ -218,7 +218,7 @@ func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models
 
 			fmt.Printf("    Column Index: ")
 			s, _ := reader.ReadString('\n')
-			s = strings.ReplaceAll(s, "\r\n", "")
+			s = strings.TrimSuffix(s, "\n")
 			colInx, _ := strconv.Atoi(s)
 			trans[i].ColumnIndex = colInx
 
