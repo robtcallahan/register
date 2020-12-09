@@ -25,3 +25,11 @@ type QueryRepo interface {
 	PrintData()
 	PrintTable(table string)
 }
+
+func ColumnNames(cats []models.Column) *[]string {
+	names := make([]string, 0, len(cats))
+	for _, c := range cats {
+		names = append(names, c.Name)
+	}
+	return &names
+}

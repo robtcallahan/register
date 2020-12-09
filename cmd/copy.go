@@ -18,11 +18,10 @@ package cmd
 
 import (
 	"fmt"
-
-	cfg "register/pkg/config"
-	"register/pkg/sheets"
+	"register/api/services/sheets_service"
 
 	"github.com/spf13/cobra"
+	cfg "register/pkg/config"
 )
 
 var copyCmd = &cobra.Command{
@@ -46,17 +45,15 @@ func init() {
 func copyRows() {
 	var err error
 
-	srv := &sheets.SheetService{
-		Service:       sheets.NewService(),
-		SpreadsheetID: options.SpreadsheetID,
-	}
-	reg := sheets.NewRegisterSheet(srv, config, options, config.RegisterStartRow, config.RegisterEndRow)
+	sheetsService, err := sheets_service.New(options.SpreadsheetID, options.Verbose)
+	checkError(err)
+	err = sheetsService.NewRegisterSheet(config.MonthlyStartRow, config.MonthlyEndRow)
+	checkError(err)
 
 	fmt.Printf("Reading Register...\n")
-	reg.ID, err = srv.GetSheetID(config.TabNames["register"])
+	err = sheetsService.ReadRegisterSheet()
 	checkError(err)
-	reg.Read()
 
 	fmt.Printf("Copying rows %d times...\n", options.Copies)
-	reg.CopyRows(options.Copies)
+	sheetsService.CopyRows(options.Copies)
 }

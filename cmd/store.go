@@ -19,12 +19,12 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"register/api/services/sheets_service"
 	"register/pkg/banking"
 	cfg "register/pkg/config"
 	"register/pkg/driver"
 	"register/pkg/handler"
 	"register/pkg/models"
-	"register/pkg/sheets"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -65,33 +65,14 @@ func store() {
 	acc := bankClient.GetAccount(config.BankInfo["wellsfargo"], "depository")
 	fmt.Printf("current: %.2f, avail: %.2f\n", acc.Balances.Current, acc.Balances.Available)
 
-	sheetService := &sheets.SheetService{
-		Service:       sheets.NewService(),
-		SpreadsheetID: options.SpreadsheetID,
-	}
+	sheetsService, err := sheets_service.New(options.SpreadsheetID, options.Verbose)
+	checkError(err)
 
 	fmt.Printf("Reading Register...\n")
-	regSrv := sheets.NewRegisterSheet(sheetService, config, options, config.RegisterStartRow, config.RegisterEndRow)
-	//regSrv.ID, err = sheetService.GetSheetID(config.TabNames["register"])
-	//checkError(err)
-	//regSrv.Register, regSrv.KeysMap, _ = regSrv.Read()
-
-
-	//curBal := regSrv.ReadDollarsCell("G1")
-	//fmt.Printf("Current Balance: %.2f\n", curBal)
-
-	// Mon Jan 2 15:04:05 -0700 MST 2006
-	//curDate := time.Now().Format("01/02/2006")
-	//curDate := regSrv.ReadDateCell("F1")
-	//fmt.Printf("Current Date: %s\n", curDate)
-
-	//reconFormula := "=SUM(G1-I6406)"
-	//reconValue := regSrv.ReadDollarsCell("G2")
-	//fmt.Printf("Recon Value: %.2f\n", reconValue)
-
-	regSrv.WriteCell("G2", "=SUM(G1-I6468)")
-	//regSrv.WriteCell("F1", time.Now().Format("01/02/2006"))
-	//regSrv.WriteCell("G1", acc.Balances.Available)
+	err = sheetsService.NewRegisterSheet(config.MonthlyStartRow, config.MonthlyEndRow)
+	checkError(err)
+	err = sheetsService.ReadRegisterSheet()
+	checkError(err)
 }
 
 func checkErr(err error) {

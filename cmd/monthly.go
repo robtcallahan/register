@@ -18,11 +18,11 @@ package cmd
 
 import (
 	"fmt"
-	"regexp"
 
 	"register/pkg/driver"
 	"register/pkg/handler"
-	"register/pkg/sheets"
+
+	"register/api/services/sheets_service"
 
 	"github.com/spf13/cobra"
 )
@@ -42,11 +42,6 @@ func init() {
 }
 
 func monthly() {
-	sheetService := &sheets.SheetService{
-		Service:       sheets.NewService(),
-		SpreadsheetID: options.SpreadsheetID,
-	}
-
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
 		DBType: driver.DBType(config.DBType),
 		Host:   config.DBHost,
@@ -60,52 +55,21 @@ func monthly() {
 	}
 	qHandler := handler.NewQueryHandler(conn)
 
-	fmt.Printf("Reading Register...\n")
-	regSrv := sheets.NewRegisterSheet(sheetService, config, options, config.MonthlyStartRow, config.MonthlyEndRow)
-	id, err := sheetService.GetSheetID(config.TabNames["register"])
-	regSrv.ID = id
+	sheetsService, err := sheets_service.New(options.SpreadsheetID, options.Verbose)
 	checkError(err)
-	register, _, rangeValues := regSrv.Read()
 
-	// map of register entries by month and category
-	catAgg := make(map[string]map[string]float64)
-
-	// map of register entries by monty and payee
-	payeeAgg := make(map[string]map[string]float64)
+	fmt.Printf("Reading Register...\n")
+	err = sheetsService.NewRegisterSheet(config.MonthlyStartRow, config.MonthlyEndRow)
+	checkError(err)
+	err = sheetsService.ReadRegisterSheet()
+	checkError(err)
 
 	cols := qHandler.GetColumns()
 
 	fmt.Println("Aggregating...")
-	for i, r := range register {
-		re := regexp.MustCompile(`(\d\d)/\d\d/20`)
-		m := re.FindStringSubmatch(r.Date)
-		if len(m) > 0 {
-			k := m[1] + "/20"
-			if _, ok := payeeAgg[k]; !ok {
-				payeeAgg[k] = make(map[string]float64)
-			}
-			payeeAgg[k][r.Name] = payeeAgg[k][r.Name] + r.Deposit - r.Withdrawal - r.CreditCard
-
-			if _, ok := catAgg[k]; !ok {
-				catAgg[k] = make(map[string]float64)
-			}
-
-			if r.Name == "CrowdStrike Salary" {
-				catAgg[k]["CrowdStrike Salary"] += r.Deposit
-				continue
-			}
-
-			for j := 10; j < len(rangeValues[i*2]); j++ {
-				if cols[j].Name == "Credit Cards" || r.Deposit != 0 {
-					continue
-				}
-				f32 := regSrv.GetRegisterField(rangeValues[i*2], cols[j].ColumnIndex)
-				catAgg[k][cols[j].Name] = catAgg[k][cols[j].Name] + f32
-			}
-		}
-	}
+	catAgg, payeeAgg := sheetsService.Aggregate(cols)
 
 	fmt.Println("Updating...")
-	sheetService.UpdateMonthlyCategories("MonthlyCategories", catAgg, cols)
-	sheetService.UpdateMonthlyPayees("MonthlyPayees", payeeAgg)
+	sheetsService.UpdateMonthlyCategories("MonthlyCategories", catAgg, cols)
+	sheetsService.UpdateMonthlyPayees("MonthlyPayees", payeeAgg)
 }

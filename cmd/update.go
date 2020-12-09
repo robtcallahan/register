@@ -26,12 +26,12 @@ import (
 	"strings"
 	"time"
 
+	"register/api/services/sheets_service"
 	"register/pkg/banking"
 	cfg "register/pkg/config"
 	"register/pkg/driver"
 	"register/pkg/handler"
 	"register/pkg/models"
-	"register/pkg/sheets"
 
 	"github.com/spf13/cobra"
 )
@@ -81,21 +81,19 @@ func update() {
 	}
 	qHandler := handler.NewQueryHandler(conn)
 
-	sheetService := &sheets.SheetService{
-		Service:       sheets.NewService(),
-		SpreadsheetID: options.SpreadsheetID,
-	}
+	sheetsService, err := sheets_service.New(options.SpreadsheetID, options.Verbose)
+	checkError(err)
 
 	fmt.Printf("Reading Register...\n")
-	regSrv := sheets.NewRegisterSheet(sheetService, config, options, config.RegisterStartRow, config.RegisterEndRow)
-	regSrv.ID, err = sheetService.GetSheetID(config.TabNames["register"])
+	err = sheetsService.NewRegisterSheet(config.MonthlyStartRow, config.MonthlyEndRow)
 	checkError(err)
-	regSrv.Register, regSrv.KeysMap, _ = regSrv.Read()
+	err = sheetsService.ReadRegisterSheet()
+	checkError(err)
 	if options.Verbose {
-		printRegister(regSrv.Register)
+		printRegister(sheetsService.RegisterSheet.Register)
 	}
 
-	os.Exit(0)
+	//os.Exit(0)
 
 	fmt.Println("Getting transactions...")
 	transactions := bankClient.GetTransactions()
@@ -114,7 +112,7 @@ func update() {
 	}
 
 	fmt.Printf("Filtering rows...\n")
-	transactions = bankClient.FilterRows(transactions, regSrv.KeysMap)
+	transactions = bankClient.FilterRows(transactions, sheetsService.RegisterSheet.KeysMap)
 
 	fmt.Printf("Sorting...\n")
 	transactions = bankClient.SortTransactions(transactions)
@@ -128,11 +126,10 @@ func update() {
 	}
 
 	fmt.Printf("Reading Budget...\n")
-	budget := sheets.NewBudgetSheet(sheetService, config.TabNames["budget"], config.BudgetStartRow, config.BudgetEndRow)
-	budget.ID, err = sheetService.GetSheetID(config.TabNames["budget"])
+	err = sheetsService.NewBudgetSheet(config.BudgetStartRow, config.BudgetEndRow)
 	checkError(err)
-	budget.Read()
-	regSrv.CategoriesMap = budget.CategoriesMap
+	err = sheetsService.ReadBudgetSheet()
+	checkError(err)
 
 	if len(transactions) > 0 {
 		fmt.Printf("Transaction updates...\n")
@@ -146,12 +143,12 @@ func update() {
 		fmt.Printf("Updating spreadsheet...\n")
 		cols := qHandler.GetColumns()
 		nameToCol := qHandler.GetNameMapToColumn()
-		regSrv.UpdateRows(cols, nameToCol, transactions)
+		sheetsService.UpdateRows(cols, nameToCol, transactions)
 
-		lastRowUpdated := regSrv.FirstRowToUpdate + int64(len(transactions) * 2) + 1
-		regSrv.WriteCell("F1", time.Now().Format("01/02/2006"))
-		regSrv.WriteCell("G2", fmt.Sprintf("=SUM(G1-I%d)", lastRowUpdated))
-		regSrv.WriteCell("G1", wfAccount.Balances.Available)
+		lastRowUpdated := sheetsService.RegisterSheet.FirstRowToUpdate + int64(len(transactions) * 2) + 1
+		sheetsService.WriteCell("F1", time.Now().Format("01/02/2006"))
+		sheetsService.WriteCell("G2", fmt.Sprintf("=SUM(G1-I%d)", lastRowUpdated))
+		sheetsService.WriteCell("G1", wfAccount.Balances.Available)
 	} else {
 		fmt.Println("No updates needed")
 	}
@@ -164,7 +161,7 @@ func printTransactions(trans []*models.Transaction) {
 	fmt.Println("")
 }
 
-func printRegister(trans []*sheets.RegisterEntry) {
+func printRegister(trans []*sheets_service.RegisterEntry) {
 	for i, t := range trans {
 		fmt.Printf("    (%2d) [%-28s] %-12s %-10s %8.2f %8.2f %8.2f %s\n", i+1, t.Key, t.Source, t.Date, t.Withdrawal, t.Deposit, t.CreditCard, t.Name)
 	}
