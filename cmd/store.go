@@ -18,9 +18,8 @@ package cmd
 
 import (
 	"fmt"
-	"log"
+	"register/api/providers/sheets_provider"
 	"register/api/services/sheets_service"
-	"register/pkg/banking"
 	cfg "register/pkg/config"
 	"register/pkg/driver"
 	"register/pkg/handler"
@@ -53,32 +52,27 @@ func init() {
 }
 
 func store() {
-	bankClient := banking.New(&banking.ClientOptions{
-		StartDate:     config.StartDate,
-		EndDate:       config.EndDate,
-		BankInfo:      config.BankInfo,
-		Debug:         options.Debug,
-		PlaidClientID: config.PlaidClientID,
-		PlaidSecret:   config.PlaidSecret,
-	})
+	//bankClient := banking.New(&banking.ClientOptions{
+	//	StartDate:     config.StartDate,
+	//	EndDate:       config.EndDate,
+	//	BankInfo:      config.BankInfo,
+	//	Debug:         options.Debug,
+	//	PlaidClientID: config.PlaidClientID,
+	//	PlaidSecret:   config.PlaidSecret,
+	//})
+	//
+	//acc := bankClient.GetAccount(config.BankInfo["wellsfargo"], "depository")
+	//fmt.Printf("current: %.2f, avail: %.2f\n", acc.Balances.Current, acc.Balances.Available)
 
-	acc := bankClient.GetAccount(config.BankInfo["wellsfargo"], "depository")
-	fmt.Printf("current: %.2f, avail: %.2f\n", acc.Balances.Current, acc.Balances.Available)
-
-	sheetsService, err := sheets_service.New(options.SpreadsheetID, options.Verbose)
+	sheetsService, err := sheets_service.New(sheets_provider.New(options.SpreadsheetID))
 	checkError(err)
+	err = sheetsService.NewRegisterSheet(config)
 
-	fmt.Printf("Reading Register...\n")
-	err = sheetsService.NewRegisterSheet(config.MonthlyStartRow, config.MonthlyEndRow)
+	//fmt.Printf("Reading Register...\n")
+	//err = sheetsService.NewRegisterSheet(config.MonthlyStartRow, config.MonthlyEndRow)
 	checkError(err)
-	err = sheetsService.ReadRegisterSheet()
-	checkError(err)
-}
-
-func checkErr(err error) {
-	if err != nil {
-		log.Fatalf("unable to retrieve data from sheet: %v", err)
-	}
+	val := sheetsService.ReadCell("A1", "string")
+	fmt.Printf("val: %s\n", val)
 }
 
 func fixTransactionTable() {

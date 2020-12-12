@@ -22,6 +22,7 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"register/api/providers/sheets_provider"
 	"strconv"
 	"strings"
 	"time"
@@ -81,19 +82,16 @@ func update() {
 	}
 	qHandler := handler.NewQueryHandler(conn)
 
-	sheetsService, err := sheets_service.New(options.SpreadsheetID, options.Verbose)
+	sheetsService, err := sheets_service.New(sheets_provider.New(options.SpreadsheetID))
 	checkError(err)
+	err = sheetsService.NewRegisterSheet(config)
 
 	fmt.Printf("Reading Register...\n")
-	err = sheetsService.NewRegisterSheet(config.RegisterStartRow, config.RegisterEndRow)
-	checkError(err)
 	err = sheetsService.ReadRegisterSheet()
 	checkError(err)
 	if options.Verbose {
 		printRegister(sheetsService.RegisterSheet.Register)
 	}
-
-	//os.Exit(0)
 
 	fmt.Println("Getting transactions...")
 	transactions := bankClient.GetTransactions()
@@ -134,7 +132,7 @@ func update() {
 	if len(transactions) > 0 {
 		fmt.Printf("Transaction updates...\n")
 		for i, r := range transactions {
-			fmt.Printf("    (%2d) [%-28s] %-12s %-10s %8.2f %s\n", i+1, r.Key, r.Source, r.Date, r.Amount, r.Name)
+			fmt.Printf("    (%2d) %-12s %-10s %8.2f %s\n", i+1, r.Source, r.Date, r.Amount, r.Name)
 		}
 		if options.Test {
 			return
@@ -182,7 +180,7 @@ func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models
 	cols := db.GetColumns()
 	var filter []models.Column
 
-	re := regexp.MustCompile(`old-\d+`)
+	re := regexp.MustCompile(`\(old\)`)
 	for _, c := range cols {
 		chk := re.Match([]byte(c.Name))
 		if !c.IsCategory || chk {
@@ -214,7 +212,8 @@ func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models
 
 			fmt.Printf("    Name: ")
 			name, _ := reader.ReadString('\n')
-			trans[i].Name = strings.ReplaceAll(name, "\r\n", "")
+			name = strings.TrimSuffix(name, "\n")
+			trans[i].Name = name
 
 			fmt.Printf("    Column Index: ")
 			s, _ := reader.ReadString('\n')

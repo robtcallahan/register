@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"fmt"
+	"register/api/providers/sheets_provider"
 	"register/api/services/sheets_service"
 
 	"github.com/spf13/cobra"
@@ -45,10 +46,9 @@ func init() {
 func copyRows() {
 	var err error
 
-	sheetsService, err := sheets_service.New(options.SpreadsheetID, options.Verbose)
+	sheetsService, err := sheets_service.New(sheets_provider.New(options.SpreadsheetID))
 	checkError(err)
-	err = sheetsService.NewRegisterSheet(config.RegisterStartRow, config.RegisterEndRow)
-	checkError(err)
+	err = sheetsService.NewRegisterSheet(config)
 
 	fmt.Printf("Reading Register...\n")
 	err = sheetsService.ReadRegisterSheet()

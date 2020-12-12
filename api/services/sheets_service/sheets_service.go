@@ -8,15 +8,15 @@ import (
 	"log"
 	"math"
 	"regexp"
-	repo "register/pkg/repository"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"register/api/providers/sheets_provider"
-	"register/pkg/auth"
+	"register/pkg/config"
 	"register/pkg/models"
+	repo "register/pkg/repository"
 
 	"google.golang.org/api/sheets/v4"
 )
@@ -24,7 +24,7 @@ import (
 const (
 	PayCheckName         = "CrowdStrike Salary"
 	CreditCardColumnName = "Credit Cards"
-	JSONDir = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
+	JSONDir              = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
 	//Reconciled = 0
 	Source       = 1
 	Date         = 2
@@ -95,6 +95,7 @@ type RegisterSheet struct {
 
 type sheetsService struct {
 	service       *sheets.Service
+	Provider      sheets_provider.SheetsProviderInterface
 	SpreadsheetID string
 	BudgetSheet   *BudgetSheet
 	RegisterSheet *RegisterSheet
@@ -102,36 +103,49 @@ type sheetsService struct {
 	Verbose       bool
 }
 
-type sheetsServiceInterface interface {
-	NewRegisterSheet(startRow, endRow int64) error
-	NewBudgetSheet(startRow, endRow int64) error
-	ReadRegisterSheet() error
-	ReadBudgetSheet() error
-}
+//type sheetsServiceInterface interface {
+//	NewRegisterSheet(startRow, endRow int64) error
+//	NewBudgetSheet(startRow, endRow int64) error
+//	ReadRegisterSheet() error
+//	ReadBudgetSheet() error
+//}
+//
+//var SheetsService sheetsServiceInterface = &sheetsService{}
 
-var SheetsService sheetsServiceInterface = &sheetsService{}
-
-
-func New(spreadsheetID string, verbose bool) (*sheetsService, error) {
-	client := auth.GetClient()
-	service, err := sheets.New(client)
-	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve sheets client: %v", err)
-	}
+func New(provider sheets_provider.SheetsProviderInterface) (*sheetsService, error) {
 	return &sheetsService{
-		service:       service,
-		SpreadsheetID: spreadsheetID,
-		Verbose:       verbose,
+		Provider: provider,
+		//Verbose:       verbose,
 	}, nil
 }
 
-func (ss *sheetsService) NewRegisterSheet(startRow, endRow int64) error {
+func (ss *sheetsService) ReadCell(cell string, dType string) interface{} {
+	var val interface{}
+	readRange := fmt.Sprintf("%s!%s:%s", ss.RegisterSheet.TabName, cell, cell)
+
+	if dType == "formula" {
+		resp, err := ss.Provider.GetFormula(readRange)
+		if err != nil {
+			log.Fatalf("unable to retrieve data from sheet: %v", err)
+		}
+		val = resp.Values[0][0]
+	} else {
+		resp, err := ss.Provider.GetValues(readRange)
+		if err != nil {
+			log.Fatalf("unable to retrieve data from sheet: %v", err)
+		}
+		val = resp.Values[0][0]
+	}
+	return val
+}
+
+func (ss *sheetsService) NewRegisterSheet(cfg *config.Config) error {
 	ss.RegisterSheet = &RegisterSheet{
 		TabName:        "Register",
-		StartRow:       startRow,
-		EndRow:         endRow,
-		EndColumnName:  "BB",
-		EndColumnIndex: 53,
+		StartRow:       cfg.RegisterStartRow,
+		EndRow:         cfg.RegisterEndRow,
+		EndColumnName:  cfg.RegisterCategoryEndColumn,
+		EndColumnIndex: cfg.ColumnIndexes[cfg.RegisterCategoryEndColumn],
 	}
 
 	id, err := ss.getSheetID("Register")
@@ -160,15 +174,14 @@ func (ss *sheetsService) NewBudgetSheet(startRow, endRow int64) error {
 
 func (ss *sheetsService) ReadRegisterSheet() error {
 	range_ := fmt.Sprintf("%s!A%d:%s%d", ss.RegisterSheet.TabName, ss.RegisterSheet.StartRow, ss.RegisterSheet.EndColumnName, ss.RegisterSheet.EndRow)
-	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
-	resp, err := provider.GetValues(range_)
+	resp, err := ss.Provider.GetValues(range_)
 	if err != nil {
 		log.Fatalf("could not get sheet values: %s\n", err.Error())
 	}
 
 	rangeValues := resp.Values
 	if len(rangeValues) == 0 {
-		return fmt.Errorf("no data found: %s", err.Error())
+		return fmt.Errorf("no data found")
 	}
 
 	// determine last used row in the spreadsheet
@@ -216,8 +229,7 @@ func (ss *sheetsService) ReadRegisterSheet() error {
 
 func (ss *sheetsService) ReadBudgetSheet() error {
 	range_ := fmt.Sprintf("%s!B%d:%s%d", ss.BudgetSheet.TabName, ss.BudgetSheet.StartRow, ss.BudgetSheet.EndColumnName, ss.BudgetSheet.EndRow)
-	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
-	resp, err := provider.GetValues(range_)
+	resp, err := ss.Provider.GetValues(range_)
 	if err != nil {
 		return fmt.Errorf("could not get sheet values: %s\n", err.Error())
 	}
@@ -254,12 +266,11 @@ func (ss *sheetsService) ReadBudgetSheet() error {
 }
 
 func (ss *sheetsService) getSheetID(tabName string) (int64, error) {
-	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
-	spreadsheet, err := provider.GetSpreadsheet()
+	spreadsheet, err := ss.Provider.GetSpreadsheet()
 	if err != nil {
 		log.Fatalf("unable to retrieve spreadsheet: %v", err)
 	}
-	WriteJSONFile(JSONDir + "spreadsheet.json", spreadsheet)
+	//WriteJSONFile(JSONDir+"spreadsheet.json", spreadsheet)
 
 	for _, sheet := range spreadsheet.Sheets {
 		p := sheet.Properties
@@ -346,10 +357,9 @@ func (ss *sheetsService) updateMonthly(sheetID int64, rows []*sheets.RowData) {
 	}
 
 	// execute the request
-	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
-	resp, err := provider.BatchUpdate(&batchUpdateRequest)
+	resp, err := ss.Provider.BatchUpdate(&batchUpdateRequest)
 	checkError(err)
-	WriteJSONFile(JSONDir + "updateMonthly.json", resp)
+	WriteJSONFile(JSONDir+"updateMonthly.json", resp)
 }
 
 func (ss *sheetsService) CopyRows(numCopies int) {
@@ -387,8 +397,7 @@ func (ss *sheetsService) CopyRows(numCopies int) {
 	}
 
 	// execute the request
-	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
-	_, err := provider.BatchUpdate(&batchUpdateRequest)
+	_, err := ss.Provider.BatchUpdate(&batchUpdateRequest)
 	if err != nil {
 		log.Fatalf("could not perform copy/paste action: %v", err)
 	}
@@ -434,8 +443,7 @@ func (ss *sheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 }
 
 func (ss *sheetsService) readRangeFormulas(readRange string) []string {
-	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
-	resp, err := provider.GetFormula(readRange)
+	resp, err := ss.Provider.GetFormula(readRange)
 	if err != nil {
 		log.Fatalf("unable to retrieve data from sheet: %v", err)
 	}
@@ -452,40 +460,19 @@ func (ss *sheetsService) readRangeFormulas(readRange string) []string {
 }
 
 func (ss *sheetsService) ReadStringCell(cell string) string {
-	return readStringValue(ss.readCell(cell, "string"))
+	return readStringValue(ss.ReadCell(cell, "string"))
 }
 
 func (ss *sheetsService) ReadDollarsCell(cell string) float64 {
-	return readDollarsValue(ss.readCell(cell, "dollars"))
+	return readDollarsValue(ss.ReadCell(cell, "dollars"))
 }
 
 func (ss *sheetsService) ReadFormulaCell(cell string) string {
-	return readStringValue(ss.readCell(cell, "formula"))
+	return readStringValue(ss.ReadCell(cell, "formula"))
 }
 
 func (ss *sheetsService) ReadDateCell(cell string) string {
-	return readDateValue(ss.readCell(cell, "date"))
-}
-
-func (ss *sheetsService) readCell(cell string, dType string) interface{} {
-	var val interface{}
-	readRange := fmt.Sprintf("%s!%s:%s", ss.RegisterSheet.TabName, cell, cell)
-	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
-
-	if dType == "formula" {
-		resp, err := provider.GetFormula(readRange)
-		if err != nil {
-			log.Fatalf("unable to retrieve data from sheet: %v", err)
-		}
-		val = resp.Values[0][0]
-	} else {
-		resp, err := provider.GetValues(readRange)
-		if err != nil {
-			log.Fatalf("unable to retrieve data from sheet: %v", err)
-		}
-		val = resp.Values[0][0]
-	}
-	return val
+	return readDateValue(ss.ReadCell(cell, "date"))
 }
 
 func (ss *sheetsService) WriteCell(cell string, value interface{}) *sheets.UpdateValuesResponse {
@@ -496,8 +483,7 @@ func (ss *sheetsService) WriteCell(cell string, value interface{}) *sheets.Updat
 	vRange := &sheets.ValueRange{
 		Values: v,
 	}
-	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
-	resp, err := provider.Update(writeRange, vRange)
+	resp, err := ss.Provider.Update(writeRange, vRange)
 	if err != nil {
 		log.Fatalf("unable to write cell data: %s", err.Error())
 	}
@@ -530,12 +516,11 @@ func (ss *sheetsService) UpdateRows(columns []models.Column, nameToCol map[strin
 	}
 
 	// execute the request
-	provider := sheets_provider.New(ss.service, ss.SpreadsheetID)
-	resp, err := provider.BatchUpdate(&batchUpdateRequest)
+	resp, err := ss.Provider.BatchUpdate(&batchUpdateRequest)
 	if err != nil {
 		log.Fatalf("could not perform update action: %v", err)
 	}
-	WriteJSONFile(JSONDir + "UpdateRows.json", resp)
+	WriteJSONFile(JSONDir+"UpdateRows.json", resp)
 }
 
 func (ss *sheetsService) populateCells(columns []models.Column, nameToCol map[string]string, transactions []*models.Transaction) []*sheets.RowData {
@@ -586,7 +571,7 @@ func (ss *sheetsService) populateCells(columns []models.Column, nameToCol map[st
 		rows = append(rows, emptyRow)
 		rowIndex += 2
 	}
-	WriteJSONFile(JSONDir + "populateCells.json", rows)
+	WriteJSONFile(JSONDir+"populateCells.json", rows)
 	return rows
 }
 

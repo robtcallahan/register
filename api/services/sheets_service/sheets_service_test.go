@@ -2,9 +2,10 @@ package sheets_service
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"reflect"
-	"register/api/providers/sheets_provider"
 	"testing"
 
 	"register/pkg/driver"
@@ -19,77 +20,96 @@ const dir = "/Users/rcallahan/workspace/go/src/register/api/services/sheets_serv
 
 var months = []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
 
-var getFormulaProviderFunc func(range_ string) (*sheets.ValueRange, error)
-var getValuesProviderFunc func(range_ string) (*sheets.ValueRange, error)
-var getSpreadsheetFunc func() (*sheets.Spreadsheet, error)
-var batchUpdateFunc func(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error)
-var updateFunc func(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error)
-
 type providerMock struct {
 	service       *sheets.Service
 	spreadsheetID string
 }
 
-func (p *providerMock) GetFormula(range_ string) (*sheets.ValueRange, error) {
-	return getFormulaProviderFunc(range_)
+var getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
+	vr := &sheets.ValueRange{Values: [][]interface{}{}}
+	vr.Values = make([][]interface{}, 10)
+	vr.Values[0] = make([]interface{}, 10)
+	vr.Values[0][0] = "a string"
+	return vr, nil
 }
+var getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
+	vr := &sheets.ValueRange{Values: [][]interface{}{}}
+	vr.Values = make([][]interface{}, 10)
+	vr.Values[0] = make([]interface{}, 10)
+	vr.Values[0][0] = "=SUM(A1:A2)"
+	return vr, nil
+}
+
 func (p *providerMock) GetValues(range_ string) (*sheets.ValueRange, error) {
 	return getValuesProviderFunc(range_)
 }
+
+func (p *providerMock) GetFormula(range_ string) (*sheets.ValueRange, error) {
+	return getFormulaProviderFunc(range_)
+}
+
 func (p *providerMock) GetSpreadsheet() (*sheets.Spreadsheet, error) {
-	return getSpreadsheetFunc()
+	var s sheets.Spreadsheet
+
+	j, err := ioutil.ReadFile(dir + "spreadsheet.json")
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("could not read json file: %s, %s", dir + "spreadsheet.json", err.Error()))
+	}
+	err = json.Unmarshal(j, &s)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("could not unmarshal JSON: %s", err.Error()))
+	}
+	return &s, nil
 }
+
 func (p *providerMock) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
-	return batchUpdateFunc(updateReq)
+	return &sheets.BatchUpdateSpreadsheetResponse{}, nil
 }
+
 func (p *providerMock) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
-	return updateFunc(writeRange, vRange)
+	return &sheets.UpdateValuesResponse{}, nil
 }
 
-type fields struct {
-	service       *sheets.Service
-	SpreadsheetID string
-	BudgetSheet   *BudgetSheet
-	RegisterSheet *RegisterSheet
-	Debug         bool
-	Verbose       bool
+var ss *sheetsService
+func init() {
+	var err error
+	provider := providerMock{
+		service:       &sheets.Service{},
+		spreadsheetID: "ssID",
+	}
+	ss, err = New(&provider)
+	if err != nil {
+		fmt.Errorf("%s", err.Error())
+	}
+	ss.RegisterSheet = &RegisterSheet{TabName: "Register"}
 }
 
-var serviceFields = fields{
-	service:       &sheets.Service{},
-	SpreadsheetID: "",
-	BudgetSheet:   &BudgetSheet{},
-	RegisterSheet: &RegisterSheet{TabName: "Register"},
-	Debug:         false,
-	Verbose:       true,
-}
-
-func TestNew(t *testing.T) {
-	type args struct {
-		spreadsheetID string
-		verbose       bool
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    *sheetsService
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := New(tt.args.spreadsheetID, tt.args.verbose)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("New() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
+//func TestNew(t *testing.T) {
+//	type args struct {
+//		spreadsheetID string
+//		verbose       bool
+//	}
+//	tests := []struct {
+//		name    string
+//		args    args
+//		want    *sheetsService
+//		wantErr bool
+//	}{
+//		// TODO: Add test cases.
+//	}
+//	for _, tt := range tests {
+//		t.Run(tt.name, func(t *testing.T) {
+//			got, err := New(tt.args.spreadsheetID, tt.args.verbose)
+//			if (err != nil) != tt.wantErr {
+//				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
+//				return
+//			}
+//			if !reflect.DeepEqual(got, tt.want) {
+//				t.Errorf("New() got = %v, want %v", got, tt.want)
+//			}
+//		})
+//	}
+//}
 
 func TestFunction(t *testing.T) {
 	//ssID := "1-i_rA_q39tlN9reW_7c8vnXTgO5n3JxdK7rvDLdTwbI"
@@ -195,82 +215,6 @@ func Test_sheetsService_GetRegisterField(t *testing.T) {
 			}
 			if got := ss.GetRegisterField(tt.args.values, tt.args.i); got != tt.want {
 				t.Errorf("GetRegisterField() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_sheetsService_NewBudgetSheet(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
-	}
-	type args struct {
-		startRow int64
-		endRow   int64
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
-			if err := ss.NewBudgetSheet(tt.args.startRow, tt.args.endRow); (err != nil) != tt.wantErr {
-				t.Errorf("NewBudgetSheet() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func Test_sheetsService_NewRegisterSheet(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
-	}
-	type args struct {
-		startRow int64
-		endRow   int64
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
-			if err := ss.NewRegisterSheet(tt.args.startRow, tt.args.endRow); (err != nil) != tt.wantErr {
-				t.Errorf("NewRegisterSheet() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
@@ -642,37 +586,27 @@ func Test_sheetsService_addSourceDateNameCells(t *testing.T) {
 	}
 }
 
+
+
 func Test_sheetsService_getSheetID(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
-	}
 	type args struct {
 		tabName string
 	}
 	tests := []struct {
 		name    string
-		fields  fields
 		args    args
 		want    int64
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "Test get spreadsheet ID",
+			args: args{tabName: "Register"},
+			want: 617336355,
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			got, err := ss.getSheetID(tt.args.tabName)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getSheetID() error = %v, wantErr %v", err, tt.wantErr)
@@ -761,8 +695,39 @@ func Test_sheetsService_populateCells(t *testing.T) {
 	}
 }
 
-
-
+func Test_sheetsService_updateMonthly(t *testing.T) {
+	type fields struct {
+		service       *sheets.Service
+		SpreadsheetID string
+		BudgetSheet   *BudgetSheet
+		RegisterSheet *RegisterSheet
+		Debug         bool
+		Verbose       bool
+	}
+	type args struct {
+		sheetID int64
+		rows    []*sheets.RowData
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			//ss := &sheetsService{
+			//	service:       tt.fields.service,
+			//	SpreadsheetID: tt.fields.SpreadsheetID,
+			//	BudgetSheet:   tt.fields.BudgetSheet,
+			//	RegisterSheet: tt.fields.RegisterSheet,
+			//	Debug:         tt.fields.Debug,
+			//	Verbose:       tt.fields.Verbose,
+			//}
+		})
+	}
+}
 
 func Test_sheetsService_readRangeFormulas(t *testing.T) {
 	getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
@@ -773,7 +738,6 @@ func Test_sheetsService_readRangeFormulas(t *testing.T) {
 		vr.Values[0][1] = "=A2*5"
 		return vr, nil
 	}
-	sheets_provider.SheetsProvider = &providerMock{}
 
 	want := []string{"=A1*2", "=A2*5"}
 
@@ -782,13 +746,11 @@ func Test_sheetsService_readRangeFormulas(t *testing.T) {
 	}
 	tests := []struct {
 		name   string
-		fields fields
 		args   args
 		want   []string
 	}{
 		{
 			name:   "Test reading a string cell",
-			fields: serviceFields,
 			args: args{
 				readRange: "A1:A2",
 			},
@@ -797,14 +759,6 @@ func Test_sheetsService_readRangeFormulas(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			if got := ss.readRangeFormulas(tt.args.readRange); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("readRangeFormulas() = %v, want %v", got, tt.want)
 			}
@@ -832,7 +786,6 @@ func Test_sheetsService_getAmount(t *testing.T) {
 	}
 	type ts struct {
 		name   string
-		fields fields
 		args   args
 		want   string
 	}
@@ -859,14 +812,6 @@ func Test_sheetsService_getAmount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			if got := ss.getAmount(tt.args.values); got != tt.want {
 				t.Errorf("getAmount() = %v, want %v", got, tt.want)
 			}
@@ -891,7 +836,6 @@ func Test_sheetsService_getDateField(t *testing.T) {
 	}
 	tests := []struct {
 		name   string
-		fields fields
 		args   args
 		want   string
 	}{
@@ -908,14 +852,6 @@ func Test_sheetsService_getDateField(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			if got := ss.getDateField(tt.args.values); got != tt.want {
 				t.Errorf("getDateField() = %v, want %v", got, tt.want)
 			}
@@ -936,7 +872,6 @@ func Test_sheetsService_getNameField(t *testing.T) {
 	}
 	tests := []struct {
 		name   string
-		fields fields
 		args   args
 		want   string
 	}{
@@ -948,14 +883,6 @@ func Test_sheetsService_getNameField(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			if got := ss.getNameField(tt.args.values); got != tt.want {
 				t.Errorf("getNameField() = %v, want %v", got, tt.want)
 			}
@@ -964,27 +891,16 @@ func Test_sheetsService_getNameField(t *testing.T) {
 }
 
 func Test_sheetsService_ReadStringCell(t *testing.T) {
-	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]interface{}{}}
-		vr.Values = make([][]interface{}, 10)
-		vr.Values[0] = make([]interface{}, 10)
-		vr.Values[0][0] = "a string"
-		return vr, nil
-	}
-	sheets_provider.SheetsProvider = &providerMock{}
-
 	type args struct {
 		cell string
 	}
 	tests := []struct {
 		name   string
-		fields fields
 		args   args
 		want   string
 	}{
 		{
 			name: "Test reading a string cell",
-			fields: serviceFields,
 			args: args{
 				cell: "a string",
 			},
@@ -993,14 +909,6 @@ func Test_sheetsService_ReadStringCell(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			if got := ss.ReadStringCell(tt.args.cell); got != tt.want {
 				t.Errorf("ReadStringCell() = %v, want %v", got, tt.want)
 			}
@@ -1013,39 +921,28 @@ func Test_sheetsService_ReadDateCell(t *testing.T) {
 		vr := &sheets.ValueRange{Values: [][]interface{}{}}
 		vr.Values = make([][]interface{}, 10)
 		vr.Values[0] = make([]interface{}, 10)
-		vr.Values[0][0] = "01/02/2020"
+		vr.Values[0][0] = "01/02/20"
 		return vr, nil
 	}
-	sheets_provider.SheetsProvider = &providerMock{}
 
 	type args struct {
 		cell string
 	}
 	tests := []struct {
 		name   string
-		fields fields
 		args   args
 		want   string
 	}{
 		{
 			name:   "Test reading a date cell",
-			fields: serviceFields,
 			args: args{
-				cell: " $  20.20 ",
+				cell: "01/02/20",
 			},
 			want: "01/02/20",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			if got := ss.ReadDateCell(tt.args.cell); got != tt.want {
 				t.Errorf("ReadDateCell() = %v, want %v", got, tt.want)
 			}
@@ -1061,21 +958,17 @@ func Test_sheetsService_ReadDollarsCell(t *testing.T) {
 		vr.Values[0][0] = " $  20.20 "
 		return vr, nil
 	}
-	sheets_provider.SheetsProvider = &providerMock{}
-
 	type args struct {
 		cell string
 	}
 
 	tests := []struct {
 		name   string
-		fields fields
 		args   args
 		want   float64
 	}{
 		{
 			name:   "Test reading a dollars cell",
-			fields: serviceFields,
 			args: args{
 				cell: " $  20.20 ",
 			},
@@ -1084,14 +977,6 @@ func Test_sheetsService_ReadDollarsCell(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			if got := ss.ReadDollarsCell(tt.args.cell); got != tt.want {
 				t.Errorf("ReadDollarsCell() = %v, want %v", got, tt.want)
 			}
@@ -1100,44 +985,25 @@ func Test_sheetsService_ReadDollarsCell(t *testing.T) {
 }
 
 func Test_sheetsService_ReadFormulaCell(t *testing.T) {
-	getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]interface{}{}}
-		vr.Values = make([][]interface{}, 10)
-		vr.Values[0] = make([]interface{}, 10)
-		vr.Values[0][0] = "a string"
-		return vr, nil
-	}
-	sheets_provider.SheetsProvider = &providerMock{}
-
 	type args struct {
 		cell string
 	}
 
 	tests := []struct {
 		name   string
-		fields fields
 		args   args
 		want   string
 	}{
 		{
 			name:   "Test reading a formula cell",
-			fields: serviceFields,
 			args: args{
 				cell: "A1",
 			},
-			want: "a string",
+			want: "=SUM(A1:A2)",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			if got := ss.ReadFormulaCell(tt.args.cell); got != tt.want {
 				t.Errorf("ReadFormulaCell() = %v, want %v", got, tt.want)
 			}
@@ -1146,37 +1012,17 @@ func Test_sheetsService_ReadFormulaCell(t *testing.T) {
 }
 
 func Test_sheetsService_readCell(t *testing.T) {
-	getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]interface{}{}}
-		vr.Values = make([][]interface{}, 10)
-		vr.Values[0] = make([]interface{}, 10)
-		vr.Values[0][0] = "Register!A1:A1"
-		return vr, nil
-	}
-	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]interface{}{}}
-		vr.Values = make([][]interface{}, 10)
-		vr.Values[0] = make([]interface{}, 10)
-		vr.Values[0][0] = "a string"
-		return vr, nil
-	}
-
-	sheets_provider.SheetsProvider = &providerMock{}
-
 	type args struct {
-		cell  string
+		cell string
 		dType string
 	}
-
 	tests := []struct {
 		name   string
-		fields fields
 		args   args
 		want   interface{}
 	}{
 		{
 			name:   "Test reading a formula cell",
-			fields: serviceFields,
 			args: args{
 				cell:  "A1",
 				dType: "formula",
@@ -1185,7 +1031,6 @@ func Test_sheetsService_readCell(t *testing.T) {
 		},
 		{
 			name:   "Test reading a string cell",
-			fields: serviceFields,
 			args: args{
 				cell:  "A1",
 				dType: "string",
@@ -1195,20 +1040,13 @@ func Test_sheetsService_readCell(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
-			if got := ss.readCell(tt.args.cell, tt.args.dType); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("readCell() = %v, want %v", got, tt.want)
+			if got := ss.ReadCell(tt.args.cell, tt.args.dType); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ReadCell() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
+
 
 func Test_addSummaryRows(t *testing.T) {
 	b, err := ioutil.ReadFile("json/cat_agg.json")
@@ -2212,39 +2050,5 @@ func Test_formatYear(t *testing.T) {
 func checkTestingError(t *testing.T, err error) {
 	if err != nil {
 		t.Fatalf("error: %s\n", err.Error())
-	}
-}
-
-func Test_sheetsService_updateMonthly(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
-	}
-	type args struct {
-		sheetID int64
-		rows    []*sheets.RowData
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			//ss := &sheetsService{
-			//	service:       tt.fields.service,
-			//	SpreadsheetID: tt.fields.SpreadsheetID,
-			//	BudgetSheet:   tt.fields.BudgetSheet,
-			//	RegisterSheet: tt.fields.RegisterSheet,
-			//	Debug:         tt.fields.Debug,
-			//	Verbose:       tt.fields.Verbose,
-			//}
-		})
 	}
 }
