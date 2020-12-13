@@ -1,0 +1,63 @@
+[
+  {
+    "userEnteredFormat": {
+      "backgroundColor": {
+        "alpha": 1,
+        "blue": 1,
+        "green": 1,
+        "red": 1
+      },
+      "borders": {},
+      "horizontalAlignment": "LEFT",
+      "textFormat": {
+        "fontFamily": "Arial",
+        "fontSize": 10
+      }
+    },
+    "userEnteredValue": {
+      "stringValue": ""
+    }
+  },
+  {
+    "userEnteredFormat": {
+      "backgroundColor": {
+        "alpha": 1,
+        "blue": 1,
+        "green": 1,
+        "red": 1
+      },
+      "borders": {},
+      "horizontalAlignment": "LEFT",
+      "textFormat": {
+        "fontFamily": "Arial",
+        "fontSize": 10
+      }
+    },
+    "userEnteredValue": {
+      "stringValue": ""
+    }
+  },
+  {
+    "userEnteredFormat": {
+      "backgroundColor": {
+        "alpha": 1,
+        "blue": 1,
+        "green": 1,
+        "red": 1
+      },
+      "borders": {},
+      "horizontalAlignment": "RIGHT",
+      "numberFormat": {
+        "pattern": "_(\"$\"* #,##0.00_);_(\"$\"* \\(#,##0.00\\);_(\"$\"* \"-\"??_);_(@_)",
+        "type": "CURRENCY"
+      },
+      "textFormat": {
+        "fontFamily": "Arial",
+        "fontSize": 10
+      }
+    },
+    "userEnteredValue": {
+      "numberValue": 0
+    }
+  }
+]

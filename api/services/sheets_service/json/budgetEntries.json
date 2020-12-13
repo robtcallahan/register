@@ -1,0 +1,402 @@
+[
+  {
+    "Category": "Cash",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 21.67,
+    "Yearly": 0
+  },
+  {
+    "Category": "Dining Out",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 21.67,
+    "Yearly": 0
+  },
+  {
+    "Category": "Gas",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 21.67,
+    "Yearly": 0
+  },
+  {
+    "Category": "Grocery",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 260,
+    "Yearly": 0
+  },
+  {
+    "Category": "Misc",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 43.33,
+    "Yearly": 0
+  },
+  {
+    "Category": "Vape Supplies",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 43.33,
+    "Yearly": 0
+  },
+  {
+    "Category": "Discretionary",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 411.67,
+    "Yearly": 0
+  },
+  {
+    "Category": "AT\u0026T Cell Phone",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 40,
+    "Yearly": 0
+  },
+  {
+    "Category": "Content Subscriptions",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 55,
+    "Yearly": 0
+  },
+  {
+    "Category": "Comcast/Xfinity Internet",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 61.5,
+    "Yearly": 0
+  },
+  {
+    "Category": "Washington Gas",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 20.83,
+    "Yearly": 0
+  },
+  {
+    "Category": "Dominion Power",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 37.5,
+    "Yearly": 0
+  },
+  {
+    "Category": "Hair Cut",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 7.5,
+    "Yearly": 0
+  },
+  {
+    "Category": "Car Insurance",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 56.5,
+    "Yearly": 0
+  },
+  {
+    "Category": "Massage",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Loudoun Heights Rent",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 920,
+    "Yearly": 0
+  },
+  {
+    "Category": "Renter's Insurance",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 11,
+    "Yearly": 0
+  },
+  {
+    "Category": "Storage Rental",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 18,
+    "Yearly": 0
+  },
+  {
+    "Category": "Smart Tag",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Non-Discretionary",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 1227.83,
+    "Yearly": 0
+  },
+  {
+    "Category": "IRS",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 350,
+    "Yearly": 0
+  },
+  {
+    "Category": "Car Loan",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 200,
+    "Yearly": 0
+  },
+  {
+    "Category": "Personal Loan",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 356,
+    "Yearly": 0
+  },
+  {
+    "Category": "Loans",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 906,
+    "Yearly": 0
+  },
+  {
+    "Category": "Car Expenses",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 23.08,
+    "Yearly": 0
+  },
+  {
+    "Category": "Car Property Tax",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 63.13,
+    "Yearly": 0
+  },
+  {
+    "Category": "Clothing \u0026 Household",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 25,
+    "Yearly": 0
+  },
+  {
+    "Category": "Extra",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 25,
+    "Yearly": 0
+  },
+  {
+    "Category": "Gifts",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 97.5,
+    "Yearly": 0
+  },
+  {
+    "Category": "Meg",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Gandalf",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 16.67,
+    "Yearly": 0
+  },
+  {
+    "Category": "Vision",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 12.5,
+    "Yearly": 0
+  },
+  {
+    "Category": "Mental Health",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 200,
+    "Yearly": 0
+  },
+  {
+    "Category": "Medical (SoberLink)",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 150,
+    "Yearly": 0
+  },
+  {
+    "Category": "General Savings (Court Fines)",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 125,
+    "Yearly": 0
+  },
+  {
+    "Category": "Exercise Equipment",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Emergency Fund",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 300,
+    "Yearly": 0
+  },
+  {
+    "Category": "Vacation",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Dad DSL (old)",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Harley Davidson (old)",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Motorcycle Insurance (old)",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Supplements (old)",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Meg (old)",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Credit Cards",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Citi Bank (old)",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Nickolas (old)",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Maria (old)",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Prescriptions (old)",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Personal Loan",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 0,
+    "Yearly": 0
+  },
+  {
+    "Category": "Savings Categories",
+    "Weekly": 0,
+    "Monthly": 0,
+    "Every2Weeks": 0,
+    "TwiceMonthly": 1037.87,
+    "Yearly": 0
+  }
+]
