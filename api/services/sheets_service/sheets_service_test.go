@@ -8,15 +8,11 @@ import (
 	"reflect"
 	"testing"
 
-	"register/pkg/driver"
-	"register/pkg/handler"
-	"register/pkg/models"
-	repo "register/pkg/repository"
-
 	"google.golang.org/api/sheets/v4"
+	"register/pkg/models"
 )
 
-const dir = "/Users/rcallahan/workspace/go/src/register/api/services/sheets_service/json/"
+const dir = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
 
 var months = []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
 
@@ -53,7 +49,7 @@ func (p *providerMock) GetSpreadsheet() (*sheets.Spreadsheet, error) {
 
 	j, err := ioutil.ReadFile(dir + "spreadsheet.json")
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("could not read json file: %s, %s", dir + "spreadsheet.json", err.Error()))
+		return nil, errors.New(fmt.Sprintf("could not read json file: %s, %s", dir+"spreadsheet.json", err.Error()))
 	}
 	err = json.Unmarshal(j, &s)
 	if err != nil {
@@ -67,12 +63,25 @@ func (p *providerMock) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetReque
 }
 
 func (p *providerMock) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
-	return &sheets.UpdateValuesResponse{}, nil
+	w, err := ioutil.ReadFile(dir + "WriteCell.json")
+	checkError(err)
+	var resp *sheets.UpdateValuesResponse
+	err = json.Unmarshal(w, &resp)
+	checkError(err)
+	return resp, nil
 }
 
 var ss *sheetsService
+
 func init() {
 	var err error
+
+	c, err := ioutil.ReadFile("json/categoriesMap.json")
+	checkError(err)
+	var entries map[string]*BudgetEntry
+	err = json.Unmarshal(c, &entries)
+	checkError(err)
+
 	provider := providerMock{
 		service:       &sheets.Service{},
 		spreadsheetID: "ssID",
@@ -81,172 +90,80 @@ func init() {
 	if err != nil {
 		fmt.Errorf("%s", err.Error())
 	}
-	ss.RegisterSheet = &RegisterSheet{TabName: "Register"}
-}
-
-//func TestNew(t *testing.T) {
-//	type args struct {
-//		spreadsheetID string
-//		verbose       bool
-//	}
-//	tests := []struct {
-//		name    string
-//		args    args
-//		want    *sheetsService
-//		wantErr bool
-//	}{
-//		// TODO: Add test cases.
-//	}
-//	for _, tt := range tests {
-//		t.Run(tt.name, func(t *testing.T) {
-//			got, err := New(tt.args.spreadsheetID, tt.args.verbose)
-//			if (err != nil) != tt.wantErr {
-//				t.Errorf("New() error = %v, wantErr %v", err, tt.wantErr)
-//				return
-//			}
-//			if !reflect.DeepEqual(got, tt.want) {
-//				t.Errorf("New() got = %v, want %v", got, tt.want)
-//			}
-//		})
-//	}
-//}
-
-func TestFunction(t *testing.T) {
-	//ssID := "1-i_rA_q39tlN9reW_7c8vnXTgO5n3JxdK7rvDLdTwbI"
-	//sheetsService, err := New(ssID, false)
-	//checkError(err)
-
-	conn, err := driver.ConnectSQL(&driver.ConnectParams{
-		DBType: "MySQL",
-		Host:   "localhost",
-		Port:   "3306",
-		DBName: "register",
-		User:   "register",
-		Pass:   "dinx9one",
-	})
-	checkError(err)
-	qHandler := handler.NewQueryHandler(conn)
-	cols := qHandler.GetColumns()
-	cNames := repo.ColumnNames(cols)
-
-	j, err := json.Marshal(cNames)
-	checkTestingError(t, err)
-	err = ioutil.WriteFile(dir+"column_names.json", j, 0644)
-	checkTestingError(t, err)
-
-	b, err := ioutil.ReadFile("json/cat_agg.json")
-	checkError(err)
-	var catAgg map[string]map[string]float64
-	err = json.Unmarshal(b, &catAgg)
-	checkError(err)
-
-	var rows []*sheets.RowData
-	rowData := addSummaryRows(rows, catAgg, &months, cNames)
-
-	j, err = json.Marshal(rowData)
-	checkTestingError(t, err)
-	err = ioutil.WriteFile(dir+"addSummaryRows.json", j, 0644)
-	checkTestingError(t, err)
-}
-
-func Test_sheetsService_CopyRows(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
+	ss.RegisterSheet = &RegisterSheet{
+		TabName:       "Register",
+		CategoriesMap: entries,
 	}
+	ss.BudgetSheet = &BudgetSheet{
+		TabName:        "Budget",
+		StartRow:       3,
+		EndRow:         63,
+		EndColumnName:  "J",
+		EndColumnIndex: 9,
+	}
+}
+
+func Test_sheetsService_copyRowsBatchUpdateRequest(t *testing.T) {
+	w, err := ioutil.ReadFile(dir + "copyRowsBatchUpdateRequest.json")
+	checkTestingError(t, err)
+	var want sheets.BatchUpdateSpreadsheetRequest
+	err = json.Unmarshal(w, &want)
+	checkTestingError(t, err)
+
 	type args struct {
 		numCopies int
 	}
 	tests := []struct {
 		name   string
-		fields fields
 		args   args
+		want   sheets.BatchUpdateSpreadsheetRequest
 	}{
-		// TODO: Add test cases.
+		{
+			name: "Test copy rows batch update request",
+			args: args{numCopies: 5},
+			want: want,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			//ss := &sheetsService{
-			//	service:       tt.fields.service,
-			//	SpreadsheetID: tt.fields.SpreadsheetID,
-			//	BudgetSheet:   tt.fields.BudgetSheet,
-			//	RegisterSheet: tt.fields.RegisterSheet,
-			//	Debug:         tt.fields.Debug,
-			//	Verbose:       tt.fields.Verbose,
-			//}
-		})
-	}
-}
-
-func Test_sheetsService_GetRegisterField(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
-	}
-	type args struct {
-		values []interface{}
-		i      int
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   float64
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
-			if got := ss.GetRegisterField(tt.args.values, tt.args.i); got != tt.want {
-				t.Errorf("GetRegisterField() = %v, want %v", got, tt.want)
+			if got := ss.copyRowsBatchUpdateRequest(tt.args.numCopies); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("copyRowsBatchUpdateRequest() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
 func Test_sheetsService_ReadBudgetSheet(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
+	w, err := ioutil.ReadFile(dir + "ReadBudgetSheet.json")
+	checkTestingError(t, err)
+	var want BudgetSheet
+	err = json.Unmarshal(w, &want)
+	checkTestingError(t, err)
+
+	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
+		r, err := ioutil.ReadFile(dir + "BudgetValues.json")
+		checkTestingError(t, err)
+		var valueRange sheets.ValueRange
+		err = json.Unmarshal(r, &valueRange)
+		checkTestingError(t, err)
+		return &valueRange, nil
 	}
+
 	tests := []struct {
 		name    string
-		fields  fields
+		want    *BudgetSheet
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name:    "Test read budget sheet",
+			want:    &want,
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
-			if err := ss.ReadBudgetSheet(); (err != nil) != tt.wantErr {
+			if got, err := ss.ReadBudgetSheet(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ReadBudgetSheet() = %v, want %v", got, tt.want)
 				t.Errorf("ReadBudgetSheet() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -254,173 +171,69 @@ func Test_sheetsService_ReadBudgetSheet(t *testing.T) {
 }
 
 func Test_sheetsService_ReadRegisterSheet(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
+	w, err := ioutil.ReadFile(dir + "ReadRegisterSheet.json")
+	checkTestingError(t, err)
+	var want RegisterSheet
+	err = json.Unmarshal(w, &want)
+	checkTestingError(t, err)
+
+	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
+		r, err := ioutil.ReadFile(dir + "RegisterValues.json")
+		checkTestingError(t, err)
+		var valueRange sheets.ValueRange
+		err = json.Unmarshal(r, &valueRange)
+		checkTestingError(t, err)
+		return &valueRange, nil
 	}
+
 	tests := []struct {
 		name    string
-		fields  fields
+		want    *RegisterSheet
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name:    "Test read register sheet",
+			want:    &want,
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
-			if err := ss.ReadRegisterSheet(); (err != nil) != tt.wantErr {
+			if got, err := ss.ReadRegisterSheet(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ReadRegisterSheet() = %v, want %v", got, tt.want)
 				t.Errorf("ReadRegisterSheet() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
 }
 
-func Test_sheetsService_UpdateMonthlyCategories(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
-	}
-	type args struct {
-		tabName string
-		catAgg  map[string]map[string]float64
-		columns []models.Column
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			//ss := &sheetsService{
-			//	service:       tt.fields.service,
-			//	SpreadsheetID: tt.fields.SpreadsheetID,
-			//	BudgetSheet:   tt.fields.BudgetSheet,
-			//	RegisterSheet: tt.fields.RegisterSheet,
-			//	Debug:         tt.fields.Debug,
-			//	Verbose:       tt.fields.Verbose,
-			//}
-		})
-	}
-}
-
-func Test_sheetsService_UpdateMonthlyPayees(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
-	}
-	type args struct {
-		tabName string
-		catAgg  map[string]map[string]float64
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			//ss := &sheetsService{
-			//	service:       tt.fields.service,
-			//	SpreadsheetID: tt.fields.SpreadsheetID,
-			//	BudgetSheet:   tt.fields.BudgetSheet,
-			//	RegisterSheet: tt.fields.RegisterSheet,
-			//	Debug:         tt.fields.Debug,
-			//	Verbose:       tt.fields.Verbose,
-			//}
-		})
-	}
-}
-
-func Test_sheetsService_UpdateRows(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
-	}
-	type args struct {
-		columns      []models.Column
-		nameToCol    map[string]string
-		transactions []*models.Transaction
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			//ss := &sheetsService{
-			//	service:       tt.fields.service,
-			//	SpreadsheetID: tt.fields.SpreadsheetID,
-			//	BudgetSheet:   tt.fields.BudgetSheet,
-			//	RegisterSheet: tt.fields.RegisterSheet,
-			//	Debug:         tt.fields.Debug,
-			//	Verbose:       tt.fields.Verbose,
-			//}
-		})
-	}
-}
-
 func Test_sheetsService_WriteCell(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
-	}
+	w, err := ioutil.ReadFile(dir + "WriteCell.json")
+	checkTestingError(t, err)
+	var want *sheets.UpdateValuesResponse
+	err = json.Unmarshal(w, &want)
+	checkTestingError(t, err)
+
 	type args struct {
 		cell  string
 		value interface{}
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   *sheets.UpdateValuesResponse
+		name string
+		args args
+		want *sheets.UpdateValuesResponse
 	}{
-		// TODO: Add test cases.
+		{
+			name: "Test write cell",
+			args: args{
+				cell:  "G1",
+				value: 10.00,
+			},
+			want: want,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			if got := ss.WriteCell(tt.args.cell, tt.args.value); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("WriteCell() = %v, want %v", got, tt.want)
 			}
@@ -429,37 +242,34 @@ func Test_sheetsService_WriteCell(t *testing.T) {
 }
 
 func Test_sheetsService_addAmountCells(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
-	}
+	a, err := ioutil.ReadFile(dir + "addAmountCells.json")
+	checkTestingError(t, err)
+	var want []*sheets.CellData
+	err = json.Unmarshal(a, &want)
+	checkTestingError(t, err)
+
 	type args struct {
 		cells   []*sheets.CellData
 		trans   *models.Transaction
 		bgColor string
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   []*sheets.CellData
+		name string
+		args args
+		want []*sheets.CellData
 	}{
-		// TODO: Add test cases.
+		{
+			name: "Test add amount cells",
+			args: args{
+				cells:   []*sheets.CellData{},
+				trans:   &models.Transaction{},
+				bgColor: "white",
+			},
+			want: want,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			if got := ss.addAmountCells(tt.args.cells, tt.args.trans, tt.args.bgColor); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("addAmountCells() = %v, want %v", got, tt.want)
 			}
@@ -468,14 +278,24 @@ func Test_sheetsService_addAmountCells(t *testing.T) {
 }
 
 func Test_sheetsService_addCategoryCells(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
-	}
+	c, err := ioutil.ReadFile(dir + "columns.json")
+	checkTestingError(t, err)
+	var cols []models.Column
+	err = json.Unmarshal(c, &cols)
+	checkTestingError(t, err)
+
+	n, err := ioutil.ReadFile(dir + "nameToCol.json")
+	checkTestingError(t, err)
+	var name2Col map[string]string
+	err = json.Unmarshal(n, &name2Col)
+	checkTestingError(t, err)
+
+	a, err := ioutil.ReadFile(dir + "addCategoryCells.json")
+	checkTestingError(t, err)
+	var want []*sheets.CellData
+	err = json.Unmarshal(a, &want)
+	checkTestingError(t, err)
+
 	type args struct {
 		cells          []*sheets.CellData
 		trans          *models.Transaction
@@ -484,23 +304,28 @@ func Test_sheetsService_addCategoryCells(t *testing.T) {
 		totalsFormulas []string
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   []*sheets.CellData
+		name string
+		args args
+		want []*sheets.CellData
 	}{
-		// TODO: Add test cases.
+		{
+			name: "Test add category cells",
+			args: args{
+				cells:     []*sheets.CellData{},
+				trans:     &models.Transaction{},
+				columns:   cols,
+				nameToCol: name2Col,
+				totalsFormulas: []string{
+					"=A1+B1",
+					"=C1+D1",
+					"=E1+F1",
+				},
+			},
+			want: want,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			if got := ss.addCategoryCells(tt.args.cells, tt.args.trans, tt.args.columns, tt.args.nameToCol, tt.args.totalsFormulas); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("addCategoryCells() = %v, want %v", got, tt.want)
 			}
@@ -509,37 +334,44 @@ func Test_sheetsService_addCategoryCells(t *testing.T) {
 }
 
 func Test_sheetsService_addSalaryCells(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
-	}
+	c, err := ioutil.ReadFile("json/columns.json")
+	checkTestingError(t, err)
+	var cols []models.Column
+	err = json.Unmarshal(c, &cols)
+	checkTestingError(t, err)
+
+	w, err := ioutil.ReadFile("json/addSalaryCells.json")
+	checkTestingError(t, err)
+	var want []*sheets.CellData
+	err = json.Unmarshal(w, &want)
+	checkTestingError(t, err)
+
 	type args struct {
 		cells          []*sheets.CellData
 		columns        []models.Column
 		totalsFormulas []string
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   []*sheets.CellData
+		name string
+		args args
+		want []*sheets.CellData
 	}{
-		// TODO: Add test cases.
+		{
+			name: "Test add salary cells",
+			args: args{
+				cells:   []*sheets.CellData{},
+				columns: cols,
+				totalsFormulas: []string{
+					"=A1+B1",
+					"=C1+D1",
+					"=E1+F1",
+				},
+			},
+			want: want,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			if got := ss.addSalaryCells(tt.args.cells, tt.args.columns, tt.args.totalsFormulas); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("addSalaryCells() = %v, want %v", got, tt.want)
 			}
@@ -548,45 +380,48 @@ func Test_sheetsService_addSalaryCells(t *testing.T) {
 }
 
 func Test_sheetsService_addSourceDateNameCells(t *testing.T) {
-	type fields struct {
-		service       *sheets.Service
-		SpreadsheetID string
-		BudgetSheet   *BudgetSheet
-		RegisterSheet *RegisterSheet
-		Debug         bool
-		Verbose       bool
+	j, err := ioutil.ReadFile(dir + "addSourceDataNameCells.json")
+	if err != nil {
+		t.Errorf("could not read JSON file: %s\n", err.Error())
 	}
+	var want []*sheets.CellData
+	err = json.Unmarshal(j, &want)
+	if err != nil {
+		t.Errorf("could not unmarshal JSON: %s\n", err.Error())
+	}
+
 	type args struct {
 		cells   []*sheets.CellData
 		trans   *models.Transaction
 		bgColor string
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   []*sheets.CellData
+		name string
+		args args
+		want []*sheets.CellData
 	}{
-		// TODO: Add test cases.
+		{
+			name: "Test add source data name cells",
+			args: args{
+				cells: []*sheets.CellData{},
+				trans: &models.Transaction{
+					Source: "Fidelity",
+					Date:   "01/02/03",
+					Name:   "Amazon",
+				},
+				bgColor: "white",
+			},
+			want: want,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &sheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Verbose,
-			}
 			if got := ss.addSourceDateNameCells(tt.args.cells, tt.args.trans, tt.args.bgColor); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("addSourceDateNameCells() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
-
-
 
 func Test_sheetsService_getSheetID(t *testing.T) {
 	type args struct {
@@ -599,9 +434,9 @@ func Test_sheetsService_getSheetID(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Test get spreadsheet ID",
-			args: args{tabName: "Register"},
-			want: 617336355,
+			name:    "Test get spreadsheet ID",
+			args:    args{tabName: "Register"},
+			want:    617336355,
 			wantErr: false,
 		},
 	}
@@ -745,12 +580,12 @@ func Test_sheetsService_readRangeFormulas(t *testing.T) {
 		readRange string
 	}
 	tests := []struct {
-		name   string
-		args   args
-		want   []string
+		name string
+		args args
+		want []string
 	}{
 		{
-			name:   "Test reading a string cell",
+			name: "Test reading a string cell",
 			args: args{
 				readRange: "A1:A2",
 			},
@@ -763,6 +598,14 @@ func Test_sheetsService_readRangeFormulas(t *testing.T) {
 				t.Errorf("readRangeFormulas() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+
+	getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
+		vr := &sheets.ValueRange{Values: [][]interface{}{}}
+		vr.Values = make([][]interface{}, 10)
+		vr.Values[0] = make([]interface{}, 10)
+		vr.Values[0][0] = "=SUM(A1:A2)"
+		return vr, nil
 	}
 }
 
@@ -785,9 +628,9 @@ func Test_sheetsService_getAmount(t *testing.T) {
 		values []interface{}
 	}
 	type ts struct {
-		name   string
-		args   args
-		want   string
+		name string
+		args args
+		want string
 	}
 	var tests []ts
 
@@ -819,6 +662,46 @@ func Test_sheetsService_getAmount(t *testing.T) {
 	}
 }
 
+func Test_sheetsService_GetRegisterField(t *testing.T) {
+	type args struct {
+		values []interface{}
+		i      int
+	}
+	tests := []struct {
+		name string
+		args args
+		want float64
+	}{
+		{
+			name: "Test positive dollars",
+			args: args{values: []interface{}{ "$ 10.20 " }, i: 0 },
+			want: 10.20,
+		},
+		{
+			name: "Test negative dollars",
+			args: args{values: []interface{}{ "$ (10.20) " }, i: 0 },
+			want: -10.20,
+		},
+		{
+			name: "Test for dash",
+			args: args{values: []interface{}{ " - " }, i: 0 },
+			want: 0,
+		},
+		{
+			name: "Test empty cell",
+			args: args{values: []interface{}{ "" }, i: 0 },
+			want: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ss.GetRegisterField(tt.args.values, tt.args.i); got != tt.want {
+				t.Errorf("GetRegisterField() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_sheetsService_getDateField(t *testing.T) {
 	var values []interface{}
 	var values2 []interface{}
@@ -835,9 +718,9 @@ func Test_sheetsService_getDateField(t *testing.T) {
 		values []interface{}
 	}
 	tests := []struct {
-		name   string
-		args   args
-		want   string
+		name string
+		args args
+		want string
 	}{
 		{
 			name: "Test getting the Date field",
@@ -871,9 +754,9 @@ func Test_sheetsService_getNameField(t *testing.T) {
 		values []interface{}
 	}
 	tests := []struct {
-		name   string
-		args   args
-		want   string
+		name string
+		args args
+		want string
 	}{
 		{
 			name: "Test getting the Description field",
@@ -895,9 +778,9 @@ func Test_sheetsService_ReadStringCell(t *testing.T) {
 		cell string
 	}
 	tests := []struct {
-		name   string
-		args   args
-		want   string
+		name string
+		args args
+		want string
 	}{
 		{
 			name: "Test reading a string cell",
@@ -929,12 +812,12 @@ func Test_sheetsService_ReadDateCell(t *testing.T) {
 		cell string
 	}
 	tests := []struct {
-		name   string
-		args   args
-		want   string
+		name string
+		args args
+		want string
 	}{
 		{
-			name:   "Test reading a date cell",
+			name: "Test reading a date cell",
 			args: args{
 				cell: "01/02/20",
 			},
@@ -963,12 +846,12 @@ func Test_sheetsService_ReadDollarsCell(t *testing.T) {
 	}
 
 	tests := []struct {
-		name   string
-		args   args
-		want   float64
+		name string
+		args args
+		want float64
 	}{
 		{
-			name:   "Test reading a dollars cell",
+			name: "Test reading a dollars cell",
 			args: args{
 				cell: " $  20.20 ",
 			},
@@ -990,12 +873,12 @@ func Test_sheetsService_ReadFormulaCell(t *testing.T) {
 	}
 
 	tests := []struct {
-		name   string
-		args   args
-		want   string
+		name string
+		args args
+		want string
 	}{
 		{
-			name:   "Test reading a formula cell",
+			name: "Test reading a formula cell",
 			args: args{
 				cell: "A1",
 			},
@@ -1012,25 +895,40 @@ func Test_sheetsService_ReadFormulaCell(t *testing.T) {
 }
 
 func Test_sheetsService_readCell(t *testing.T) {
+	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
+		vr := &sheets.ValueRange{Values: [][]interface{}{}}
+		vr.Values = make([][]interface{}, 10)
+		vr.Values[0] = make([]interface{}, 10)
+		vr.Values[0][0] = "a string"
+		return vr, nil
+	}
+	getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
+		vr := &sheets.ValueRange{Values: [][]interface{}{}}
+		vr.Values = make([][]interface{}, 10)
+		vr.Values[0] = make([]interface{}, 10)
+		vr.Values[0][0] = "=SUM(A1:A2)"
+		return vr, nil
+	}
+
 	type args struct {
-		cell string
+		cell  string
 		dType string
 	}
 	tests := []struct {
-		name   string
-		args   args
-		want   interface{}
+		name string
+		args args
+		want interface{}
 	}{
 		{
-			name:   "Test reading a formula cell",
+			name: "Test reading a formula cell",
 			args: args{
 				cell:  "A1",
 				dType: "formula",
 			},
-			want: "Register!A1:A1",
+			want: "=SUM(A1:A2)",
 		},
 		{
-			name:   "Test reading a string cell",
+			name: "Test reading a string cell",
 			args: args{
 				cell:  "A1",
 				dType: "string",
@@ -1046,7 +944,6 @@ func Test_sheetsService_readCell(t *testing.T) {
 		})
 	}
 }
-
 
 func Test_addSummaryRows(t *testing.T) {
 	b, err := ioutil.ReadFile("json/cat_agg.json")

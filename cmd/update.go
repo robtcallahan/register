@@ -87,7 +87,7 @@ func update() {
 	err = sheetsService.NewRegisterSheet(config)
 
 	fmt.Printf("Reading Register...\n")
-	err = sheetsService.ReadRegisterSheet()
+	_, err = sheetsService.ReadRegisterSheet()
 	checkError(err)
 	if options.Verbose {
 		printRegister(sheetsService.RegisterSheet.Register)
@@ -124,9 +124,9 @@ func update() {
 	}
 
 	fmt.Printf("Reading Budget...\n")
-	err = sheetsService.NewBudgetSheet(config.BudgetStartRow, config.BudgetEndRow)
+	err = sheetsService.NewBudgetSheet(config)
 	checkError(err)
-	err = sheetsService.ReadBudgetSheet()
+	_, err = sheetsService.ReadBudgetSheet()
 	checkError(err)
 
 	if len(transactions) > 0 {

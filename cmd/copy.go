@@ -51,7 +51,7 @@ func copyRows() {
 	err = sheetsService.NewRegisterSheet(config)
 
 	fmt.Printf("Reading Register...\n")
-	err = sheetsService.ReadRegisterSheet()
+	_, err = sheetsService.ReadRegisterSheet()
 	checkError(err)
 
 	fmt.Printf("Copying rows %d times...\n", options.Copies)

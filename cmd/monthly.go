@@ -43,7 +43,7 @@ func init() {
 }
 
 const jsonDir = "/Users/rob/ws/go/src/register/services/sheets_service/json"
-
+/**/
 func monthly() {
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
 		DBType: driver.DBType(config.DBType),
@@ -63,7 +63,7 @@ func monthly() {
 	err = sheetsService.NewRegisterSheet(config)
 
 	fmt.Printf("Reading Register...\n")
-	err = sheetsService.ReadRegisterSheet()
+	_, err = sheetsService.ReadRegisterSheet()
 	checkError(err)
 
 	cols := qHandler.GetColumns()
@@ -71,11 +71,11 @@ func monthly() {
 	fmt.Println("Aggregating...")
 	catAgg, payeeAgg := sheetsService.Aggregate(cols)
 
-	sheets_service.WriteJSONFile(jsonDir+"columns.json", cols)
-	sheets_service.WriteJSONFile(jsonDir+"register.json", sheetsService.RegisterSheet.Register)
-	sheets_service.WriteJSONFile(jsonDir+"cat_agg.json", catAgg)
-	sheets_service.WriteJSONFile(jsonDir+"payee_agg.json", payeeAgg)
-
+	//sheets_service.WriteJSONFile(jsonDir+"columns.json", cols)
+	//sheets_service.WriteJSONFile(jsonDir+"register.json", sheetsService.RegisterSheet.Register)
+	//sheets_service.WriteJSONFile(jsonDir+"cat_agg.json", catAgg)
+	//sheets_service.WriteJSONFile(jsonDir+"payee_agg.json", payeeAgg)
+/**/
 	fmt.Println("Updating...")
 	sheetsService.UpdateMonthlyCategories("MonthlyCategories", catAgg, cols)
 	sheetsService.UpdateMonthlyPayees("MonthlyPayees", payeeAgg)

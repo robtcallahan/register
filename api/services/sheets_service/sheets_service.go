@@ -156,11 +156,11 @@ func (ss *sheetsService) NewRegisterSheet(cfg *config.Config) error {
 	return nil
 }
 
-func (ss *sheetsService) NewBudgetSheet(startRow, endRow int64) error {
+func (ss *sheetsService) NewBudgetSheet(cfg *config.Config) error {
 	ss.BudgetSheet = &BudgetSheet{
 		TabName:        "Budget",
-		StartRow:       startRow,
-		EndRow:         endRow,
+		StartRow:       cfg.BudgetStartRow,
+		EndRow:         cfg.BudgetEndRow,
 		EndColumnName:  "J",
 		EndColumnIndex: 9,
 	}
@@ -172,7 +172,7 @@ func (ss *sheetsService) NewBudgetSheet(startRow, endRow int64) error {
 	return nil
 }
 
-func (ss *sheetsService) ReadRegisterSheet() error {
+func (ss *sheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
 	range_ := fmt.Sprintf("%s!A%d:%s%d", ss.RegisterSheet.TabName, ss.RegisterSheet.StartRow, ss.RegisterSheet.EndColumnName, ss.RegisterSheet.EndRow)
 	resp, err := ss.Provider.GetValues(range_)
 	if err != nil {
@@ -181,7 +181,7 @@ func (ss *sheetsService) ReadRegisterSheet() error {
 
 	rangeValues := resp.Values
 	if len(rangeValues) == 0 {
-		return fmt.Errorf("no data found")
+		return nil, fmt.Errorf("no data found")
 	}
 
 	// determine last used row in the spreadsheet
@@ -224,17 +224,18 @@ func (ss *sheetsService) ReadRegisterSheet() error {
 	ss.RegisterSheet.Register = register
 	ss.RegisterSheet.KeysMap = keysMap
 	ss.RegisterSheet.RangeValues = rangeValues
-	return nil
+
+	return ss.RegisterSheet, nil
 }
 
-func (ss *sheetsService) ReadBudgetSheet() error {
+func (ss *sheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
 	range_ := fmt.Sprintf("%s!B%d:%s%d", ss.BudgetSheet.TabName, ss.BudgetSheet.StartRow, ss.BudgetSheet.EndColumnName, ss.BudgetSheet.EndRow)
 	resp, err := ss.Provider.GetValues(range_)
 	if err != nil {
-		return fmt.Errorf("could not get sheet values: %s\n", err.Error())
+		return nil, fmt.Errorf("could not get sheet values: %s\n", err.Error())
 	}
 	if len(resp.Values) == 0 {
-		return errors.New("no values found")
+		return nil, errors.New("no values found")
 	}
 
 	var entries []*BudgetEntry
@@ -262,7 +263,8 @@ func (ss *sheetsService) ReadBudgetSheet() error {
 	}
 	ss.BudgetSheet.BudgetEntries = entries
 	ss.BudgetSheet.CategoriesMap = catMap
-	return nil
+
+	return ss.BudgetSheet, nil
 }
 
 func (ss *sheetsService) getSheetID(tabName string) (int64, error) {
@@ -357,12 +359,12 @@ func (ss *sheetsService) updateMonthly(sheetID int64, rows []*sheets.RowData) {
 	}
 
 	// execute the request
-	resp, err := ss.Provider.BatchUpdate(&batchUpdateRequest)
+	_, err := ss.Provider.BatchUpdate(&batchUpdateRequest)
 	checkError(err)
-	WriteJSONFile(JSONDir+"updateMonthly.json", resp)
+	//WriteJSONFile(JSONDir+"updateMonthly.json", resp)
 }
 
-func (ss *sheetsService) CopyRows(numCopies int) {
+func (ss *sheetsService) copyRowsBatchUpdateRequest(numCopies int) sheets.BatchUpdateSpreadsheetRequest {
 	// loop to copy NumberOfCopy times
 	var requests []*sheets.Request
 	index := ss.RegisterSheet.LastRow
@@ -392,12 +394,20 @@ func (ss *sheetsService) CopyRows(numCopies int) {
 	}
 
 	// create the batch request
-	batchUpdateRequest := sheets.BatchUpdateSpreadsheetRequest{
+	updateReq := sheets.BatchUpdateSpreadsheetRequest{
 		Requests: requests,
 	}
+	//j, err := json.Marshal(updateReq)
+	//checkError(err)
+	//err = ioutil.WriteFile("api/services/sheets_service/json/copyRowsBatchUpdateRequest.json", j, 0644)
+	//checkError(err)
+	//os.Exit(0)
+	return updateReq
+}
 
-	// execute the request
-	_, err := ss.Provider.BatchUpdate(&batchUpdateRequest)
+func (ss *sheetsService) CopyRows(numCopies int) {
+	updateReq := ss.copyRowsBatchUpdateRequest(numCopies)
+	_, err := ss.Provider.BatchUpdate(&updateReq)
 	if err != nil {
 		log.Fatalf("could not perform copy/paste action: %v", err)
 	}
@@ -516,11 +526,11 @@ func (ss *sheetsService) UpdateRows(columns []models.Column, nameToCol map[strin
 	}
 
 	// execute the request
-	resp, err := ss.Provider.BatchUpdate(&batchUpdateRequest)
+	_, err := ss.Provider.BatchUpdate(&batchUpdateRequest)
 	if err != nil {
 		log.Fatalf("could not perform update action: %v", err)
 	}
-	WriteJSONFile(JSONDir+"UpdateRows.json", resp)
+	//WriteJSONFile(JSONDir+"UpdateRows.json", resp)
 }
 
 func (ss *sheetsService) populateCells(columns []models.Column, nameToCol map[string]string, transactions []*models.Transaction) []*sheets.RowData {
@@ -571,7 +581,7 @@ func (ss *sheetsService) populateCells(columns []models.Column, nameToCol map[st
 		rows = append(rows, emptyRow)
 		rowIndex += 2
 	}
-	WriteJSONFile(JSONDir+"populateCells.json", rows)
+	//WriteJSONFile(JSONDir+"populateCells.json", rows)
 	return rows
 }
 
@@ -807,14 +817,12 @@ func mkStringCell(value, align, color string, bordersOn bool) *sheets.CellData {
 	}
 }
 
-// mkBoldStringCell has test
 func mkBoldStringCell(value, align, color string, bordersOn bool) *sheets.CellData {
 	c := mkStringCell(value, align, color, bordersOn)
 	c.UserEnteredFormat.TextFormat.Bold = true
 	return c
 }
 
-// mkNumberCell has test
 func mkNumberCell(value float64, align, color string, bordersOn bool) *sheets.CellData {
 	v := math.Round(value*100) / 100
 	return &sheets.CellData{
@@ -825,7 +833,6 @@ func mkNumberCell(value float64, align, color string, bordersOn bool) *sheets.Ce
 	}
 }
 
-// mkDollarsCell has test
 func mkDollarsCell(value float64, align, colorName string, bordersOn bool) *sheets.CellData {
 	v := math.Round(value*100) / 100
 	return &sheets.CellData{
@@ -842,7 +849,6 @@ func mkDollarsCell(value float64, align, colorName string, bordersOn bool) *shee
 	}
 }
 
-// mkDollarsCellFromFormulaString has test
 func mkDollarsCellFromFormulaString(value string, align, colorName string, bordersOn bool) *sheets.CellData {
 	return &sheets.CellData{
 		UserEnteredValue: &sheets.ExtendedValue{
@@ -858,7 +864,6 @@ func mkDollarsCellFromFormulaString(value string, align, colorName string, borde
 	}
 }
 
-// mkDateCell has test
 func mkDateCell(dateString, align, colorName string, bordersOn bool) *sheets.CellData {
 	dateString = formatYear(dateString)
 	csvTime, err := time.Parse("01/02/06", dateString)
@@ -888,7 +893,6 @@ func mkDateCell(dateString, align, colorName string, bordersOn bool) *sheets.Cel
 	return cell
 }
 
-// mkOpaqueCell has test
 func mkOpaqueCell(colorName string, bordersOn bool) *sheets.CellData {
 	return &sheets.CellData{
 		UserEnteredFormat: &sheets.CellFormat{
@@ -899,7 +903,6 @@ func mkOpaqueCell(colorName string, bordersOn bool) *sheets.CellData {
 	}
 }
 
-// formatCell has test
 func formatCell(align, colorName string, bordersOn bool) *sheets.CellFormat {
 	return &sheets.CellFormat{
 		HorizontalAlignment: strings.ToUpper(align),
@@ -909,7 +912,6 @@ func formatCell(align, colorName string, bordersOn bool) *sheets.CellFormat {
 	}
 }
 
-// dollarFormat has test
 func dollarFormat() *sheets.NumberFormat {
 	return &sheets.NumberFormat{
 		Pattern: `_("$"* #,##0.00_);_("$"* \(#,##0.00\);_("$"* "-"??_);_(@_)`,
@@ -917,7 +919,6 @@ func dollarFormat() *sheets.NumberFormat {
 	}
 }
 
-// dateFormat has test
 func dateFormat() *sheets.NumberFormat {
 	return &sheets.NumberFormat{
 		Pattern: "mm/dd/yy",
@@ -925,7 +926,6 @@ func dateFormat() *sheets.NumberFormat {
 	}
 }
 
-// getStringField has test
 func getStringField(values []interface{}, i int) string {
 	if i >= 0 && i < len(values) {
 		return fmt.Sprintf("%v", values[i])
@@ -933,12 +933,10 @@ func getStringField(values []interface{}, i int) string {
 	return ""
 }
 
-// readStringValue has test
 func readStringValue(text interface{}) string {
 	return fmt.Sprintf("%v", text)
 }
 
-// readDollarsValue has test
 func readDollarsValue(value interface{}) float64 {
 	dollars := fmt.Sprintf("%v", value)
 	re := regexp.MustCompile(`[\s$,]`)
@@ -957,7 +955,6 @@ func readDollarsValue(value interface{}) float64 {
 	return f
 }
 
-// readDateValue has test
 func readDateValue(dateStr interface{}) string {
 	date := fmt.Sprintf("%v", dateStr)
 	re := regexp.MustCompile(`(\d+)/(\d+)/(20)?(\d+)`)
@@ -969,7 +966,6 @@ func readDateValue(dateStr interface{}) string {
 	return d
 }
 
-// borders has test
 func borders(on bool) *sheets.Borders {
 	if !on {
 		return &sheets.Borders{}
@@ -990,7 +986,6 @@ func borders(on bool) *sheets.Borders {
 	}
 }
 
-// font has test
 func font() *sheets.TextFormat {
 	return &sheets.TextFormat{
 		FontFamily: "Arial",
@@ -998,7 +993,6 @@ func font() *sheets.TextFormat {
 	}
 }
 
-// color test not necessary
 func color(name string) *sheets.Color {
 	var colors = map[string]*sheets.Color{
 		"black": {
@@ -1047,7 +1041,6 @@ func color(name string) *sheets.Color {
 	return colors[name]
 }
 
-// intInSlice has test
 func intInSlice(a int, list []int) bool {
 	for _, b := range list {
 		if b == a {
@@ -1057,7 +1050,6 @@ func intInSlice(a int, list []int) bool {
 	return false
 }
 
-// formatYear has test
 func formatYear(date string) string {
 	re := regexp.MustCompile(`(\d+/\d+)/20(\d+)`)
 	return re.ReplaceAllString(date, "${1}/${2}")
@@ -1070,7 +1062,6 @@ func WriteJSONFile(fileName string, data interface{}) {
 	checkError(err)
 }
 
-// checkError test not necessary
 func checkError(err error) {
 	if err != nil {
 		log.Fatalf("error: %s\n", err.Error())

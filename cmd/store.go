@@ -18,15 +18,12 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/spf13/cobra"
 	"register/api/providers/sheets_provider"
 	"register/api/services/sheets_service"
 	cfg "register/pkg/config"
-	"register/pkg/driver"
 	"register/pkg/handler"
 	"register/pkg/models"
-	"strings"
-
-	"github.com/spf13/cobra"
 )
 
 // storeCmd represents the store command
@@ -66,48 +63,74 @@ func store() {
 
 	sheetsService, err := sheets_service.New(sheets_provider.New(options.SpreadsheetID))
 	checkError(err)
-	err = sheetsService.NewRegisterSheet(config)
 
 	//fmt.Printf("Reading Register...\n")
-	//err = sheetsService.NewRegisterSheet(config.MonthlyStartRow, config.MonthlyEndRow)
+	//err = sheetsService.NewRegisterSheet(config)
+	//checkError(err)
+
+	fmt.Printf("Reading Budget...\n")
+	err = sheetsService.NewBudgetSheet(config)
 	checkError(err)
-	val := sheetsService.ReadCell("A1", "string")
-	fmt.Printf("val: %s\n", val)
+
+	_, err = sheetsService.ReadBudgetSheet()
+	checkError(err)
+
+	//dir := "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
+	//j, err := json.Marshal(sheetsService.RegisterSheet)
+	//checkError(err)
+	//err = ioutil.WriteFile(dir + "ReadRegisterSheet.json", j, 0644)
+	//checkError(err)
+
+
+	//val := sheetsService.ReadCell("A1", "string")
+	//fmt.Printf("val: %s\n", val)
+
+	//conn, err := driver.ConnectSQL(&driver.ConnectParams{
+	//	DBType: driver.DBType(config.DBType),
+	//	Host:   config.DBHost,
+	//	Port:   config.DBPort,
+	//	DBName: config.DBName,
+	//	User:   config.DBUsername,
+	//	Pass:   config.DBPassword,
+	//})
+	//checkError(err)
+	//qHandler := handler.NewQueryHandler(conn)
+
 }
 
 func fixTransactionTable() {
-	conn, err := driver.ConnectSQL(&driver.ConnectParams{
-		DBType: driver.DBType(config.DBType),
-		Host:   config.DBHost,
-		Port:   config.DBPort,
-		DBName: config.DBName,
-		User:   config.DBUsername,
-		Pass:   config.DBPassword,
-	})
-	if err != nil {
-		panic(err)
-	}
-	qHandler := handler.NewQueryHandler(conn)
+	//conn, err := driver.ConnectSQL(&driver.ConnectParams{
+	//	DBType: driver.DBType(config.DBType),
+	//	Host:   config.DBHost,
+	//	Port:   config.DBPort,
+	//	DBName: config.DBName,
+	//	User:   config.DBUsername,
+	//	Pass:   config.DBPassword,
+	//})
+	//if err != nil {
+	//	panic(err)
+	//}
+	//qHandler := handler.NewQueryHandler(conn)
 
-	trans := qHandler.GetTransactions()
-	for _, t := range trans {
-		tri := strings.Split(t.Key, ":")
-		if tri[0] == "-" {
-			tri[0] = "WellsFargo"
-		} else {
-			tri[0] = strings.Title(strings.ToLower(tri[0]))
-		}
-		t.Key = strings.Join(tri, ":")
-
-		if t.Source == "-" {
-			t.Source = "WellsFargo"
-		} else {
-			t.Source = strings.Title(strings.ToLower(t.Source))
-		}
-
-		qHandler.SaveTransaction(&t)
-		fmt.Println(t.Key)
-	}
+	//trans := qHandler.GetTransactions()
+	//for _, t := range trans {
+	//	tri := strings.Split(t.Key, ":")
+	//	if tri[0] == "-" {
+	//		tri[0] = "WellsFargo"
+	//	} else {
+	//		tri[0] = strings.Title(strings.ToLower(tri[0]))
+	//	}
+	//	t.Key = strings.Join(tri, ":")
+	//
+	//	if t.Source == "-" {
+	//		t.Source = "WellsFargo"
+	//	} else {
+	//		t.Source = strings.Title(strings.ToLower(t.Source))
+	//	}
+	//
+	//	qHandler.SaveTransaction(&t)
+	//	fmt.Println(t.Key)
+	//}
 }
 
 func printTables(h *handler.Query) {
