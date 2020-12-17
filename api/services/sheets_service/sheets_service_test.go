@@ -12,7 +12,10 @@ import (
 	"register/pkg/models"
 )
 
-const dir = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
+const (
+	//dir = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
+	dir = "/Users/rcallahan/workspace/go/src/register/api/services/sheets_service/json/"
+)
 
 var months = []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
 

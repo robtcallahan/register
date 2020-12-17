@@ -42,8 +42,11 @@ func init() {
 	rootCmd.AddCommand(monthlyCmd)
 }
 
-const jsonDir = "/Users/rob/ws/go/src/register/services/sheets_service/json"
-/**/
+const (
+	//jsonDir = "/Users/rob/ws/go/src/register/services/sheets_service/json"
+	jsonDir = "/Users/rcallahan/workspace/go/src/register/services/sheets_service/json"
+)
+
 func monthly() {
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
 		DBType: driver.DBType(config.DBType),

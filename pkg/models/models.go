@@ -19,6 +19,7 @@ type Transaction struct {
 	Color         string
 	IsCategory    bool
 	TaxDeductible bool
+	IsCheck bool
 }
 
 // Merchant ...

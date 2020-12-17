@@ -24,7 +24,8 @@ import (
 const (
 	PayCheckName         = "CrowdStrike Salary"
 	CreditCardColumnName = "Credit Cards"
-	JSONDir              = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
+	//JSONDir              = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
+	JSONDir              = "/Users/rcallahan/workspace/go/src/register/api/services/sheets_service/json/"
 	//Reconciled = 0
 	Source       = 1
 	Date         = 2
@@ -63,6 +64,7 @@ type BudgetSheet struct {
 
 type RegisterEntry struct {
 	RowID        int64
+	IsCheck bool
 	Key          string
 	Reconciled   string
 	Source       string
@@ -88,7 +90,7 @@ type RegisterSheet struct {
 	EndColumnIndex   int64
 	Spreadsheet      sheets.Spreadsheet
 	Register         []*RegisterEntry
-	CategoriesMap    map[string]*BudgetEntry
+	//CategoriesMap    map[string]*BudgetEntry
 	KeysMap          map[string]bool
 	RangeValues      [][]interface{}
 }
@@ -594,7 +596,7 @@ func (ss *sheetsService) addSourceDateNameCells(cells []*sheets.CellData, trans 
 }
 
 func (ss *sheetsService) addAmountCells(cells []*sheets.CellData, trans *models.Transaction, bgColor string) []*sheets.CellData {
-	if trans.Name == PayCheckName {
+	if trans.Source == "WellsFargo" || trans.IsCheck {
 		// Wells Fargo Bank transaction
 		if trans.Amount < 0 {
 			// value is < 0 if it is a deposit
@@ -650,7 +652,7 @@ func (ss *sheetsService) addSalaryCells(cells []*sheets.CellData, columns []mode
 			cells = append(cells, mkDollarsCellFromFormulaString(totalsFormulas[i], "right", col.Color, false))
 		} else if col.Name != "" {
 			// enter the budgeted amount in this category column
-			entry := ss.RegisterSheet.CategoriesMap[col.Name]
+			entry := ss.BudgetSheet.CategoriesMap[col.Name]
 			cells = append(cells, mkDollarsCell(entry.TwiceMonthly, "left", col.Color, true))
 		} else {
 			// this cell doesn't apply. Just create an empty (opaque) cell.

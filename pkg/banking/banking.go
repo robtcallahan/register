@@ -95,7 +95,10 @@ func (c *Client) GetTransactions() []*models.Transaction {
 		c.WriteCSV(cfg.FileName, transResp.Transactions)
 
 		for _, t := range transResp.Transactions {
-			if strings.Contains(strings.ToLower(t.Name), "payment thank you") {
+			// skip CC payment transaction as these will show up as checking account payments
+			re := regexp.MustCompile(`(payment)\s?-?\s?(thank you)?`)
+			m := re.FindStringSubmatch(strings.ToLower(t.Name))
+			if len(m) > 0 {
 				continue
 			}
 			transactions = append(transactions, c.createTransaction(cfg.Name, t))
@@ -119,6 +122,7 @@ func (c *Client) createTransaction(bankName string, p plaid.Transaction) *models
 		m := re.FindStringSubmatch(p.Code)
 		if len(m) > 0 {
 			tran.Source = m[1]
+			tran.IsCheck = true
 		} else {
 			tran.Source = "WellsFargo"
 		}
@@ -186,6 +190,10 @@ func (c *Client) FormatMerchants(trans []*models.Transaction, lookup []*models.D
 					trans[i].ColumnIndex = l.ColumnIndex
 					trans[i].IsCategory = l.IsCategory
 					trans[i].TaxDeductible = l.TaxDeductible
+
+					if l.Name == "CrowdStrike Salary" && t.Amount > -3000 {
+						trans[i].Name = "CrowdStrike Bonus"
+					}
 				}
 			}
 		}
@@ -198,10 +206,12 @@ func (c *Client) FormatMerchants(trans []*models.Transaction, lookup []*models.D
 
 func (c *Client) FilterRows(trans []*models.Transaction, regLookup map[string]bool) []*models.Transaction {
 	var filter []*models.Transaction
-	for i, t := range trans {
+	i := 0
+	for _, t := range trans {
 		if _, ok := regLookup[t.Key]; !ok {
 			filter = append(filter, t)
-			fmt.Printf("    NOT FOUND (%2d) [%-28s] %-12s %-10s %8.2f %s\n", i+1, t.Key, t.Source, t.Date, t.Amount, t.Name)
+			i++
+			fmt.Printf("    (%2d) NEW [%-28s] %-12s %-10s %8.2f %s\n", i, t.Key, t.Source, t.Date, t.Amount, t.Name)
 		}
 	}
 	return filter

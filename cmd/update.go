@@ -180,6 +180,7 @@ func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models
 	cols := db.GetColumns()
 	var filter []models.Column
 
+	// first, filter out old categories or those where IsCategory is false
 	re := regexp.MustCompile(`\(old\)`)
 	for _, c := range cols {
 		chk := re.Match([]byte(c.Name))
@@ -188,6 +189,8 @@ func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models
 		}
 		filter = append(filter, c)
 	}
+
+	// this will allow us to print 3 columns on the screen
 	numRows := int(math.Floor(float64(len(filter)) / 3))
 	remItems := len(filter) % 3
 
@@ -205,6 +208,7 @@ func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models
 	}
 
 
+	// prompt the user and read desired merchant name and the category index
 	reader := bufio.NewReader(os.Stdin)
 	for i, t := range trans {
 		if t.Name == "" {

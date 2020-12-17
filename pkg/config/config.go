@@ -39,6 +39,7 @@ type BankInfo struct {
 
 // Config ...
 type Config struct {
+	JSONDir                     string              `json:"json_dir"`
 	DBType                      string              `json:"db_type"`
 	DBHost                      string              `json:"db_host"`
 	DBPort                      string              `json:"db_port"`
