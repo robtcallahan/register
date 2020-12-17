@@ -12,10 +12,7 @@ import (
 	"register/pkg/models"
 )
 
-const (
-	//dir = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
-	dir = "/Users/rcallahan/workspace/go/src/register/api/services/sheets_service/json/"
-)
+const dir = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
 
 var months = []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
 
@@ -777,6 +774,14 @@ func Test_sheetsService_getNameField(t *testing.T) {
 }
 
 func Test_sheetsService_ReadStringCell(t *testing.T) {
+	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
+		vr := &sheets.ValueRange{Values: [][]interface{}{}}
+		vr.Values = make([][]interface{}, 10)
+		vr.Values[0] = make([]interface{}, 10)
+		vr.Values[0][0] = "a string"
+		return vr, nil
+	}
+
 	type args struct {
 		cell string
 	}
