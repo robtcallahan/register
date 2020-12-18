@@ -588,7 +588,7 @@ func (ss *sheetsService) populateCells(columns []models.Column, nameToCol map[st
 }
 
 func (ss *sheetsService) addSourceDateNameCells(cells []*sheets.CellData, trans *models.Transaction, bgColor string) []*sheets.CellData {
-	cells = append(cells, mkNumberCell(4, "center", bgColor, false))
+	cells = append(cells, mkReconcileCell("X", "center", bgColor, false))
 	cells = append(cells, mkStringCell(trans.Source, "center", bgColor, false))
 	cells = append(cells, mkDateCell(trans.Date, "center", bgColor, false))
 	cells = append(cells, mkStringCell(trans.Name, "left", bgColor, false))
@@ -634,7 +634,8 @@ func (ss *sheetsService) addCategoryCells(cells []*sheets.CellData, trans *model
 			cells = append(cells, mkDollarsCell(-1*trans.Amount, "left", col.Color, true))
 		} else {
 			// this cell doesn't apply. Just create an empty (opaque) cell.
-			cells = append(cells, mkOpaqueCell(col.Color, true))
+			cells = append(cells, mkDollarsCell(0.00, "left", col.Color, true))
+			//cells = append(cells, mkOpaqueCell(col.Color, true))
 		}
 	}
 	return cells
@@ -656,7 +657,8 @@ func (ss *sheetsService) addSalaryCells(cells []*sheets.CellData, columns []mode
 			cells = append(cells, mkDollarsCell(entry.TwiceMonthly, "left", col.Color, true))
 		} else {
 			// this cell doesn't apply. Just create an empty (opaque) cell.
-			cells = append(cells, mkOpaqueCell(col.Color, true))
+			cells = append(cells, mkDollarsCell(0.00, "left", col.Color, true))
+			//cells = append(cells, mkOpaqueCell(col.Color, true))
 		}
 	}
 	return cells
@@ -819,6 +821,15 @@ func mkStringCell(value, align, color string, bordersOn bool) *sheets.CellData {
 	}
 }
 
+func mkReconcileCell(value, align, color string, bordersOn bool) *sheets.CellData {
+	return &sheets.CellData{
+		UserEnteredValue: &sheets.ExtendedValue{
+			StringValue: &value,
+		},
+		UserEnteredFormat: formatReconcileCell(align, color, bordersOn),
+	}
+}
+
 func mkBoldStringCell(value, align, color string, bordersOn bool) *sheets.CellData {
 	c := mkStringCell(value, align, color, bordersOn)
 	c.UserEnteredFormat.TextFormat.Bold = true
@@ -914,6 +925,15 @@ func formatCell(align, colorName string, bordersOn bool) *sheets.CellFormat {
 	}
 }
 
+func formatReconcileCell(align, colorName string, bordersOn bool) *sheets.CellFormat {
+	return &sheets.CellFormat{
+		HorizontalAlignment: strings.ToUpper(align),
+		TextFormat:          reconcileFont(),
+		BackgroundColor:     color(colorName),
+		Borders:             borders(bordersOn),
+	}
+}
+
 func dollarFormat() *sheets.NumberFormat {
 	return &sheets.NumberFormat{
 		Pattern: `_("$"* #,##0.00_);_("$"* \(#,##0.00\);_("$"* "-"??_);_(@_)`,
@@ -992,6 +1012,13 @@ func font() *sheets.TextFormat {
 	return &sheets.TextFormat{
 		FontFamily: "Arial",
 		FontSize:   10,
+	}
+}
+
+func reconcileFont() *sheets.TextFormat {
+	return &sheets.TextFormat{
+		FontFamily: "Archivo Black",
+		FontSize:   12,
 	}
 }
 

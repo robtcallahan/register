@@ -92,7 +92,6 @@ func init() {
 	}
 	ss.RegisterSheet = &RegisterSheet{
 		TabName:       "Register",
-		CategoriesMap: entries,
 	}
 	ss.BudgetSheet = &BudgetSheet{
 		TabName:        "Budget",
@@ -100,6 +99,7 @@ func init() {
 		EndRow:         63,
 		EndColumnName:  "J",
 		EndColumnIndex: 9,
+		CategoriesMap: entries,
 	}
 }
 

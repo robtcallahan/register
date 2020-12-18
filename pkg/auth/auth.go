@@ -35,7 +35,7 @@ func GetClient() *http.Client {
 	// created automatically when the authorization flow completes for the first
 	// time.
 	//jsonDir := "/Users/rob/ws/go/src/register/json/"
-	jsonDir := "/Users/rcallahan/workspace/go/src/register/json/"
+	jsonDir := "/Users/rob/ws/go/src/register/json/"
 	tokFile := jsonDir + "token.json"
 	credsFile := jsonDir + "credentials.json"
 
