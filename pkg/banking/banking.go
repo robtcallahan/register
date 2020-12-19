@@ -37,8 +37,6 @@ func New(o *ClientOptions) *Client {
 			Products:     "transactions",
 			CountryCodes: "US",
 		},
-		StartDate: o.StartDate,
-		EndDate:   o.EndDate,
 		BankInfo:  o.BankInfo,
 		Debug:     o.Debug,
 		Verbose:   o.Verbose,
@@ -84,13 +82,13 @@ func (c *Client) getPlaidTransactions(cfg config.BankInfo, start, end string) pl
 	return res
 }
 
-func (c *Client) GetTransactions() []*models.Transaction {
+func (c *Client) GetTransactions(startDate, endDate string) []*models.Transaction {
 	var transactions []*models.Transaction
 	for _, cfg := range c.BankInfo {
 		fmt.Printf("    %s...", cfg.Name)
 
 		c.SetBank(cfg)
-		transResp := c.getPlaidTransactions(cfg, c.StartDate, c.EndDate)
+		transResp := c.getPlaidTransactions(cfg, startDate, endDate)
 
 		c.WriteCSV(cfg.FileName, transResp.Transactions)
 

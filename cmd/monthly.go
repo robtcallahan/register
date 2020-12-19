@@ -44,7 +44,7 @@ func init() {
 
 const (
 	//jsonDir = "/Users/rob/ws/go/src/register/services/sheets_service/json"
-	jsonDir = "/Users/rcallahan/workspace/go/src/register/services/sheets_service/json"
+	//jsonDir = "/Users/rcallahan/workspace/go/src/register/services/sheets_service/json"
 )
 
 func monthly() {

@@ -90,21 +90,19 @@ func readWellsFargoCSV(bankFile string) []*Row {
 	headerBytes := []byte(`"Date","Amount","Dummy1","Dummy2","Name"`)
 	headerBytes = append(headerBytes, []byte("\n")...)
 	fileBytes = append(headerBytes, fileBytes...)
-	ioutil.WriteFile(bankFile, fileBytes, os.ModePerm)
+	err = ioutil.WriteFile(bankFile, fileBytes, os.ModePerm)
 
 	csvFile, err := os.Open(bankFile)
-	if err != nil {
-		panic(err)
-	}
+	checkErr(err)
 	defer csvFile.Close()
 
 	// read the csv file into an array of WellsFargo structs
-	rows := []*WellsFargo{}
+	var rows []*WellsFargo
 	if err := gocsv.UnmarshalFile(csvFile, &rows); err != nil {
 		panic(err)
 	}
 
-	csvRows := []*Row{}
+	var csvRows []*Row
 	for _, row := range rows {
 		name := row.Name.string
 		if row.Name.string == "Venmo Payment" && row.Amount == -150 {
@@ -131,11 +129,11 @@ func readFidelityCSV(bankFile string) []*Row {
 	}
 	defer csvFile.Close()
 
-	rows := []*FidelityVisa{}
+	var rows []*FidelityVisa
 	if err := gocsv.UnmarshalFile(csvFile, &rows); err != nil {
 		panic(err)
 	}
-	csvRows := []*Row{}
+	var csvRows []*Row
 	for _, row := range rows {
 		csv := &Row{
 			Key:    fmt.Sprintf("VISA:%s:%.2f", readDateValue(row.Date), row.Amount),
@@ -156,11 +154,11 @@ func readCitiCSV(bankFile string) []*Row {
 	}
 	defer csvFile.Close()
 
-	rows := []*CostcoCitiVisa{}
+	var rows []*CostcoCitiVisa
 	if err := gocsv.UnmarshalFile(csvFile, &rows); err != nil {
 		panic(err)
 	}
-	csvRows := []*Row{}
+	var csvRows []*Row
 	for _, row := range rows {
 		csv := &Row{
 			Key:    fmt.Sprintf("CITI:%s:%.2f", readDateValue(row.Date), -row.Debit),
@@ -181,11 +179,11 @@ func readChaseCSV(bankFile string) []*Row {
 	}
 	defer csvFile.Close()
 
-	rows := []*ChaseVisa{}
+	var rows []*ChaseVisa
 	if err := gocsv.UnmarshalFile(csvFile, &rows); err != nil {
 		panic(err)
 	}
-	csvRows := []*Row{}
+	var csvRows []*Row
 	for _, row := range rows {
 		csv := &Row{
 			Key:    fmt.Sprintf("CHASE:%s:%.2f", readDateValue(row.TransactionDate), row.Amount),
@@ -221,11 +219,17 @@ func (c *Config) UnmarshalCSV(m string) string {
 // }
 
 func readDateValue(date string) string {
-	re := regexp.MustCompile(`(\d+)\/(\d+)\/(20)?(\d+)`)
+	re := regexp.MustCompile(`(\d+)/(\d+)/(20)?(\d+)`)
 	m := re.FindAllStringSubmatch(date, -1)
 	mm, _ := strconv.Atoi(m[0][1])
 	dd, _ := strconv.Atoi(m[0][2])
 	yy, _ := strconv.Atoi(m[0][4])
 	d := fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
 	return d
+}
+
+func checkErr(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
 }

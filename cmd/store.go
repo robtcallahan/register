@@ -22,8 +22,6 @@ import (
 	"register/api/providers/sheets_provider"
 	"register/api/services/sheets_service"
 	cfg "register/pkg/config"
-	"register/pkg/handler"
-	"register/pkg/models"
 )
 
 // storeCmd represents the store command
@@ -98,7 +96,7 @@ func store() {
 
 }
 
-func fixTransactionTable() {
+//func fixTransactionTable() {
 	//conn, err := driver.ConnectSQL(&driver.ConnectParams{
 	//	DBType: driver.DBType(config.DBType),
 	//	Host:   config.DBHost,
@@ -131,30 +129,30 @@ func fixTransactionTable() {
 	//	qHandler.SaveTransaction(&t)
 	//	fmt.Println(t.Key)
 	//}
-}
+//}
 
-func printTables(h *handler.Query) {
-	fmt.Println("Columns...")
-	cols := h.GetColumns()
-	printColumns(cols, 20)
-	fmt.Println("")
+//func printTables(h *handler.Query) {
+//	fmt.Println("Columns...")
+//	cols := h.GetColumns()
+//	printColumns(cols, 20)
+//	fmt.Println("")
+//
+//	fmt.Println("Merchants...")
+//	merch := h.GetMerchants()
+//	printMerchants(merch, 20)
+//	fmt.Println("")
+//}
 
-	fmt.Println("Merchants...")
-	merch := h.GetMerchants()
-	printMerchants(merch, 20)
-	fmt.Println("")
-}
+//func printMerchants(merch []models.Merchant, num int) {
+//	for i := 0; i < num; i++ {
+//		m := merch[i]
+//		fmt.Printf("    %-35s %s\n", m.CreatedAt, m.BankName)
+//	}
+//}
 
-func printMerchants(merch []models.Merchant, num int) {
-	for i := 0; i < num; i++ {
-		m := merch[i]
-		fmt.Printf("    %-35s %s\n", m.CreatedAt, m.BankName)
-	}
-}
-
-func printColumns(cols []models.Column, num int) {
-	for i := 0; i < num; i++ {
-		c := cols[i]
-		fmt.Printf("    %-35s %s\n", c.CreatedAt, c.Name)
-	}
-}
+//func printColumns(cols []models.Column, num int) {
+//	for i := 0; i < num; i++ {
+//		c := cols[i]
+//		fmt.Printf("    %-35s %s\n", c.CreatedAt, c.Name)
+//	}
+//}

@@ -60,8 +60,6 @@ func update() {
 	var err error
 
 	bankClient := banking.New(&banking.ClientOptions{
-		StartDate:     config.StartDate,
-		EndDate:       config.EndDate,
 		BankInfo:      config.BankInfo,
 		Debug:         options.Debug,
 		Verbose:       options.Verbose,
@@ -94,7 +92,7 @@ func update() {
 	}
 
 	fmt.Println("Getting transactions...")
-	transactions := bankClient.GetTransactions()
+	transactions := bankClient.GetTransactions(config.StartDate, config.EndDate)
 	if options.Verbose {
 		printTransactions(transactions)
 	}

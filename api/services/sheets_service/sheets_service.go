@@ -1,10 +1,8 @@
 package sheets_service
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math"
 	"regexp"
@@ -25,7 +23,7 @@ const (
 	PayCheckName         = "CrowdStrike Salary"
 	CreditCardColumnName = "Credit Cards"
 	//JSONDir              = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
-	JSONDir              = "/Users/rcallahan/workspace/go/src/register/api/services/sheets_service/json/"
+	//JSONDir              = "/Users/rcallahan/workspace/go/src/register/api/services/sheets_service/json/"
 	//Reconciled = 0
 	Source       = 1
 	Date         = 2
@@ -422,7 +420,7 @@ func (ss *sheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 	// map of register entries by monty and payee
 	payeeAgg := make(map[string]map[string]float64)
 
-	rangeVals := ss.RegisterSheet.RangeValues
+	rangeValues := ss.RegisterSheet.RangeValues
 	for i, r := range ss.RegisterSheet.Register {
 		re := regexp.MustCompile(`(\d\d)/\d\d/20`)
 		m := re.FindStringSubmatch(r.Date)
@@ -442,11 +440,11 @@ func (ss *sheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 				continue
 			}
 
-			for j := 10; j < len(rangeVals[i*2]); j++ {
+			for j := 10; j < len(rangeValues[i*2]); j++ {
 				if cols[j].Name == "Credit Cards" || r.Deposit != 0 {
 					continue
 				}
-				f32 := ss.GetRegisterField(rangeVals[i*2], cols[j].ColumnIndex)
+				f32 := ss.GetRegisterField(rangeValues[i*2], cols[j].ColumnIndex)
 				catAgg[k][cols[j].Name] = catAgg[k][cols[j].Name] + f32
 			}
 		}
@@ -1084,12 +1082,12 @@ func formatYear(date string) string {
 	return re.ReplaceAllString(date, "${1}/${2}")
 }
 
-func WriteJSONFile(fileName string, data interface{}) {
-	j, err := json.Marshal(data)
-	checkError(err)
-	err = ioutil.WriteFile(fileName, j, 0644)
-	checkError(err)
-}
+//func WriteJSONFile(fileName string, data interface{}) {
+//	j, err := json.Marshal(data)
+//	checkError(err)
+//	err = ioutil.WriteFile(fileName, j, 0644)
+//	checkError(err)
+//}
 
 func checkError(err error) {
 	if err != nil {

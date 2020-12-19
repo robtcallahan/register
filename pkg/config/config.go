@@ -76,8 +76,8 @@ func ReadConfig() *Config {
 	contents, err := ioutil.ReadFile("config/config.json")
 	checkError(err)
 
-	var config Config = Config{}
-	err = json.Unmarshal([]byte(contents), &config)
+	var config = Config{}
+	err = json.Unmarshal(contents, &config)
 	checkError(err)
 	return &config
 }
