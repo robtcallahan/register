@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	cfg "register/pkg/config"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -56,9 +57,13 @@ func init() {
 
 	config = cfg.ReadConfig()
 
+	var bankKeys string
 	rootCmd.PersistentFlags().StringVarP(&options.SpreadsheetID, "id", "i", config.SpreadsheetID, "The Google spreadsheet id")
+	rootCmd.PersistentFlags().StringVarP(&bankKeys, "banks", "b", "wellsfargo,fidelity,chase,citi", "The banks that should be queried for transactions")
 
 	rootCmd.PersistentFlags().BoolVarP(&options.Test, "test", "t", false, "Test mode; no updates performed")
 	rootCmd.PersistentFlags().BoolVarP(&options.Debug, "debug", "d", false, "Debug mode")
 	rootCmd.PersistentFlags().BoolVarP(&options.Verbose, "verbose", "v", false, "verbose output")
+
+	options.BankKeys = strings.Split(bankKeys, ",")
 }

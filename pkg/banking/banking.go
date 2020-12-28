@@ -82,9 +82,10 @@ func (c *Client) getPlaidTransactions(cfg config.BankInfo, start, end string) pl
 	return res
 }
 
-func (c *Client) GetTransactions(startDate, endDate string) []*models.Transaction {
+func (c *Client) GetTransactions(bankKeys []string, startDate, endDate string) []*models.Transaction {
 	var transactions []*models.Transaction
-	for _, cfg := range c.BankInfo {
+	for _, k := range bankKeys {
+		cfg := c.BankInfo[k]
 		fmt.Printf("    %s...", cfg.Name)
 
 		c.SetBank(cfg)
@@ -117,10 +118,11 @@ func (c *Client) createTransaction(bankName string, p plaid.Transaction) *models
 	switch bankName {
 	case "Wells Fargo Checking":
 		re := regexp.MustCompile(`CHECK # (\d\d\d\d)`)
-		m := re.FindStringSubmatch(p.Code)
+		m := re.FindStringSubmatch(p.Name)
 		if len(m) > 0 {
 			tran.Source = m[1]
 			tran.IsCheck = true
+			tran.Name = "CHECK"
 		} else {
 			tran.Source = "WellsFargo"
 		}
@@ -168,7 +170,13 @@ func (c *Client) PrintTransactionHead() {
 
 func (c *Client) FormatMerchants(trans []*models.Transaction, lookup []*models.DataRow) []*models.Transaction {
 	for i, t := range trans {
-		if t.BankName == "Venmo" {
+		if t.Name == "CHECK" {
+			trans[i].Color = "white"
+			trans[i].ColumnIndex = 10
+			trans[i].IsCategory = false
+			trans[i].TaxDeductible = false
+			continue
+		} else if t.BankName == "Venmo" {
 			if t.Amount == 150.00 {
 				trans[i].Name = "Margie Knight (Venmo)"
 				trans[i].Color = "blue"

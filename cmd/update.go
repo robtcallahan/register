@@ -92,7 +92,7 @@ func update() {
 	}
 
 	fmt.Println("Getting transactions...")
-	transactions := bankClient.GetTransactions(config.StartDate, config.EndDate)
+	transactions := bankClient.GetTransactions(options.BankKeys, config.StartDate, config.EndDate)
 	if options.Verbose {
 		printTransactions(transactions)
 	}
@@ -166,7 +166,7 @@ func printRegister(trans []*sheets_service.RegisterEntry) {
 
 func needInfo(trans []*models.Transaction) bool {
 	for _, t := range trans {
-		if t.Name == "" {
+		if t.Name == "" && !strings.Contains(t.BankName, "CHECK #") {
 			return true
 		}
 	}
@@ -209,7 +209,7 @@ func getBankNameToName(db *handler.Query, trans []*models.Transaction) []*models
 	// prompt the user and read desired merchant name and the category index
 	reader := bufio.NewReader(os.Stdin)
 	for i, t := range trans {
-		if t.Name == "" {
+		if t.Name == "" && !strings.Contains(t.BankName, "CHECK #") {
 			fmt.Printf("    Bank Name: %s\n", t.BankName)
 
 			fmt.Printf("    Name: ")
