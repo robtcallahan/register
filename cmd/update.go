@@ -19,6 +19,7 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"github.com/plaid/plaid-go/plaid"
 	"math"
 	"os"
 	"regexp"
@@ -57,8 +58,6 @@ func init() {
 }
 
 func update() {
-	var err error
-
 	bankClient := banking.New(&banking.ClientOptions{
 		BankInfo:      config.BankInfo,
 		Debug:         options.Debug,
@@ -97,8 +96,12 @@ func update() {
 		printTransactions(transactions)
 	}
 
-	fmt.Println("Getting Wells Fargo account balance...")
-	wfAccount := bankClient.GetAccount(config.BankInfo["wellsfargo"], "depository")
+	fmt.Println("Getting account balances...")
+	accountInfo := map[string]*plaid.Account{}
+	for _, name := range []string{"fidelity", "citi", "chase"} {
+		accountInfo[name] = bankClient.GetAccount(config.BankInfo[name], "credit")
+	}
+	accountInfo["wellsfargo"] = bankClient.GetAccount(config.BankInfo["wellsfargo"], "depository")
 
 	fmt.Println("Updating merchants...")
 	lookupData := qHandler.GetLookupData()
@@ -144,7 +147,11 @@ func update() {
 		lastRowUpdated := sheetsService.RegisterSheet.FirstRowToUpdate + int64(len(transactions) * 2) + 1
 		sheetsService.WriteCell("F1", time.Now().Format("01/02/2006"))
 		sheetsService.WriteCell("G2", fmt.Sprintf("=SUM(G1-I%d)", lastRowUpdated))
-		sheetsService.WriteCell("G1", wfAccount.Balances.Available)
+		sheetsService.WriteCell("G1", accountInfo["wellsfargo"].Balances.Available)
+
+		sheetsService.WriteCell("AB2", accountInfo["fidelity"].Balances.Current)
+		sheetsService.WriteCell("AC2", accountInfo["citi"].Balances.Current)
+		sheetsService.WriteCell("AD2", accountInfo["chase"].Balances.Current)
 	} else {
 		fmt.Println("No updates needed")
 	}

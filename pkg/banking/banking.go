@@ -182,6 +182,11 @@ func (c *Client) FormatMerchants(trans []*models.Transaction, lookup []*models.D
 				trans[i].Color = "blue"
 				trans[i].ColumnIndex = 46
 				trans[i].IsCategory = true
+			} else if t.Amount == 300.00 {
+				trans[i].Name = "Michael Anderson (Venmo)"
+				trans[i].Color = "blue"
+				trans[i].ColumnIndex = 46
+				trans[i].IsCategory = true
 			} else if t.Amount == 5.00 || t.Amount == 10.00 {
 				trans[i].Name = "AA Meeting (Venmo)"
 				trans[i].Color = "blue"

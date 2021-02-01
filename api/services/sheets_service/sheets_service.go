@@ -632,8 +632,8 @@ func (ss *sheetsService) addCategoryCells(cells []*sheets.CellData, trans *model
 			cells = append(cells, mkDollarsCell(-1*trans.Amount, "left", col.Color, true))
 		} else {
 			// this cell doesn't apply. Just create an empty (opaque) cell.
-			cells = append(cells, mkDollarsCell(0.00, "left", col.Color, true))
-			//cells = append(cells, mkOpaqueCell(col.Color, true))
+			//cells = append(cells, mkDollarsCell(0.00, "left", col.Color, true))
+			cells = append(cells, mkDollarsEmptyCell("left", col.Color, true))
 		}
 	}
 	return cells
@@ -841,6 +841,22 @@ func mkNumberCell(value float64, align, color string, bordersOn bool) *sheets.Ce
 			NumberValue: &v,
 		},
 		UserEnteredFormat: formatCell(align, color, bordersOn),
+	}
+}
+
+func mkDollarsEmptyCell(align, colorName string, bordersOn bool) *sheets.CellData {
+	s := ""
+	return &sheets.CellData{
+		UserEnteredValue: &sheets.ExtendedValue{
+			StringValue: &s,
+		},
+		UserEnteredFormat: &sheets.CellFormat{
+			HorizontalAlignment: strings.ToUpper(align),
+			TextFormat:          font(),
+			NumberFormat:        dollarFormat(),
+			BackgroundColor:     color(colorName),
+			Borders:             borders(bordersOn),
+		},
 	}
 }
 

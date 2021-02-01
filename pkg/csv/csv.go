@@ -105,9 +105,12 @@ func readWellsFargoCSV(bankFile string) []*Row {
 	var csvRows []*Row
 	for _, row := range rows {
 		name := row.Name.string
-		if row.Name.string == "Venmo Payment" && row.Amount == -150 {
+		v := strings.Contains(name, "Venmo")
+		if v && row.Amount == -150 {
 			name = "Margie Knight (Venmo)"
-		} else if row.Name.string == "Venmo Payment" && row.Amount == -5 {
+		} else if v && row.Amount == -300 {
+			name = "Michael Anderson (Venmo)"
+		} else if v && row.Amount == -5 {
 			name = "AA Meeting (Venmo)"
 		}
 		csv := &Row{

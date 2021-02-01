@@ -6,3 +6,4 @@ csv
 sql/*.bak
 .idea
 pkg/repository/postgres/register.sql
+config

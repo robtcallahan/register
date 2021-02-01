@@ -18,7 +18,6 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/dustin/go-humanize"
 	"github.com/plaid/plaid-go/plaid"
 	"register/pkg/banking"
 	cfg "register/pkg/config"
@@ -64,25 +63,25 @@ func store() {
 		PlaidSecret:   config.PlaidSecret,
 	})
 
-	//bankClient.SetBank(config.BankInfo["sofi"])
-	//resp := bankClient.GetAccounts()
-	//for _, a := range resp.Accounts {
-	//	fmt.Printf("%s, %s, %.2f\n", a.Name, a.Type, a.Balances.Current)
-	//}
-
-	fmt.Println("Getting investment balances...")
-	investments := getInvestmentTotals(bankClient)
-	fmt.Printf("%d accounts found\n\n", len(investments))
-
-	var sum float64
-	for _, i := range investments {
-		sum += i.Balance
-		fmt.Printf("%-12s %-18s $ %10s\n", i.Firm, i.AccountName, humanize.FormatFloat("#,###.##", i.Balance))
+	bankClient.SetBank(config.BankInfo["citi"])
+	resp := bankClient.GetAccounts()
+	for _, a := range resp.Accounts {
+		fmt.Printf("%s, %s, %.2f %s\n", a.Name, a.Type, a.Balances.Current, a.AccountID)
 	}
-	fmt.Printf("%31s $ %10s\n", " ", humanize.FormatFloat("#,###.##", sum))
+
+	//fmt.Println("Getting investment balances...")
+	//investments := getInvestmentTotals(bankClient)
+	//fmt.Printf("%d accounts found\n\n", len(investments))
+
+	//var sum float64
+	//for _, i := range investments {
+	//	sum += i.Balance
+	//	fmt.Printf("%-12s %-18s $ %10s\n", i.Firm, i.AccountName, humanize.FormatFloat("#,###.##", i.Balance))
+	//}
+	//fmt.Printf("%31s $ %10s\n", " ", humanize.FormatFloat("#,###.##", sum))
 
 	//acc := bankClient.GetAccount(config.BankInfo["wellsfargo"], "depository")
-	//fmt.Printf("current: %.2f, avail: %.2f\n", acc.Balances.Current, acc.Balances.Available)
+	//fmt.Printf("current: %.2f, avail: %s\n", acc.Balances.Available, acc.AccountID)
 
 	//sheetsService, err := sheets_service.New(sheets_provider.New(options.SpreadsheetID))
 	//checkError(err)
