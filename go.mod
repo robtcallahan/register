@@ -3,7 +3,7 @@ module register
 go 1.14
 
 require (
-	github.com/gocarina/gocsv v0.0.0-20201208093247-67c824bc04d4 // indirect
+	github.com/gocarina/gocsv v0.0.0-20201208093247-67c824bc04d4
 	github.com/plaid/plaid-go v0.0.0-20201120011019-da95871e1763
 	github.com/spf13/cobra v1.1.1
 	golang.org/x/net v0.0.0-20201209123823-ac852fbbde11
