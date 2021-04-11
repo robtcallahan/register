@@ -181,7 +181,7 @@ func (ss *sheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
 
 	rangeValues := resp.Values
 	if len(rangeValues) == 0 {
-		return nil, fmt.Errorf("no data found")
+		return nil, fmt.Errorf("no data found for read range: %s", range_)
 	}
 
 	// determine last used row in the spreadsheet
@@ -459,7 +459,7 @@ func (ss *sheetsService) readRangeFormulas(readRange string) []string {
 	}
 	rangeValues := resp.Values
 	if len(rangeValues) == 0 {
-		log.Fatalf("No data found")
+		log.Fatalf("no data found for read range: %s", readRange)
 	}
 
 	var retValues []string
@@ -649,7 +649,7 @@ func (ss *sheetsService) addSalaryCells(cells []*sheets.CellData, columns []mode
 		if ok := intInSlice(i, []int{0, 1, 2}); ok {
 			// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here
 			cells = append(cells, mkDollarsCellFromFormulaString(totalsFormulas[i], "right", col.Color, false))
-		} else if col.Name != "" {
+		} else if col.Name != "" && col.Name != "Credit Cards" {
 			// enter the budgeted amount in this category column
 			entry := ss.BudgetSheet.CategoriesMap[col.Name]
 			cells = append(cells, mkDollarsCell(entry.TwiceMonthly, "left", col.Color, true))

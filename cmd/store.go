@@ -63,7 +63,7 @@ func store() {
 		PlaidSecret:   config.PlaidSecret,
 	})
 
-	bankClient.SetBank(config.BankInfo["citi"])
+	bankClient.SetBank(config.BankInfo["chase"])
 	resp := bankClient.GetAccounts()
 	for _, a := range resp.Accounts {
 		fmt.Printf("%s, %s, %.2f %s\n", a.Name, a.Type, a.Balances.Current, a.AccountID)

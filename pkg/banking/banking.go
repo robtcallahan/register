@@ -97,7 +97,7 @@ func (c *Client) GetTransactions(bankKeys []string, startDate, endDate string) [
 			// skip CC payment transaction as these will show up as checking account payments
 			re := regexp.MustCompile(`(payment)\s?-?\s?(thank you)?`)
 			m := re.FindStringSubmatch(strings.ToLower(t.Name))
-			if len(m) > 0 {
+			if len(m) > 0 || strings.Contains(t.Name, "MEMBERSHIP FEE ") {
 				continue
 			}
 			transactions = append(transactions, c.createTransaction(cfg.Name, t))
@@ -180,17 +180,17 @@ func (c *Client) FormatMerchants(trans []*models.Transaction, lookup []*models.D
 			if t.Amount == 150.00 {
 				trans[i].Name = "Margie Knight (Venmo)"
 				trans[i].Color = "blue"
-				trans[i].ColumnIndex = 46
+				trans[i].ColumnIndex = 48
 				trans[i].IsCategory = true
 			} else if t.Amount == 300.00 {
 				trans[i].Name = "Michael Anderson (Venmo)"
 				trans[i].Color = "blue"
-				trans[i].ColumnIndex = 46
+				trans[i].ColumnIndex = 48
 				trans[i].IsCategory = true
 			} else if t.Amount == 5.00 || t.Amount == 10.00 {
 				trans[i].Name = "AA Meeting (Venmo)"
 				trans[i].Color = "blue"
-				trans[i].ColumnIndex = 41
+				trans[i].ColumnIndex = 42
 				trans[i].IsCategory = true
 			}
 		} else {
