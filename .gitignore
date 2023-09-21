@@ -1,0 +1,17 @@
+config.json
+json
+register
+.vscode
+sql/*.bak
+.idea
+pkg/repository/postgres/register.sql
+config
+csv/*.csv
+tmp/*
+*.txt
+bin/*
+.DS_Store
+node_modules
+package-lock.json
+screenshot.png
+*.png
