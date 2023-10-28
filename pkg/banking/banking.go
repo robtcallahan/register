@@ -169,6 +169,27 @@ func (c *Client) GetBalance(accessToken string, bankID string, ctx context.Conte
 	return nullFloat64.Get(), err
 }
 
+func (c *Client) GetBankStatus(bankID string) (*plaid.Institution, error) {
+	var ctx context.Context
+	bankConfig := c.Banks[bankID]
+	req := plaid.InstitutionsGetByIdRequest{
+		InstitutionId: bankConfig.Institution,
+		ClientId:      &c.ClientID,
+		Secret:        &c.Secret,
+		CountryCodes:  []plaid.CountryCode{plaid.COUNTRYCODE_US},
+	}
+	resp, httpResp, err := c.PlaidClient.PlaidApi.InstitutionsGetById(ctx).InstitutionsGetByIdRequest(req).Execute()
+	if err != nil {
+		buf := new(bytes.Buffer)
+		_, err2 := buf.ReadFrom(httpResp.Body)
+		if err2 != nil {
+			return nil, err2
+		}
+		return nil, fmt.Errorf("%s\n%s", err.Error(), buf.String())
+	}
+	return &resp.Institution, nil
+}
+
 func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
 	var transactions []*models.Transaction
 	var errors string
@@ -266,17 +287,17 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Tr
 		tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(p.Date), -1*p.Amount)
 	case FidelityID:
 		tran.Source = "Fidelity"
-		tran.Amount = p.Amount
-		tran.CreditPurchase = p.Amount // convert to positive
+		tran.Amount = p.Amount         // amount stays as is
+		tran.CreditCard = p.Amount     // keep positive
+		tran.CreditPurchase = p.Amount // keep positive
 		tran.Budget = -1 * p.Amount    // budget category column negative
-		tran.CreditCard = p.Amount     // convert to positive
 		tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(p.Date), -1*p.Amount)
 	case ChaseID:
 		tran.Source = "Chase"
-		tran.Amount = p.Amount
-		tran.CreditPurchase = p.Amount // convert to positive
+		tran.Amount = p.Amount         // amount stays as is
+		tran.CreditCard = p.Amount     // keep positive
+		tran.CreditPurchase = p.Amount // keep positive
 		tran.Budget = -1 * p.Amount    // budget category column negative
-		tran.CreditCard = p.Amount     // convert to positive
 		tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(p.Date), -1*p.Amount)
 	}
 	return tran

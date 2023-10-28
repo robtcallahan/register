@@ -96,11 +96,11 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 	var trans, t []*models.Transaction
 	var err error
 
-	fmt.Printf("    Wells Fargo\n")
-	t, err = c.readWellsFargoCSV()
-	if err != nil {
-		return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
-	}
+	//fmt.Printf("    Wells Fargo\n")
+	//t, err = c.readWellsFargoCSV()
+	//if err != nil {
+	//	return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+	//}
 
 	fmt.Printf("    Fidelity\n")
 	trans = append(trans, t...)
@@ -109,12 +109,12 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 		return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
 	}
 
-	fmt.Printf("    Chase\n")
-	trans = append(trans, t...)
-	t, err = c.readChaseCSV()
-	if err != nil {
-		return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
-	}
+	//fmt.Printf("    Chase\n")
+	//trans = append(trans, t...)
+	//t, err = c.readChaseCSV()
+	//if err != nil {
+	//	return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+	//}
 
 	//fmt.Printf("    Bank of America\n")
 	//trans = append(trans, t...)
@@ -181,11 +181,16 @@ func processWellsFargoData(wellsFargo []*WellsFargo, bankId string) []*models.Tr
 	for _, wf := range wellsFargo {
 		t := &models.Transaction{
 			Key:      fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(wf.Date), wf.Amount),
-			Source:   bankId,
+			Source:   "WellsFargo",
 			Date:     readDateValue(wf.Date),
 			Amount:   wf.Amount,
-			Name:     wf.Name,
 			BankName: wf.Name,
+			Budget:   wf.Amount,
+		}
+		if wf.Amount < 0 {
+			t.Withdrawal = -1 * wf.Amount
+		} else {
+			t.Deposit = wf.Amount
 		}
 		t = processCheck(wf.Name, t)
 		trans = append(trans, t)
@@ -252,12 +257,14 @@ func processFidelityData(fidelity []*FidelityVisa, bankId string) []*models.Tran
 		}
 
 		t := &models.Transaction{
-			Key:        fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(f.Date), f.Amount),
-			Source:     bankId,
-			Date:       readDateValue(f.Date),
-			Amount:     f.Amount,
-			CreditCard: f.Amount,
-			BankName:   f.Name,
+			Key:            fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(f.Date), f.Amount),
+			Source:         "Fidelity",
+			Date:           readDateValue(f.Date),
+			BankName:       f.Name,
+			Amount:         f.Amount,      // amount stays as is
+			CreditCard:     -1 * f.Amount, // convert to positive
+			CreditPurchase: -1 * f.Amount, // convert to positive
+			Budget:         f.Amount,      // already negative
 		}
 		trans = append(trans, t)
 	}
@@ -288,12 +295,14 @@ func processChaseData(chase []*ChaseVisa, bankId string) []*models.Transaction {
 		}
 
 		t := &models.Transaction{
-			Key:        fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(c.TransactionDate), c.Amount),
-			Source:     bankId,
-			Date:       readDateValue(c.TransactionDate),
-			Amount:     -c.Amount,
-			CreditCard: -c.Amount,
-			BankName:   c.Description,
+			Key:            fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(c.TransactionDate), c.Amount),
+			Source:         "Chase",
+			Date:           readDateValue(c.TransactionDate),
+			Amount:         c.Amount,      // amount stays as is
+			CreditCard:     -1 * c.Amount, // convert to positive
+			CreditPurchase: -1 * c.Amount, // convert to positive
+			Budget:         c.Amount,      // already negative
+			BankName:       c.Description,
 		}
 		trans = append(trans, t)
 	}

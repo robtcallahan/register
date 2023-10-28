@@ -101,6 +101,7 @@ func init() {
 	//flag.Parse()
 
 	rootCmd.PersistentFlags().StringVarP(&bankIDs, "bank-ids", "b", "wellsfargo,fidelity,chase", "comma-separated list of bank IDs")
+	//rootCmd.PersistentFlags().StringVarP(&bankIDs, "bank-ids", "b", "fidelity", "comma-separated list of bank IDs")
 	rootCmd.PersistentFlags().StringVarP(&options.SpreadsheetID, "ss_id", "s", config.SpreadsheetID, "The Google spreadsheet id")
 	rootCmd.PersistentFlags().BoolVarP(&options.Debug, "debug", "d", false, "Debug mode")
 

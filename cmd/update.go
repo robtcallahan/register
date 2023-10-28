@@ -27,7 +27,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"register/api/providers/sheets_provider"
 	"register/api/services/sheets_service"
 	"register/pkg/banking"
@@ -36,6 +35,8 @@ import (
 	"register/pkg/driver"
 	"register/pkg/handler"
 	"register/pkg/models"
+
+	"github.com/spf13/cobra"
 )
 
 var updateCmd = &cobra.Command{
@@ -90,20 +91,36 @@ func update(cmd *cobra.Command, args []string) {
 	err = sheetsService.NewRegisterSheet(config)
 	checkError(err)
 
-	fmt.Printf("Reading Register...\n")
+	fmt.Println("Reading Register...")
 	_, err = sheetsService.ReadRegisterSheet()
 	checkError(err)
 
-	if options.UseCSVFiles {
-		fmt.Println("Getting transactions (CSV)...")
-		transactions, err = getCSVTransactions()
-		checkError(err)
-	} else {
-		fmt.Println("Getting transactions (Plaid)...")
-		client = getBankingClient()
+	client = getBankingClient()
+	//if options.UseCSVFiles {
+	//	fmt.Println("Getting transactions (CSV)...")
+	//	transactions, err = getCSVTransactions()
+	//	checkError(err)
+	//} else {
+	//	fmt.Println("Getting transactions (Plaid)...")
+	//	transactions, err = getTransactions(client, options.BankIDs)
+	//	checkError(err)
+	//}
 
-		transactions, err = getTransactions(client, options.BankIDs)
-		checkError(err)
+	fmt.Println("Getting Fidelity transactions (CSV)...")
+	// TODO: limited csv:GetTransactions() to Fidelitty
+	transactions, err = getCSVTransactions()
+	checkError(err)
+
+	fmt.Println("Getting Wells Fargo & Chase transactions (Plaid)...")
+	options.BankIDs = []string{"wellsfargo", "chase"}
+	tmp, err := getTransactions(client, options.BankIDs)
+	checkError(err)
+
+	transactions = append(transactions, tmp...)
+
+	if len(transactions) < 1 {
+		fmt.Println("No transactions")
+		return
 	}
 
 	fmt.Println("Updating merchants...")
