@@ -103,11 +103,12 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 	//}
 
 	fmt.Printf("    Fidelity\n")
-	trans = append(trans, t...)
+	//trans = append(trans, t...)
 	t, err = c.readFidelityCSV()
 	if err != nil {
 		return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
 	}
+	trans = append(trans, t...)
 
 	//fmt.Printf("    Chase\n")
 	//trans = append(trans, t...)
