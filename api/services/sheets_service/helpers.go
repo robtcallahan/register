@@ -405,9 +405,9 @@ func isRegisterClearedOrDeltaColumn(i int) bool {
 
 func getSourceField(values []interface{}) string {
 	if fmt.Sprintf("%v", values[Source]) == "" {
-		return CheckingAccountSourceName
+		return strings.ToLower(CheckingAccountSourceName)
 	}
-	return getStringField(values, Source)
+	return strings.ToLower(getStringField(values, Source))
 }
 
 func getDateField(values []interface{}) string {
@@ -422,15 +422,19 @@ func getAmountString(values []interface{}) string {
 	amt := ""
 	v := ""
 	if v = fmt.Sprintf("%v", values[Withdrawals]); v != "" {
-		amt = "-" + v
+		amt = v
 	} else if v = fmt.Sprintf("%v", values[Deposits]); v != "" {
 		amt = v
 	} else if v = fmt.Sprintf("%v", values[CreditCards]); v != "" {
 		re := regexp.MustCompile(`[()]`)
 		if re.Match([]byte(v)) {
 			amt = re.ReplaceAllString(v, "")
+			re := regexp.MustCompile(`[\s$,]`)
+			amt = re.ReplaceAllString(amt, "")
+			fl, _ := strconv.ParseFloat(amt, 64)
+			amt = fmt.Sprintf("%.2f", -1*fl)
 		} else {
-			amt = "-" + v
+			amt = v
 		}
 	}
 	re := regexp.MustCompile(`[\s$,]`)

@@ -258,15 +258,15 @@ func processFidelityData(fidelity []*FidelityVisa, bankId string) []*models.Tran
 		}
 
 		t := &models.Transaction{
-			Key:            fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(f.Date), f.Amount),
 			Source:         "Fidelity",
 			Date:           readDateValue(f.Date),
 			BankName:       f.Name,
 			Amount:         f.Amount,      // amount stays as is
-			CreditCard:     -1 * f.Amount, // convert to positive
 			CreditPurchase: -1 * f.Amount, // convert to positive
+			CreditCard:     -1 * f.Amount, // convert to positive
 			Budget:         f.Amount,      // already negative
 		}
+		t.Key = fmt.Sprintf("%s:%s:%.2f", bankId, t.Date, t.CreditCard)
 		trans = append(trans, t)
 	}
 	return trans
@@ -300,8 +300,8 @@ func processChaseData(chase []*ChaseVisa, bankId string) []*models.Transaction {
 			Source:         "Chase",
 			Date:           readDateValue(c.TransactionDate),
 			Amount:         c.Amount,      // amount stays as is
-			CreditCard:     -1 * c.Amount, // convert to positive
 			CreditPurchase: -1 * c.Amount, // convert to positive
+			CreditCard:     -1 * c.Amount, // convert to positive
 			Budget:         c.Amount,      // already negative
 			BankName:       c.Description,
 		}

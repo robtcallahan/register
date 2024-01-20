@@ -107,16 +107,15 @@ func update(cmd *cobra.Command, args []string) {
 	//}
 
 	fmt.Println("Getting Fidelity transactions (CSV)...")
-	// TODO: limited csv:GetTransactions() to Fidelitty
 	transactions, err = getCSVTransactions()
 	checkError(err)
 
 	fmt.Println("Getting Wells Fargo & Chase transactions (Plaid)...")
 	options.BankIDs = []string{"wellsfargo", "chase"}
-	tmp, err := getTransactions(client, options.BankIDs)
+	plaidTrans, err := getTransactions(client, options.BankIDs)
 	checkError(err)
 
-	transactions = append(transactions, tmp...)
+	transactions = append(transactions, plaidTrans...)
 
 	if len(transactions) < 1 {
 		fmt.Println("No transactions")
@@ -152,21 +151,21 @@ func update(cmd *cobra.Command, args []string) {
 	}
 	transactions = getNotes(transactions)
 
-	fmt.Printf("Reading Budget...\n")
-	err = sheetsService.NewBudgetSheet(config)
-	checkError(err)
-	_, err = sheetsService.ReadBudgetSheet()
-	checkError(err)
-
-	// add the needed number of rows for transactions
-	fmt.Println("Adding rows...")
-	_, _, err = shellout("register copy -n " + strconv.Itoa(len(transactions)))
-	if err != nil {
-		fmt.Println(err.Error())
-		return
-	}
-
 	if len(transactions) > 0 {
+		fmt.Printf("Reading Budget...\n")
+		err = sheetsService.NewBudgetSheet(config)
+		checkError(err)
+		_, err = sheetsService.ReadBudgetSheet()
+		checkError(err)
+
+		// add the needed number of rows for transactions
+		fmt.Println("Adding rows...")
+		_, _, err = shellout("register copy -n " + strconv.Itoa(len(transactions)))
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+
 		fmt.Printf("Transaction updates...\n")
 		fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", "Num", "Source", "Date", "Amount", "Name", "Note")
 		fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", dashes(3), dashes(12), dashes(18), dashes(8), dashes(30), dashes(15))
@@ -217,10 +216,10 @@ func updateBalances(sheetsService *sheets_service.SheetsService, balances map[st
 		_, err := sheetsService.WriteCell("G1", balances[banking.WellsFargoID].Amount)
 		checkError(err)
 	}
-	if balances[banking.FidelityID].Error == nil {
-		_, err := sheetsService.WriteCell("AA2", balances[banking.FidelityID].Amount)
-		checkError(err)
-	}
+	//if balances[banking.FidelityID].Error == nil {
+	//	_, err := sheetsService.WriteCell("AA2", balances[banking.FidelityID].Amount)
+	//	checkError(err)
+	//}
 	if balances[banking.ChaseID].Error == nil {
 		_, err := sheetsService.WriteCell("AB2", balances[banking.ChaseID].Amount)
 		checkError(err)
@@ -265,7 +264,17 @@ func getCSVTransactions() ([]*models.Transaction, error) {
 func printTransactions(trans []*models.Transaction) {
 	fmt.Printf("    (%3s) [%-28s] %-12s %-10s %-8s %-30s %s\n", "Num", "Key", "Source", "Date", "Amount", "Name", "Bank Name")
 	for i, t := range trans {
-		fmt.Printf("    (%3d) [%-28s] %-12s %-10s %8.2f %-30s %s\n", i+1, t.Key, t.Source, t.Date, -1*t.Amount, t.Name, t.BankName)
+		amt := 0.0
+		if t.Source == "WellsFargo" {
+			if t.Deposit != 0 {
+				amt = t.Deposit
+			} else {
+				amt = t.Withdrawal
+			}
+		} else {
+			amt = t.CreditPurchase
+		}
+		fmt.Printf("    (%3d) [%-28s] %-12s %-10s %8.2f %-30s %s\n", i+1, t.Key, t.Source, t.Date, amt, t.Name, t.BankName)
 	}
 	fmt.Println("")
 }

@@ -83,7 +83,8 @@ func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
 	keysMap := make(map[string]bool)
 
 	for i = 0; i <= ss.RegisterSheet.SheetCoords.LastRow && !ss.isEmptyRow(resp.Values[i]); i += 2 {
-		keysMap[getTransactionKey(resp.Values[i])] = true
+		transactionKey := getTransactionKey(resp.Values[i])
+		keysMap[transactionKey] = true
 		registerEntry := ss.populateRegisterEntry(resp.Values[i])
 		registerEntry.RowID = ss.getRowID(i)
 		register = append(register, registerEntry)

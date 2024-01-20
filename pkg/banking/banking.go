@@ -280,25 +280,28 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Tr
 		tran.Amount = p.Amount
 		if p.Amount < 0 {
 			tran.Deposit = -1 * p.Amount // covert to positive
+			tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), readDateValue(p.Date), tran.Deposit)
 		} else {
 			tran.Withdrawal = p.Amount
+			tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), readDateValue(p.Date), tran.Withdrawal)
 		}
 		tran.Budget = -1 * p.Amount
-		tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(p.Date), -1*p.Amount)
 	case FidelityID:
 		tran.Source = "Fidelity"
-		tran.Amount = p.Amount         // amount stays as is
-		tran.CreditCard = p.Amount     // keep positive
+		tran.Amount = p.Amount         // amount stays as is (positive)
+		cc := p.Amount                 // keep positive
 		tran.CreditPurchase = p.Amount // keep positive
+		tran.CreditCard = p.Amount     // keep positive
 		tran.Budget = -1 * p.Amount    // budget category column negative
-		tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(p.Date), -1*p.Amount)
+		tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), tran.Date, cc)
 	case ChaseID:
 		tran.Source = "Chase"
-		tran.Amount = p.Amount         // amount stays as is
-		tran.CreditCard = p.Amount     // keep positive
+		tran.Amount = p.Amount         // amount stays as is (positive)
+		cc := p.Amount                 // keep positive
 		tran.CreditPurchase = p.Amount // keep positive
+		tran.CreditCard = p.Amount     // keep positive
 		tran.Budget = -1 * p.Amount    // budget category column negative
-		tran.Key = fmt.Sprintf("%s:%s:%.2f", tran.Source, readDateValue(p.Date), -1*p.Amount)
+		tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), tran.Date, cc)
 	}
 	return tran
 }
