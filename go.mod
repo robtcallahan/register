@@ -8,7 +8,7 @@ require (
 	github.com/gocarina/gocsv v0.0.0-20201208093247-67c824bc04d4
 	github.com/googleapis/gax-go/v2 v2.8.0
 	github.com/gorilla/mux v1.8.0
-	github.com/gorilla/sessions v1.2.1 // indirect
+	github.com/gorilla/sessions v1.2.1
 	github.com/jackc/pgx/v5 v5.3.1 // indirect
 	github.com/plaid/plaid-go/v15 v15.0.0
 	github.com/rs/cors v1.9.0

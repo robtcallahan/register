@@ -70,7 +70,8 @@ func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
 	var register []*RegisterEntry
 	var i int64
 
-	resp, err := ss.Provider.GetValues(ss.getReadRange())
+	var readRange = ss.getReadRange()
+	resp, err := ss.Provider.GetValues(readRange)
 	if err != nil {
 		return nil, fmt.Errorf("could not get sheet values: %s\n", err.Error())
 	}
