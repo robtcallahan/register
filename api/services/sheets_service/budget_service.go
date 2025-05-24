@@ -84,11 +84,11 @@ func (ss *SheetsService) getBudgetCategory(values []interface{}) string {
 
 func (ss *SheetsService) populateBudgetEntry(values []interface{}) *BudgetEntry {
 	return &BudgetEntry{
-		Category: ss.getBudgetCategory(values),
-		// Weekly:             readDollarsValue(values[2]),
-		Monthly: readDollarsValue(values[3]),
-		// Every2Weeks:        readDollarsValue(values[4]),
-		TwiceMonthly: readDollarsValue(values[5]),
+		Category:     ss.getBudgetCategory(values),
+		Weekly:       readDollarsValue(values[3]),
+		Monthly:      readDollarsValue(values[4]),
+		Every2Weeks:  readDollarsValue(values[5]),
+		TwiceMonthly: readDollarsValue(values[6]),
 		// Yearly:             readDollarsValue(values[6]),
 		// RegisterColumnName: config.BudgetCategories[category],
 	}

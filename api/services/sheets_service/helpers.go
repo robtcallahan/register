@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"register/pkg/banking"
 	"register/pkg/models"
 	"sort"
 	"strconv"
@@ -68,7 +69,7 @@ func hasNote(trans *models.Transaction) bool {
 }
 
 func isPaycheck(name string) bool {
-	if name == PayCheckName {
+	if strings.Contains(name, banking.PayCheckName) {
 		return true
 	}
 	return false

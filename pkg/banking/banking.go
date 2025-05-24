@@ -32,14 +32,16 @@ import (
 )
 
 const (
-	WellsFargoID    = "wellsfargo"
-	FidelityID      = "fidelity"
-	ChaseID         = "chase"
-	BankOfAmericaID = "boa"
-	CitiID          = "citi"
-	AllyID          = "ally"
-	ETradeID        = "etrade"
-	BettermentID    = "betterment"
+	PayCheckBankName = "NOVA BEER LLC DIRECT DEP"
+	PayCheckName     = "50/50 Taphouse Paycheck"
+	WellsFargoID     = "wellsfargo"
+	FidelityID       = "fidelity"
+	ChaseID          = "chase"
+	BankOfAmericaID  = "boa"
+	CitiID           = "citi"
+	AllyID           = "ally"
+	ETradeID         = "etrade"
+	BettermentID     = "betterment"
 )
 
 type PlaidHttpBodyResponse struct {
@@ -330,7 +332,6 @@ func (c *Client) FormatMerchantNames(trans []*models.Transaction, lookup []*mode
 			trans[i].ColumnIndex = 10
 			trans[i].IsCategory = false
 			trans[i].TaxDeductible = false
-			continue
 			//} else if t.BankName == "Venmo" {
 			//	if t.Amount == 150.00 {
 			//		trans[i].Name = "Margie Knight (Venmo)"
@@ -339,6 +340,12 @@ func (c *Client) FormatMerchantNames(trans []*models.Transaction, lookup []*mode
 			//		//trans[i].ColumnIndex = 41
 			//		trans[i].IsCategory = true
 			//	}
+		} else if strings.Contains(t.BankName, PayCheckBankName) {
+			trans[i].Name = PayCheckName
+			trans[i].Color = "green"
+			trans[i].ColumnIndex = 42
+			trans[i].IsCategory = false
+			trans[i].TaxDeductible = false
 		} else {
 			for _, l := range lookup {
 				if strings.Contains(strings.ToUpper(t.BankName), strings.ToUpper(l.BankName)) {

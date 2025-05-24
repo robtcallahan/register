@@ -273,7 +273,7 @@ func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []mode
 			cells = append(cells, mkCellDataFormula(totalsFormulas[i], "right", col.Color, false))
 		} else if isBudgetColumn(col.Name) && entry != nil {
 			// enter the budgeted amount in this category column
-			cells = append(cells, mkCellDataDollars(entry.Monthly, "left", col.Color, true))
+			cells = append(cells, mkCellDataDollars(entry.Every2Weeks, "left", col.Color, true))
 		} else {
 			// this cell doesn't apply. Just create an empty (opaque) cell.
 			cells = append(cells, mkCellDataDollars(0.00, "left", col.Color, true))

@@ -96,7 +96,6 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 	var trans, t []*models.Transaction
 	var err error
 
-	// TODO: uncommented on 7/6/24 to read Wells Fargo CSV file
 	//fmt.Printf("    Wells Fargo\n")
 	//t, err = c.readWellsFargoCSV()
 	//if err != nil {

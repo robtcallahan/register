@@ -3,6 +3,7 @@ package sheets_service
 import (
 	"fmt"
 	"regexp"
+	"register/pkg/banking"
 	"register/pkg/models"
 	repo "register/pkg/repository"
 
@@ -80,8 +81,8 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 				catAgg[k] = make(map[string]float64)
 			}
 
-			if r.Name == PayCheckName {
-				catAgg[k][PayCheckName] += r.Deposit
+			if r.Name == banking.PayCheckName {
+				catAgg[k][banking.PayCheckName] += r.Deposit
 				continue
 			}
 
@@ -201,12 +202,12 @@ func addSummarySalaryRow(rNum int, months *[]string, aggData map[string]map[stri
 	var cells []*sheets.CellData
 
 	// 1st column: category name
-	cells = append(cells, mkBoldFormat(PayCheckName, "left", bgColor, false))
+	cells = append(cells, mkBoldFormat(banking.PayCheckName, "left", bgColor, false))
 
 	// remaining columns: $value for each month
 	for i := 0; i < len(*months); i++ {
 		m := (*months)[i]
-		cells = append(cells, mkCellDataDollars(aggData[m][PayCheckName], "right", bgColor, false))
+		cells = append(cells, mkCellDataDollars(aggData[m][banking.PayCheckName], "right", bgColor, false))
 	}
 
 	// add the totals and average in last 2 columns

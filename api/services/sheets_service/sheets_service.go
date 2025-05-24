@@ -7,8 +7,6 @@ import (
 )
 
 const (
-	//PayCheckName            = "CrowdStrike Salary"
-	PayCheckName              = "Transfer from E*Trade"
 	CreditCardColumnName      = "Credit Cards"
 	CheckingAccountSourceName = "WellsFargo"
 	Reconciled                = 0

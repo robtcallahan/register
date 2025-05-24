@@ -111,9 +111,7 @@ func update(cmd *cobra.Command, args []string) {
 	checkError(err)
 
 	fmt.Println("Getting Wells Fargo & Chase transactions (Plaid)...")
-	// commented on 7/6/24 to read Wells Fargo CSV instead of Plaid
 	options.BankIDs = []string{"wellsfargo", "chase"}
-	//options.BankIDs = []string{"chase"}
 	plaidTrans, err := getTransactions(client, options.BankIDs)
 	checkError(err)
 
