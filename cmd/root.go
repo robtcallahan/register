@@ -120,6 +120,7 @@ func getBankingClient() *Client {
 	client.BankClient = banking.NewClient(&banking.ClientOptions{
 		UserID:           config.UserID,
 		Banks:            config.Banks,
+		BankReToName:     config.BankReToName,
 		Debug:            options.Debug,
 		PlaidClientID:    config.PlaidClientID,
 		PlaidSecret:      config.PlaidEnvSecrets[config.PlaidEnvironment],

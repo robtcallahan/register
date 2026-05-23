@@ -65,11 +65,11 @@ type BankOfAmerica struct {
 
 // WellsFargo ...
 type WellsFargo struct {
-	Date   string  `csv:"date"`
-	Amount float64 `csv:"amount"`
-	Dummy1 string  `csv:"dummy1"`
-	Dummy2 string  `csv:"dummy2"`
-	Name   string  `csv:"name"`
+	Date        string `csv:"DATE"`
+	Description string `csv:"DESCRIPTION"`
+	Amount      string `csv:"AMOUNT"`
+	CheckNum    string `csv:"CHECK #"`
+	Status      string `csv:"STATUS"`
 }
 
 // Row ...
@@ -92,39 +92,45 @@ func New(o ConfigOptions) *Client {
 	}
 }
 
-func (c *Client) GetTransactions() ([]*models.Transaction, error) {
+func (c *Client) GetTransactions(bankIDs []string) ([]*models.Transaction, error) {
 	var trans, t []*models.Transaction
 	var err error
 
-	//fmt.Printf("    Wells Fargo\n")
-	//t, err = c.readWellsFargoCSV()
-	//if err != nil {
-	//	return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
-	//}
-	//trans = append(trans, t...)
-
-	fmt.Printf("    Fidelity\n")
-	t, err = c.readFidelityCSV()
-	if err != nil {
-		return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+	for _, bankID := range bankIDs {
+		if bankID == "wellsfargo" {
+			fmt.Printf("    Wells Fargo\n")
+			t, err = c.readWellsFargoCSV()
+			if err != nil {
+				return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+			}
+			trans = append(trans, t...)
+		} else if bankID == "fidelity" {
+			fmt.Printf("    Fidelity\n")
+			t, err = c.readFidelityCSV()
+			if err != nil {
+				return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+			}
+			trans = append(trans, t...)
+		} else if bankID == "chase" {
+			fmt.Printf("    Chase\n")
+			trans = append(trans, t...)
+			t, err = c.readChaseCSV()
+			if err != nil {
+				return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+			}
+			trans = append(trans, t...)
+		} else if bankID == "boa" {
+			fmt.Printf("    Bank of America\n")
+			trans = append(trans, t...)
+			t, err = c.readBankOfAmericaCSV()
+			if err != nil {
+				return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+			}
+			trans = append(trans, t...)
+		} else {
+			return nil, fmt.Errorf("unknown bankID: %s", bankID)
+		}
 	}
-	trans = append(trans, t...)
-
-	//fmt.Printf("    Chase\n")
-	//trans = append(trans, t...)
-	//t, err = c.readChaseCSV()
-	//if err != nil {
-	//	return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
-	//}
-
-	//fmt.Printf("    Bank of America\n")
-	//trans = append(trans, t...)
-	//t, err = c.readBankOfAmericaCSV()
-	//if err != nil {
-	//	return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
-	//}
-	//trans = append(trans, t...)
-
 	return trans, nil
 }
 
@@ -180,27 +186,32 @@ func readWellsFargoCSVRows(csvFile string, bankId string) ([]*models.Transaction
 func processWellsFargoData(wellsFargo []*WellsFargo, bankId string) []*models.Transaction {
 	var trans []*models.Transaction
 	for _, wf := range wellsFargo {
+		amount := 0.0
+		if s, err := strconv.ParseFloat(wf.Amount, 64); err == nil {
+			amount = s
+		}
+
 		t := &models.Transaction{
-			Key:      fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(wf.Date), wf.Amount),
+			Key:      fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(wf.Date), amount),
 			Source:   "WellsFargo",
 			Date:     readDateValue(wf.Date),
-			Amount:   wf.Amount,
-			BankName: wf.Name,
-			Budget:   wf.Amount,
+			Amount:   amount,
+			BankName: wf.Description,
+			Budget:   amount,
 		}
-		if wf.Amount < 0 {
-			t.Withdrawal = -1 * wf.Amount
+		if amount < 0 {
+			t.Withdrawal = -1 * amount
 		} else {
-			t.Deposit = wf.Amount
+			t.Deposit = amount
 		}
-		t = processCheck(wf.Name, t)
+		t = processCheck(wf.CheckNum, t)
 		trans = append(trans, t)
 	}
 	return trans
 }
 
 func processCheck(name string, t *models.Transaction) *models.Transaction {
-	re := regexp.MustCompile(`CHECK # (\d\d\d\d?)`)
+	re := regexp.MustCompile(`CHECK # (\d+)`)
 	m := re.FindStringSubmatch(name)
 	if len(m) > 0 {
 		t.Source = m[1]
@@ -216,7 +227,7 @@ func doWellsFargoHeadsExist(fileBytes []byte) bool {
 	for i := range []int8{0, 1, 2, 3, 4, 5} {
 		dateHeader += string(fileBytes[i])
 	}
-	if dateHeader == "\"date\"" {
+	if dateHeader == "\"DATE\"" {
 		return true
 	}
 	return false
@@ -251,13 +262,8 @@ func readFidelityCSVRows(csvFile string, bankId string) ([]*models.Transaction, 
 func processFidelityData(fidelity []*FidelityVisa, bankId string) []*models.Transaction {
 	var trans []*models.Transaction
 	for _, f := range fidelity {
-		re := regexp.MustCompile(`(payment\s+thank you)`)
-		m := re.FindStringSubmatch(strings.ToLower(f.Name))
-		if len(m) > 0 {
-			continue
-		}
-
 		t := &models.Transaction{
+			Key:            fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(f.Date), f.Amount),
 			Source:         "Fidelity",
 			Date:           readDateValue(f.Date),
 			BankName:       f.Name,
@@ -350,7 +356,7 @@ func processBankOfAmericaData(boa []*BankOfAmerica, bankId string) []*models.Tra
 
 func readDateValue(date string) string {
 	var d string
-	re := regexp.MustCompile(`(\d+)/(\d+)/(20)?(\d+)`)
+	re := regexp.MustCompile(`(\d\d)/(\d\d)/(20)?(\d\d)`)
 	m := re.FindAllStringSubmatch(date, -1)
 	if m != nil {
 		mm, _ := strconv.Atoi(m[0][1])
@@ -358,7 +364,7 @@ func readDateValue(date string) string {
 		yy, _ := strconv.Atoi(m[0][4])
 		d = fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
 	} else {
-		re := regexp.MustCompile(`(20)?(\d+)-(\d+)-(\d+)`)
+		re := regexp.MustCompile(`(20)?(\d\d)-(\d\d)-(\d\d)`)
 		m := re.FindAllStringSubmatch(date, -1)
 		mm, _ := strconv.Atoi(m[0][3])
 		dd, _ := strconv.Atoi(m[0][4])

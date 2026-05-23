@@ -68,9 +68,12 @@ func init() {
 
 func update(cmd *cobra.Command, args []string) {
 	var (
-		client       *Client
-		transactions []*models.Transaction
-		err          error
+		client            *Client
+		csvClient         *csv.Client
+		transactions      []*models.Transaction
+		plaidTransactions []*models.Transaction
+		csvTransactions   []*models.Transaction
+		err               error
 	)
 
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
@@ -96,30 +99,49 @@ func update(cmd *cobra.Command, args []string) {
 	checkError(err)
 
 	client = getBankingClient()
-	//if options.UseCSVFiles {
-	//	fmt.Println("Getting transactions (CSV)...")
-	//	transactions, err = getCSVTransactions()
-	//	checkError(err)
-	//} else {
-	//	fmt.Println("Getting transactions (Plaid)...")
-	//	transactions, err = getTransactions(client, options.BankIDs)
-	//	checkError(err)
-	//}
+	csvClient = csv.New(csv.ConfigOptions{
+		FinanceDir: config.FinanceDir,
+		Banks:      config.Banks,
+	})
 
+	// always use the CSV file for fidelity
 	fmt.Println("Getting Fidelity transactions (CSV)...")
-	transactions, err = getCSVTransactions()
+	transactions, err = getCSVTransactions(csvClient, []string{"fidelity"})
 	checkError(err)
 
-	fmt.Println("Getting Wells Fargo & Chase transactions (Plaid)...")
-	options.BankIDs = []string{"wellsfargo", "chase"}
-	plaidTrans, err := getTransactions(client, options.BankIDs)
-	checkError(err)
+	if options.UseCSVFiles {
+		fmt.Println("Getting Wells Fargo & Chase transactions (CSV)...")
+		csvTransactions, err = getCSVTransactions(csvClient, []string{"chase", "wellsfargo"})
+		checkError(err)
+	} else {
+		fmt.Println("Getting Wells Fargo & Chase transactions (Plaid)...")
+		options.BankIDs = []string{"chase", "wellsfargo"}
+		plaidTransactions, err = getTransactions(client, options.BankIDs)
+		checkError(err)
+	}
 
-	transactions = append(transactions, plaidTrans...)
+	transactions = append(transactions, csvTransactions...)
+	transactions = append(transactions, plaidTransactions...)
 
 	if len(transactions) < 1 {
 		fmt.Println("No transactions")
 		return
+	}
+
+	fmt.Println("Writing CSV file...")
+	file, err := os.Create(config.FinanceDir + "/transactions.csv")
+	if err != nil {
+		fmt.Printf("Error creating file: %v\n", err)
+		return
+	}
+	defer file.Close() // Important: always close the file
+	for _, t := range transactions {
+		_, err = file.WriteString(fmt.Sprintf("%s,%s,%s,%0.2f,%0.2f,%0.2f,%0.2f\n",
+			t.Source, t.Date, t.BankName, t.Amount, t.Deposit, t.Withdrawal, t.CreditCard))
+		if err != nil {
+			fmt.Printf("Error writing to file: %v\n", err)
+			return
+		}
 	}
 
 	fmt.Println("Updating merchants...")
@@ -130,17 +152,25 @@ func update(cmd *cobra.Command, args []string) {
 		printTransactions(transactions)
 	}
 
-	fmt.Printf("Filtering transactions...\n")
+	fmt.Println("Filtering out register transactions...")
 	transactions = client.BankClient.FilterRecordedTransactions(transactions, sheetsService.RegisterSheet.KeysMap)
 
-	fmt.Printf("Sorting...\n")
+	fmt.Println("Correcting transaction names that are non-generic...")
+	transactions = client.BankClient.FormatUniqueTransactionNames(transactions)
+
+	fmt.Println("Sorting...")
 	transactions = client.BankClient.SortTransactions(transactions)
 
 	printTransactions(transactions)
 
-	if !options.Update {
-		fmt.Println("Updating transactions table...")
-		qHandler.UpdateTransactionTables(transactions)
+	//if !options.Update {
+	//	fmt.Println("Updating transactions table...")
+	//	qHandler.UpdateTransactionTables(transactions)
+	//}
+
+	if len(transactions) == 0 {
+		fmt.Println("No updates needed")
+		return
 	}
 
 	if needTransactionName(transactions) {
@@ -151,53 +181,53 @@ func update(cmd *cobra.Command, args []string) {
 	}
 	transactions = getNotes(transactions)
 
-	if len(transactions) > 0 {
-		fmt.Printf("Reading Budget...\n")
-		err = sheetsService.NewBudgetSheet(config)
-		checkError(err)
-		_, err = sheetsService.ReadBudgetSheet()
-		checkError(err)
+	if options.Update {
+		return
+	}
 
-		// add the needed number of rows for transactions
-		fmt.Println("Adding rows...")
-		_, _, err = shellout("register copy -n " + strconv.Itoa(len(transactions)))
-		if err != nil {
-			fmt.Println(err.Error())
-			return
-		}
+	fmt.Printf("Reading Budget...\n")
+	err = sheetsService.NewBudgetSheet(config)
+	checkError(err)
+	_, err = sheetsService.ReadBudgetSheet()
+	checkError(err)
 
-		fmt.Printf("Transaction updates...\n")
-		fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", "Num", "Source", "Date", "Amount", "Name", "Note")
-		fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", dashes(3), dashes(12), dashes(18), dashes(8), dashes(30), dashes(15))
-		for i, r := range transactions {
-			fmt.Printf("    (%3d) %-12s %-10s %8.2f %-30s %s\n", i+1, r.Source, r.Date, -1*r.Amount, r.Name, r.Note)
-		}
-		if options.Update {
-			return
-		}
+	fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", "Num", "Source", "Date", "Amount", "Name", "Note")
+	//fmt.Printf("    (%3s) %-12s %10s %8s %-30s %s\n", dashes(3), dashes(12), dashes(10), dashes(8), dashes(30), dashes(15))
+	for i, r := range transactions {
+		fmt.Printf("    (%3d) %-12s %-10s %8.2f %-30s %s\n", i+1, r.Source, r.Date, -1*r.Amount, r.Name, r.Note)
+	}
 
-		fmt.Printf("Updating spreadsheet...\n")
-		columns := qHandler.GetColumns()
-		transNameToColName := qHandler.GetNameMapToColumn()
+	// add the needed number of rows for transactions
+	fmt.Println("Adding rows...")
+	out, errOut, err := shellout("./register copy -n " + strconv.Itoa(len(transactions)))
+	if err != nil {
+		fmt.Printf("error: %v\n", err)
+		fmt.Println("--- stdout ---")
+		fmt.Println(out)
+		fmt.Println("--- stderr ---")
+		fmt.Println(errOut)
+		return
+	}
 
-		err = sheetsService.UpdateRows(columns, transNameToColName, transactions)
-		checkError(err)
+	fmt.Printf("Updating spreadsheet...\n")
+	columns := qHandler.GetColumns()
+	transNameToColName := qHandler.GetNameMapToColumn()
 
-		lastRowUpdated := sheetsService.RegisterSheet.SheetCoords.FirstRowToUpdate + int64(len(transactions)*2) + 1
-		_, err = sheetsService.WriteCell("F1", time.Now().Format("01/02/2006"))
-		checkError(err)
-		_, err = sheetsService.WriteCell("G2", fmt.Sprintf("=SUM(G1-I%d)", lastRowUpdated))
-		checkError(err)
+	err = sheetsService.UpdateRows(columns, transNameToColName, transactions)
+	checkError(err)
 
-		if !options.UseCSVFiles {
-			fmt.Println("Getting accounts balances...")
-			balances := client.BankClient.GetBalances(options.BankIDs)
-			printBalances(balances)
-			fmt.Println("Updating balances...")
-			updateBalances(sheetsService, balances)
-		}
-	} else {
-		fmt.Println("No updates needed")
+	lastRowUpdated := sheetsService.RegisterSheet.SheetCoords.FirstRowToUpdate + int64(len(transactions)*2) + 1
+	_, err = sheetsService.WriteCell("F1", time.Now().Format("01/02/2006"))
+	checkError(err)
+	_, err = sheetsService.WriteCell("G2", fmt.Sprintf("=SUM(G1-I%d)", lastRowUpdated))
+	checkError(err)
+
+	if !options.UseCSVFiles {
+		fmt.Println("Getting accounts balances...")
+		balances := client.BankClient.GetBalances(options.BankIDs)
+		printBalances(balances)
+		fmt.Println("Updating balances...")
+		updateBalances(sheetsService, balances)
 	}
 }
 
@@ -237,9 +267,10 @@ func printBalances(balances map[string]banking.Balance) {
 }
 
 func getTransactions(client *Client, bankIDs []string) ([]*models.Transaction, error) {
-	// start from 2 weeks ago
-	startDate := weeksAgo(2)
-	endDate := today()
+	//startDate := weeksAgo(16)
+	//endDate := today()
+	startDate := config.StartDate
+	endDate := config.EndDate
 
 	transactions, err := client.BankClient.GetTransactions(bankIDs, startDate, endDate)
 	if err != nil {
@@ -248,13 +279,8 @@ func getTransactions(client *Client, bankIDs []string) ([]*models.Transaction, e
 	return transactions, nil
 }
 
-func getCSVTransactions() ([]*models.Transaction, error) {
-	client := csv.New(csv.ConfigOptions{
-		FinanceDir: config.FinanceDir,
-		Banks:      config.Banks,
-	})
-
-	transactions, err := client.GetTransactions()
+func getCSVTransactions(client *csv.Client, bankIDs []string) ([]*models.Transaction, error) {
+	transactions, err := client.GetTransactions(bankIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +357,7 @@ func filterNonCategoryColumns(columns []models.Column) []models.Column {
 
 func getNotes(trans []*models.Transaction) []*models.Transaction {
 	for i, t := range trans {
-		if t.Name == "CHECK" || t.Name == "Amazon" || t.Name == "Amazon Marketplace" {
+		if t.Name == "CHECK" || t.Name == "Amazon.com" || t.Name == "Amazon Marketplace" {
 			fmt.Printf("Source: %s, Name: %s, Date: %s, Amt: $%0.2f\n", t.Source, t.Name, t.Date, t.Amount)
 			trans[i].Note = readString("    Note: ")
 		}

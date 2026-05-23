@@ -61,7 +61,7 @@ func (p *SheetsProvider) GetValues(range_ string) (*sheets.ValueRange, error) {
 func (p *SheetsProvider) GetFormula(range_ string) (*sheets.ValueRange, error) {
 	resp, err := sheets_client.ClientStruct.GetFormula(p.service, p.spreadsheetID, range_)
 	if err != nil {
-		log.Printf("error when trying to get formula cells: %s", err.Error())
+		log.Printf("error when trying to get formula cells: %s, range: %s", err.Error(), range_)
 		return nil, err
 	}
 	return resp, nil

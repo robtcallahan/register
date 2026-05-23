@@ -192,8 +192,10 @@ func (c *Client) getTransactions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// start from 2 weeks ago
-	startDate := weeksAgo(2)
-	endDate := today()
+	//startDate := weeksAgo(2)
+	//endDate := today()
+	startDate := config.StartDate
+	endDate := config.EndDate
 	transactions, err := client.BankClient.GetTransactions(options.BankIDs, startDate, endDate)
 	if err != nil {
 		log.Println(err.Error())
