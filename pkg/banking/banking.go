@@ -408,33 +408,31 @@ func (c *Client) FormatUniqueTransactionNames(trans []*models.Transaction) []*mo
 	for _, t := range trans {
 		// check if this is a Fidelity transaction showing a payment. If so, skip as it will show up as a Wells Fargo transaction,
 		// and we don't need it in both places
-		re := regexp.MustCompile(`PAYMENT MADE BY ACCOUNT ENDING IN:5409`)
-		found := re.MatchString(t.BankName)
-		//fmt.Printf("found: %t, t.BankName: %s\n", found, t.BankName)
-		if found {
-			continue
-		}
+		//re := regexp.MustCompile(`PAYMENT MADE BY ACCOUNT ENDING IN:5409\|PAYMENT\\s+THANK YOU`)
+		//found := re.MatchString(t.BankName)
+		//if found {
+		//	continue
+		//}
 
 		// check if this is a Chase transaction showing a payment. If so, skip as it will show up as a Wells Fargo transaction,
 		// and we don't need it in both places
-		re = regexp.MustCompile(`Payment Thank You Bill`)
-		found = re.MatchString(t.BankName)
-		//fmt.Printf("found: %t, t.BankName: %s\n", found, t.BankName)
-		if found {
-			continue
-		}
-
-		fmt.Println("")
+		//re = regexp.MustCompile(`Payment Thank You Bill`)
+		//found = re.MatchString(t.BankName)
+		//if found {
+		//	continue
+		//}
 
 		// now will check for unique transactions and trim them to just the payee
 		for regExp, newName := range c.BankReToName {
 			re := regexp.MustCompile(regExp)
 			found := re.MatchString(t.BankName)
 			if found {
-				t.Name = newName
+				if newName != "SKIP" {
+					t.Name = newName
+					newTrans = append(newTrans, t)
+				}
 			}
 		}
-		newTrans = append(newTrans, t)
 	}
 	return newTrans
 }

@@ -128,7 +128,7 @@ func update(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	fmt.Println("Writing CSV file...")
+	fmt.Println("Writing CSV file: transactions.csv...")
 	file, err := os.Create(config.FinanceDir + "/transactions.csv")
 	if err != nil {
 		fmt.Printf("Error creating file: %v\n", err)
@@ -152,14 +152,30 @@ func update(cmd *cobra.Command, args []string) {
 		printTransactions(transactions)
 	}
 
-	fmt.Println("Filtering out register transactions...")
-	transactions = client.BankClient.FilterRecordedTransactions(transactions, sheetsService.RegisterSheet.KeysMap)
-
 	fmt.Println("Correcting transaction names that are non-generic...")
 	transactions = client.BankClient.FormatUniqueTransactionNames(transactions)
 
+	fmt.Println("Filtering out register transactions...")
+	transactions = client.BankClient.FilterRecordedTransactions(transactions, sheetsService.RegisterSheet.KeysMap)
+
 	fmt.Println("Sorting...")
 	transactions = client.BankClient.SortTransactions(transactions)
+
+	fmt.Println("Writing CSV file: update.csv...")
+	file, err = os.Create(config.FinanceDir + "/update.csv")
+	if err != nil {
+		fmt.Printf("Error creating file: %v\n", err)
+		return
+	}
+	defer file.Close() // Important: always close the file
+	for _, t := range transactions {
+		_, err = file.WriteString(fmt.Sprintf("%s,%s,%s,%0.2f,%0.2f,%0.2f,%0.2f\n",
+			t.Source, t.Date, t.BankName, t.Amount, t.Deposit, t.Withdrawal, t.CreditCard))
+		if err != nil {
+			fmt.Printf("Error writing to file: %v\n", err)
+			return
+		}
+	}
 
 	printTransactions(transactions)
 
@@ -357,7 +373,7 @@ func filterNonCategoryColumns(columns []models.Column) []models.Column {
 
 func getNotes(trans []*models.Transaction) []*models.Transaction {
 	for i, t := range trans {
-		if t.Name == "CHECK" || t.Name == "Amazon.com" || t.Name == "Amazon Marketplace" {
+		if t.Name == "CHECK" || t.Name == "Amazon" || t.Name == "Amazon Marketplace" {
 			fmt.Printf("Source: %s, Name: %s, Date: %s, Amt: $%0.2f\n", t.Source, t.Name, t.Date, t.Amount)
 			trans[i].Note = readString("    Note: ")
 		}

@@ -192,7 +192,7 @@ func processWellsFargoData(wellsFargo []*WellsFargo, bankId string) []*models.Tr
 		}
 
 		t := &models.Transaction{
-			Key:      fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(wf.Date), amount),
+			Key:      fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(wf.Date), -amount),
 			Source:   "WellsFargo",
 			Date:     readDateValue(wf.Date),
 			Amount:   amount,
@@ -200,9 +200,13 @@ func processWellsFargoData(wellsFargo []*WellsFargo, bankId string) []*models.Tr
 			Budget:   amount,
 		}
 		if amount < 0 {
-			t.Withdrawal = -1 * amount
+			t.Withdrawal = 0
+			t.Deposit = -1 * amount
+			t.Budget = -1 * amount
 		} else {
-			t.Deposit = amount
+			t.Withdrawal = amount
+			t.Deposit = 0
+			t.Budget = amount
 		}
 		t = processCheck(wf.CheckNum, t)
 		trans = append(trans, t)
@@ -263,7 +267,7 @@ func processFidelityData(fidelity []*FidelityVisa, bankId string) []*models.Tran
 	var trans []*models.Transaction
 	for _, f := range fidelity {
 		t := &models.Transaction{
-			Key:            fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(f.Date), f.Amount),
+			//Key:            fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(f.Date), f.Amount),
 			Source:         "Fidelity",
 			Date:           readDateValue(f.Date),
 			BankName:       f.Name,
@@ -302,13 +306,13 @@ func processChaseData(chase []*ChaseVisa, bankId string) []*models.Transaction {
 		}
 
 		t := &models.Transaction{
-			Key:            fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(c.TransactionDate), c.Amount),
+			Key:            fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(c.TransactionDate), -c.Amount),
 			Source:         "Chase",
 			Date:           readDateValue(c.TransactionDate),
-			Amount:         c.Amount,      // amount stays as is
-			CreditPurchase: -1 * c.Amount, // convert to positive
-			CreditCard:     -1 * c.Amount, // convert to positive
-			Budget:         c.Amount,      // already negative
+			Amount:         c.Amount,
+			CreditPurchase: c.Amount,
+			CreditCard:     -1 * c.Amount,
+			Budget:         c.Amount,
 			BankName:       c.Description,
 		}
 		trans = append(trans, t)
