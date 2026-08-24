@@ -122,6 +122,22 @@ func update(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	fmt.Println("Writing CSV file...")
+	file, err := os.Create(config.FinanceDir + "/transactions.csv")
+	if err != nil {
+		fmt.Printf("Error creating file: %v\n", err)
+		return
+	}
+	defer file.Close() // Important: always close the file
+	for _, t := range transactions {
+		_, err = file.WriteString(fmt.Sprintf("%s,%s,%s,%0.2f,%0.2f,%0.2f,%0.2f\n",
+			t.Source, t.Date, t.BankName, t.Amount, t.Deposit, t.Withdrawal, t.CreditCard))
+		if err != nil {
+			fmt.Printf("Error writing to file: %v\n", err)
+			return
+		}
+	}
+
 	fmt.Println("Updating merchants...")
 	lookupData := qHandler.GetLookupData()
 
@@ -130,10 +146,13 @@ func update(cmd *cobra.Command, args []string) {
 		printTransactions(transactions)
 	}
 
-	fmt.Printf("Filtering transactions...\n")
+	fmt.Println("Filtering out register transactions...")
 	transactions = client.BankClient.FilterRecordedTransactions(transactions, sheetsService.RegisterSheet.KeysMap)
 
-	fmt.Printf("Sorting...\n")
+	fmt.Println("Correcting transaction names that are non-generic...")
+	transactions = client.BankClient.FormatUniqueTransactionNames(transactions)
+
+	fmt.Println("Sorting...")
 	transactions = client.BankClient.SortTransactions(transactions)
 
 	printTransactions(transactions)
@@ -158,20 +177,25 @@ func update(cmd *cobra.Command, args []string) {
 		_, err = sheetsService.ReadBudgetSheet()
 		checkError(err)
 
+		fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", "Num", "Source", "Date", "Amount", "Name", "Note")
+		fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", dashes(3), dashes(12), dashes(10), dashes(8), dashes(30), dashes(15))
+		for i, r := range transactions {
+			fmt.Printf("    (%3d) %-12s %-10s %8.2f %-30s %s\n", i+1, r.Source, r.Date, -1*r.Amount, r.Name, r.Note)
+		}
+
 		// add the needed number of rows for transactions
 		fmt.Println("Adding rows...")
-		_, _, err = shellout("register copy -n " + strconv.Itoa(len(transactions)))
+		out, errOut, err := shellout("./register copy -n " + strconv.Itoa(len(transactions)))
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Printf("error: %v\n", err)
+			fmt.Println("--- stdout ---")
+			fmt.Println(out)
+			fmt.Println("--- stderr ---")
+			fmt.Println(errOut)
 			return
 		}
 
 		fmt.Printf("Transaction updates...\n")
-		fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", "Num", "Source", "Date", "Amount", "Name", "Note")
-		fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", dashes(3), dashes(12), dashes(18), dashes(8), dashes(30), dashes(15))
-		for i, r := range transactions {
-			fmt.Printf("    (%3d) %-12s %-10s %8.2f %-30s %s\n", i+1, r.Source, r.Date, -1*r.Amount, r.Name, r.Note)
-		}
 		if options.Update {
 			return
 		}
@@ -237,9 +261,10 @@ func printBalances(balances map[string]banking.Balance) {
 }
 
 func getTransactions(client *Client, bankIDs []string) ([]*models.Transaction, error) {
-	// start from 2 weeks ago
-	startDate := weeksAgo(2)
-	endDate := today()
+	//startDate := weeksAgo(16)
+	//endDate := today()
+	startDate := config.StartDate
+	endDate := config.EndDate
 
 	transactions, err := client.BankClient.GetTransactions(bankIDs, startDate, endDate)
 	if err != nil {

@@ -207,12 +207,6 @@ func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([
 
 		for _, trans := range transResp {
 			// skip CC payment transaction as these will show up as checking account payments
-			//re := regexp.MustCompile(`(payment)\s?-?\s?(thank you)?`)
-			re := regexp.MustCompile(`.*(thank you).*`)
-			m := re.FindStringSubmatch(strings.ToLower(trans.Name))
-			if len(m) > 0 {
-				continue
-			}
 			register := c.buildTransaction(bankConfig.ID, trans)
 			transactions = append(transactions, register)
 			//printPlaidTransaction(t, bankID)
@@ -236,20 +230,20 @@ func printTransaction(t *models.Transaction) {
 
 func (c *Client) getPlaidTransactions(bankConfig config.Bank, startDate, endDate string) ([]plaid.Transaction, error) {
 	ctx := context.Background()
-	var count int32 = 50
-	var offset int32 = 0
-	resp, httpResp, err := c.PlaidClient.PlaidApi.TransactionsGet(ctx).TransactionsGetRequest(plaid.TransactionsGetRequest{
-		ClientId:    &c.ClientID,
-		AccessToken: bankConfig.AccessToken,
-		Secret:      &c.Secret,
-		StartDate:   startDate,
-		EndDate:     endDate,
-		Options: &plaid.TransactionsGetRequestOptions{
-			AccountIds: &[]string{bankConfig.AccountID},
-			Count:      &count,
-			Offset:     &offset,
-		},
-	}).Execute()
+
+	request := plaid.NewTransactionsGetRequest(
+		bankConfig.AccessToken,
+		startDate,
+		endDate,
+	)
+	options := plaid.TransactionsGetRequestOptions{
+		Count:  plaid.PtrInt32(100),
+		Offset: plaid.PtrInt32(0),
+	}
+	request.SetOptions(options)
+
+	resp, httpResp, err := c.PlaidClient.PlaidApi.TransactionsGet(ctx).TransactionsGetRequest(*request).Execute()
+
 	if err != nil {
 		buf := new(bytes.Buffer)
 		_, err2 := buf.ReadFrom(httpResp.Body)
@@ -259,6 +253,31 @@ func (c *Client) getPlaidTransactions(bankConfig config.Bank, startDate, endDate
 		return nil, fmt.Errorf("%s\n%s", err.Error(), buf.String())
 	}
 	return resp.Transactions, nil
+
+	//options := c.PlaidClient.PlaidApi.TransactionsGet(ctx).NewTransactionsGetRequestOptions(
+	//	StartDate: startDate,
+	//	EndDate:   endDate
+	//)
+	//
+	//resp, httpResp, err := c.PlaidClient.PlaidApi.TransactionsGet(ctx).TransactionsGetRequest(plaid.TransactionsGetRequest{
+	//	ClientId:    &c.ClientID,
+	//	AccessToken: bankConfig.AccessToken,
+	//	Secret:      &c.Secret,
+	//	Options: &plaid.TransactionsGetRequestOptions{
+	//		AccountIds: &[]string{bankConfig.AccountID},
+	//		StartDate:  startDate,
+	//		EndDate:    endDate,
+	//	},
+	//}).Execute()
+	//if err != nil {
+	//	buf := new(bytes.Buffer)
+	//	_, err2 := buf.ReadFrom(httpResp.Body)
+	//	if err2 != nil {
+	//		return nil, err2
+	//	}
+	//	return nil, fmt.Errorf("%s\n%s", err.Error(), buf.String())
+	//}
+	//return resp.Transactions, nil
 }
 
 func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Transaction {
@@ -277,6 +296,9 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Tr
 			tran.BankName = "CHECK"
 		} else {
 			tran.Source = "WellsFargo"
+			if tran.Name == "" {
+				tran.Name = tran.BankName
+			}
 		}
 
 		tran.Amount = p.Amount
@@ -296,6 +318,9 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Tr
 		tran.CreditCard = p.Amount     // keep positive
 		tran.Budget = -1 * p.Amount    // budget category column negative
 		tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), tran.Date, cc)
+		if tran.Name == "" {
+			tran.Name = tran.BankName
+		}
 	case ChaseID:
 		tran.Source = "Chase"
 		tran.Amount = p.Amount         // amount stays as is (positive)
@@ -304,6 +329,9 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Tr
 		tran.CreditCard = p.Amount     // keep positive
 		tran.Budget = -1 * p.Amount    // budget category column negative
 		tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), tran.Date, cc)
+		if tran.Name == "" {
+			tran.Name = tran.BankName
+		}
 	}
 	return tran
 }
@@ -332,14 +360,6 @@ func (c *Client) FormatMerchantNames(trans []*models.Transaction, lookup []*mode
 			trans[i].ColumnIndex = 10
 			trans[i].IsCategory = false
 			trans[i].TaxDeductible = false
-			//} else if t.BankName == "Venmo" {
-			//	if t.Amount == 150.00 {
-			//		trans[i].Name = "Margie Knight (Venmo)"
-			//		trans[i].Color = "blue"
-			//		// this index is not used. Refer to the merchants table instead
-			//		//trans[i].ColumnIndex = 41
-			//		trans[i].IsCategory = true
-			//	}
 		} else if strings.Contains(t.BankName, PayCheckBankName) {
 			trans[i].Name = PayCheckName
 			trans[i].Color = "green"
@@ -368,6 +388,7 @@ func (c *Client) FormatMerchantNames(trans []*models.Transaction, lookup []*mode
 	return trans
 }
 
+// FilterRecordedTransactions removes transactions that are already contained in the register spreadsheet
 func (c *Client) FilterRecordedTransactions(trans []*models.Transaction, regLookup map[string]bool) []*models.Transaction {
 	var filtered []*models.Transaction
 	i := 0
@@ -381,6 +402,40 @@ func (c *Client) FilterRecordedTransactions(trans []*models.Transaction, regLook
 		}
 	}
 	return filtered
+}
+
+// FormatUniqueTransactionNames changes transaction names that are non-generic. eg., "GLO FIBER BILLPAY 260502 GLO FIBER ROBERT CALLAHAN" changes to GloFiber
+func (c *Client) FormatUniqueTransactionNames(trans []*models.Transaction) []*models.Transaction {
+	var newTrans []*models.Transaction
+
+	for _, t := range trans {
+		// check if this is a Fidelity transaction showing a payment. If so, skip as it will show up as a Wells Fargo transaction,
+		// and we don't need it in both places
+		re := regexp.MustCompile(`PAYMENT MADE BY ACCOUNT ENDING IN:5409`)
+		if re.MatchString(t.BankName) {
+			continue
+		}
+
+		// check if this is a Chase transaction showing a payment. If so, skip as it will show up as a Wells Fargo transaction
+		// and we don't need it in both places
+		re = regexp.MustCompile(`Payment Thank You Bill`)
+		if re.MatchString(t.BankName) {
+			continue
+		}
+
+		// now will check for unique transactions and trim them to just the payee
+		re = regexp.MustCompile(`GLO FIBER[\s\w].*`)
+		if re.MatchString(t.BankName) {
+			t.Name = "Glo Fiber"
+		}
+		re = regexp.MustCompile(`SHENANDOAH VALLE UTILITY[\s\w].*`)
+		if re.MatchString(t.BankName) {
+			t.Name = "Shenandoah Valley Utility"
+		}
+
+		newTrans = append(newTrans, t)
+	}
+	return newTrans
 }
 
 //func (c *Client) getCheckingID(accounts []plaid.Account) (checkingID string) {

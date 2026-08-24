@@ -251,12 +251,6 @@ func readFidelityCSVRows(csvFile string, bankId string) ([]*models.Transaction, 
 func processFidelityData(fidelity []*FidelityVisa, bankId string) []*models.Transaction {
 	var trans []*models.Transaction
 	for _, f := range fidelity {
-		re := regexp.MustCompile(`(payment\s+thank you)`)
-		m := re.FindStringSubmatch(strings.ToLower(f.Name))
-		if len(m) > 0 {
-			continue
-		}
-
 		t := &models.Transaction{
 			Source:         "Fidelity",
 			Date:           readDateValue(f.Date),
