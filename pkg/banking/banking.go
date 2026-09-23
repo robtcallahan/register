@@ -63,6 +63,7 @@ type ClientOptions struct {
 	Banks            map[string]config.Bank
 	Debug            bool
 	Verbose          bool
+	Merchants        map[string]string
 }
 
 type Client struct {
@@ -75,6 +76,7 @@ type Client struct {
 	Banks       map[string]config.Bank
 	Debug       bool
 	Verbose     bool
+	Merchants   map[string]string
 }
 
 type Balance struct {
@@ -374,10 +376,6 @@ func (c *Client) FormatMerchantNames(trans []*models.Transaction, lookup []*mode
 					trans[i].ColumnIndex = l.ColumnIndex
 					trans[i].IsCategory = l.IsCategory
 					trans[i].TaxDeductible = l.TaxDeductible
-
-					//if l.Name == "CrowdStrike Salary" && t.Amount > -3000 {
-					//	trans[i].Name = "CrowdStrike Bonus"
-					//}
 				}
 			}
 		}

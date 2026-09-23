@@ -56,12 +56,6 @@ func init() {
 	config, _ = cfg.ReadConfig(ConfigFile)
 	rootCmd.AddCommand(updateCmd)
 
-	// TODO: Fix default values
-
-	//flag.BoolVarP(&options.Update, "no-updates", "u", false, "If set, no spreadsheet updates performed")
-	//flag.BoolVarP(&options.UseCSVFiles, "csv", "c", false, "Read CSV files; default=false")
-	//flag.Parse()
-
 	updateCmd.Flags().BoolVarP(&options.Update, "no-updates", "u", false, "If set, no spreadsheet updates performed")
 	updateCmd.Flags().BoolVarP(&options.UseCSVFiles, "csv", "c", false, "Read CSV files; default=false")
 }
@@ -96,6 +90,7 @@ func update(cmd *cobra.Command, args []string) {
 	checkError(err)
 
 	client = getBankingClient()
+
 	//if options.UseCSVFiles {
 	//	fmt.Println("Getting transactions (CSV)...")
 	//	transactions, err = getCSVTransactions()
