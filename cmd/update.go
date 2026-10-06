@@ -91,16 +91,6 @@ func update(cmd *cobra.Command, args []string) {
 
 	client = getBankingClient()
 
-	//if options.UseCSVFiles {
-	//	fmt.Println("Getting transactions (CSV)...")
-	//	transactions, err = getCSVTransactions()
-	//	checkError(err)
-	//} else {
-	//	fmt.Println("Getting transactions (Plaid)...")
-	//	transactions, err = getTransactions(client, options.BankIDs)
-	//	checkError(err)
-	//}
-
 	fmt.Println("Getting Fidelity transactions (CSV)...")
 	transactions, err = getCSVTransactions([]string{"fidelity"})
 	checkError(err)
@@ -155,6 +145,11 @@ func update(cmd *cobra.Command, args []string) {
 
 	fmt.Println("Sorting...")
 	transactions = client.BankClient.SortTransactions(transactions)
+
+	if len(transactions) < 1 {
+		fmt.Println("No transactions")
+		return
+	}
 
 	printTransactions(transactions)
 
