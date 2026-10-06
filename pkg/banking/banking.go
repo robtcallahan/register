@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	PayCheckBankName = "NOVA BEER LLC DIRECT DEP"
+	PayCheckBankName = "NOVA BEER LLC"
 	PayCheckName     = "50/50 Taphouse Paycheck"
 	WellsFargoID     = "wellsfargo"
 	FidelityID       = "fidelity"
@@ -63,7 +63,7 @@ type ClientOptions struct {
 	Banks            map[string]config.Bank
 	Debug            bool
 	Verbose          bool
-	Merchants        map[string]string
+	Merchants        map[string]config.MerchantEntry
 }
 
 type Client struct {
@@ -76,7 +76,7 @@ type Client struct {
 	Banks       map[string]config.Bank
 	Debug       bool
 	Verbose     bool
-	Merchants   map[string]string
+	Merchants   map[string]config.MerchantEntry
 }
 
 type Balance struct {
@@ -95,6 +95,7 @@ func NewClient(o *ClientOptions) *Client {
 		Banks:       o.Banks,
 		Debug:       o.Debug,
 		Verbose:     o.Debug,
+		Merchants:   o.Merchants,
 	}
 	configuration := plaid.NewConfiguration()
 	configuration.AddDefaultHeader("PLAID-CLIENT-ID", o.PlaidClientID)
@@ -392,10 +393,14 @@ func (c *Client) FilterRecordedTransactions(trans []*models.Transaction, regLook
 	i := 0
 	for _, t := range trans {
 		if _, ok := regLookup[t.Key]; !ok {
-			filtered = append(filtered, t)
-			i++
-			if c.Debug {
-				fmt.Printf("    (%2d) NEW [%-28s] %-12s %-10s %8.2f %s\n", i, t.Key, t.Source, t.Date, t.Amount, t.Name)
+			if t.BankName != "Payment Made By Account Ending In:5409" &&
+				t.BankName != "Payment Thank You Bill Pa" &&
+				t.BankName != "Payment Thank You - Bill" {
+				filtered = append(filtered, t)
+				i++
+				if c.Debug {
+					fmt.Printf("    (%2d) NEW [%-28s] %-12s %-10s %8.2f %s\n", i, t.Key, t.Source, t.Date, t.Amount, t.Name)
+				}
 			}
 		}
 	}
@@ -407,28 +412,27 @@ func (c *Client) FormatUniqueTransactionNames(trans []*models.Transaction) []*mo
 	var newTrans []*models.Transaction
 
 	for _, t := range trans {
-		// check if this is a Fidelity transaction showing a payment. If so, skip as it will show up as a Wells Fargo transaction,
+		// Use the Merchants map[string]string in config.json to assign shorter transaction names
+		for merchant, merchantEntry := range c.Merchants {
+			if ok := strings.Contains(t.BankName, merchant); ok {
+				t.Name = merchantEntry.Name
+				t.ColumnIndex = merchantEntry.ColumnIndex
+			}
+		}
+
+		// check if this is a credit card transaction showing a payment. If so, skip as it will show up as a Wells Fargo transaction,
 		// and we don't need it in both places
 		re := regexp.MustCompile(`PAYMENT MADE BY ACCOUNT ENDING IN:5409`)
 		if re.MatchString(t.BankName) {
 			continue
 		}
-
-		// check if this is a Chase transaction showing a payment. If so, skip as it will show up as a Wells Fargo transaction
-		// and we don't need it in both places
-		re = regexp.MustCompile(`Payment Thank You Bill`)
+		re = regexp.MustCompile(`Payment Thank You - Bill`)
 		if re.MatchString(t.BankName) {
 			continue
 		}
-
-		// now will check for unique transactions and trim them to just the payee
-		re = regexp.MustCompile(`GLO FIBER[\s\w].*`)
+		re = regexp.MustCompile(`Payment Thank You Bill`)
 		if re.MatchString(t.BankName) {
-			t.Name = "Glo Fiber"
-		}
-		re = regexp.MustCompile(`SHENANDOAH VALLE UTILITY[\s\w].*`)
-		if re.MatchString(t.BankName) {
-			t.Name = "Shenandoah Valley Utility"
+			continue
 		}
 
 		newTrans = append(newTrans, t)

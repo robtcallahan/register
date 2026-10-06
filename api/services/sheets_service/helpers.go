@@ -479,6 +479,8 @@ func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, colum
 		} else if isCreditCardTransaction(trans.Source, col.Name) {
 			// enter a positive value in the credit card column
 			cells = append(cells, mkCellDataDollars(trans.CreditCard, "left", "yellow", true))
+		} else if trans.ColumnIndex != 0 && trans.ColumnIndex == colOffset+i+1 {
+			cells = append(cells, mkCellDataDollars(trans.Budget, "left", col.Color, true))
 		} else if isCorrectBudgetColumn(trans.Name, col.Name, transNameToColName) {
 			// enter the value in the budget category column
 			cells = append(cells, mkCellDataDollars(trans.Budget, "left", col.Color, true))

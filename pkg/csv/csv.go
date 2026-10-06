@@ -17,12 +17,14 @@ import (
 type ConfigOptions struct {
 	FinanceDir string
 	Banks      map[string]config.Bank
+	BankIDs    []string
 }
 
 // Client ...
 type Client struct {
 	FinanceDir string
 	Banks      map[string]config.Bank
+	BankIDs    []string
 }
 
 // FidelityVisa ...
@@ -32,16 +34,6 @@ type FidelityVisa struct {
 	Name        string  `csv:"Name"`
 	Memo        string  `csv:"Memo"`
 	Amount      float64 `csv:"Amount"`
-}
-
-// CostcoCitiVisa ...
-type CostcoCitiVisa struct {
-	Status      string  `csv:"Status"`
-	Date        string  `csv:"Date"`
-	Description string  `csv:"Description"`
-	Debit       float64 `csv:"Debit"`
-	Credit      float64 `csv:"Credit"`
-	MemberName  string  `csv:"Member Name"`
 }
 
 // ChaseVisa ...
@@ -65,11 +57,11 @@ type BankOfAmerica struct {
 
 // WellsFargo ...
 type WellsFargo struct {
-	Date   string  `csv:"date"`
-	Amount float64 `csv:"amount"`
-	Dummy1 string  `csv:"dummy1"`
-	Dummy2 string  `csv:"dummy2"`
-	Name   string  `csv:"name"`
+	Date        string  `csv:"DATE"`
+	Description string  `csv:"DESCRIPTION"`
+	Amount      float64 `csv:"AMOUNT"`
+	CheckNumber string  `csv:"CHECK #"`
+	Status      string  `csv:"STATUS"`
 }
 
 // Row ...
@@ -89,43 +81,55 @@ func New(o ConfigOptions) *Client {
 	return &Client{
 		FinanceDir: o.FinanceDir,
 		Banks:      o.Banks,
+		BankIDs:    o.BankIDs,
 	}
 }
 
 func (c *Client) GetTransactions() ([]*models.Transaction, error) {
-	var trans, t []*models.Transaction
-	var err error
+	var csvTrans []*models.Transaction
 
-	//fmt.Printf("    Wells Fargo\n")
-	//t, err = c.readWellsFargoCSV()
-	//if err != nil {
-	//	return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
-	//}
-	//trans = append(trans, t...)
-
-	fmt.Printf("    Fidelity\n")
-	t, err = c.readFidelityCSV()
-	if err != nil {
-		return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+	for _, bankID := range c.BankIDs {
+		switch bankID {
+		case "fidelity":
+			{
+				fmt.Printf("    Fidelity\n")
+				trans, err := c.readFidelityCSV()
+				if err != nil {
+					return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+				}
+				csvTrans = append(csvTrans, trans...)
+			}
+		case "wellsfargo":
+			{
+				fmt.Printf("    Wells Fargo\n")
+				trans, err := c.readWellsFargoCSV()
+				if err != nil {
+					return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+				}
+				csvTrans = append(csvTrans, trans...)
+			}
+		case "chase":
+			{
+				fmt.Printf("    Chase\n")
+				trans, err := c.readChaseCSV()
+				if err != nil {
+					return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+				}
+				csvTrans = append(csvTrans, trans...)
+			}
+		case "boa":
+			{
+				fmt.Printf("    Bank of America\n")
+				trans, err := c.readBankOfAmericaCSV()
+				if err != nil {
+					return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+				}
+				csvTrans = append(csvTrans, trans...)
+			}
+		}
 	}
-	trans = append(trans, t...)
 
-	//fmt.Printf("    Chase\n")
-	//trans = append(trans, t...)
-	//t, err = c.readChaseCSV()
-	//if err != nil {
-	//	return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
-	//}
-
-	//fmt.Printf("    Bank of America\n")
-	//trans = append(trans, t...)
-	//t, err = c.readBankOfAmericaCSV()
-	//if err != nil {
-	//	return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
-	//}
-	//trans = append(trans, t...)
-
-	return trans, nil
+	return csvTrans, nil
 }
 
 func (c *Client) readWellsFargoCSV() ([]*models.Transaction, error) {
@@ -185,7 +189,7 @@ func processWellsFargoData(wellsFargo []*WellsFargo, bankId string) []*models.Tr
 			Source:   "WellsFargo",
 			Date:     readDateValue(wf.Date),
 			Amount:   wf.Amount,
-			BankName: wf.Name,
+			BankName: wf.Description,
 			Budget:   wf.Amount,
 		}
 		if wf.Amount < 0 {
@@ -193,7 +197,7 @@ func processWellsFargoData(wellsFargo []*WellsFargo, bankId string) []*models.Tr
 		} else {
 			t.Deposit = wf.Amount
 		}
-		t = processCheck(wf.Name, t)
+		t = processCheck(wf.CheckNumber, t)
 		trans = append(trans, t)
 	}
 	return trans
@@ -216,7 +220,7 @@ func doWellsFargoHeadsExist(fileBytes []byte) bool {
 	for i := range []int8{0, 1, 2, 3, 4, 5} {
 		dateHeader += string(fileBytes[i])
 	}
-	if dateHeader == "\"date\"" {
+	if dateHeader == "\"DATE\"" {
 		return true
 	}
 	return false
