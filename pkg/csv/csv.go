@@ -294,13 +294,13 @@ func processChaseData(chase []*ChaseVisa, bankId string) []*models.Transaction {
 		}
 
 		t := &models.Transaction{
-			Key:            fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(c.TransactionDate), c.Amount),
+			Key:            fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(c.TransactionDate), -1*c.Amount),
 			Source:         "Chase",
 			Date:           readDateValue(c.TransactionDate),
-			Amount:         c.Amount,      // amount stays as is
-			CreditPurchase: -1 * c.Amount, // convert to positive
-			CreditCard:     -1 * c.Amount, // convert to positive
-			Budget:         c.Amount,      // already negative
+			Amount:         c.Amount, // amount stays as is
+			CreditPurchase: c.Amount, // convert to positive to be added to CreditCard column (like Deposit/Withdrawal)
+			CreditCard:     c.Amount, // convert to positive
+			Budget:         c.Amount, // already negative to be subtracted from budget column
 			BankName:       c.Description,
 		}
 		trans = append(trans, t)

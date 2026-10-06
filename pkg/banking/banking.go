@@ -389,18 +389,26 @@ func (c *Client) FormatMerchantNames(trans []*models.Transaction, lookup []*mode
 
 // FilterRecordedTransactions removes transactions that are already contained in the register spreadsheet
 func (c *Client) FilterRecordedTransactions(trans []*models.Transaction, regLookup map[string]bool) []*models.Transaction {
+	var diff string
 	var filtered []*models.Transaction
 	i := 0
 	for _, t := range trans {
 		if _, ok := regLookup[t.Key]; !ok {
-			if t.BankName != "Payment Made By Account Ending In:5409" &&
-				t.BankName != "Payment Thank You Bill Pa" &&
-				t.BankName != "Payment Thank You - Bill" {
-				filtered = append(filtered, t)
-				i++
-				if c.Debug {
-					fmt.Printf("    (%2d) NEW [%-28s] %-12s %-10s %8.2f %s\n", i, t.Key, t.Source, t.Date, t.Amount, t.Name)
-				}
+			// determine what is different from the spreadsheet: source, date, or amount
+			a := strings.Split(t.Key, ":")
+
+			if a[1] != t.Date {
+				diff = fmt.Sprintf("%-10s Date: Sheet=%s Trans=%s\n", t.Source, a[1], t.Date)
+			}
+			if a[2] != t.Source {
+				diff = fmt.Sprintf("%-10s Value: Sheet=%s Trans=%f\n", t.Source, a[2], t.Amount)
+			}
+			fmt.Println("    ", diff)
+
+			filtered = append(filtered, t)
+			i++
+			if c.Debug {
+				fmt.Printf("    (%2d) NEW [%-28s] %-12s %-10s %8.2f %s\n", i, t.Key, t.Source, t.Date, t.Amount, t.Name)
 			}
 		}
 	}
