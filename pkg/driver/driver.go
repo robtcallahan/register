@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"gorm.io/driver/mysql"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -14,8 +13,6 @@ type DBType string
 const (
 	// MySQL ...
 	MySQL = "MySQL"
-	// PostgreSQL ...
-	PostgreSQL = "PostgreSQL"
 )
 
 // DB ...
@@ -50,15 +47,6 @@ func ConnectSQL(c *ConnectParams) (*DB, error) {
 			c.DBName,
 		)
 		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
-	case PostgreSQL:
-		dsn := fmt.Sprintf(
-			"user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=America/New_York",
-			c.User,
-			c.Pass,
-			c.DBName,
-			c.Port,
-		)
-		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	default:
 		panic(fmt.Errorf("unknown DBType %s", c.DBType))
 	}

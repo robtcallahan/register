@@ -5,7 +5,6 @@ import (
 	"register/pkg/models"
 	"register/pkg/repository"
 	"register/pkg/repository/mysql"
-	"register/pkg/repository/postgres"
 )
 
 // Query ...
@@ -20,8 +19,6 @@ func NewQueryHandler(db *driver.DB) *Query {
 	switch db.DBType {
 	case driver.MySQL:
 		repo = mysql.NewMySQLQueryRepo(db.SQL)
-	case driver.PostgreSQL:
-		repo = postgres.NewPostgreSQLQueryRepo(db.SQL)
 	}
 	return &Query{
 		repo: repo,
