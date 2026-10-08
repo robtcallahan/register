@@ -1,0 +1,15 @@
+diff --git a/api/providers/sheets_provider/sheets_provider.go b/api/providers/sheets_provider/sheets_provider.go
+index b651578..9d6ee29 100644
+--- a/api/providers/sheets_provider/sheets_provider.go
++++ b/api/providers/sheets_provider/sheets_provider.go
+@@ -40,8 +40,9 @@ func New(spreadsheetID string, cfg *config.Config) (*SheetsProvider, error) {
+ 		if errors.As(err, &ae) {
+ 			log.Println(ae.Reason())
+ 			log.Println(ae.Details().Help.GetLinks())
++			return nil, fmt.Errorf("unable to retrieve sheets client: %s", ae.Reason())
+ 		}
+-		return nil, fmt.Errorf("unable to retrieve sheets client: %s", ae.Reason())
++		return nil, fmt.Errorf("unable to retrieve sheets client: %w", err)
+ 	}
+ 	return &SheetsProvider{
+ 		service:       service,
