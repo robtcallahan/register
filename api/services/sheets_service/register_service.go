@@ -83,10 +83,14 @@ func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
 	ss.RegisterSheet.SheetCoords.LastRow = ss.getLastRow(resp.Values)
 	keysMap := make(map[string]bool)
 
-	for i = 0; i <= ss.RegisterSheet.SheetCoords.LastRow && !ss.isEmptyRow(resp.Values[i]); i += 2 {
-		transactionKey := getTransactionKey(resp.Values[i])
+	for i = 0; i <= ss.RegisterSheet.SheetCoords.LastRow; i += 2 {
+		row := getRowValues(resp.Values, int(i))
+		if ss.isEmptyRow(row) {
+			break
+		}
+		transactionKey := getTransactionKey(row)
 		keysMap[transactionKey] = true
-		registerEntry := ss.populateRegisterEntry(resp.Values[i])
+		registerEntry := ss.populateRegisterEntry(row)
 		registerEntry.RowID = ss.getRowID(i)
 		register = append(register, registerEntry)
 	}
@@ -112,7 +116,11 @@ func (ss *SheetsService) ReadCell(cell string, cellDataType CellDataType) (inter
 	if err != nil {
 		return nil, err
 	}
-	return resp.Values[0][0], nil
+	row := getRowValues(resp.Values, 0)
+	if len(row) == 0 {
+		return nil, fmt.Errorf("no data found for cell: %s", cell)
+	}
+	return row[0], nil
 }
 
 func (ss *SheetsService) CopyRows(numCopies int) error {
@@ -283,7 +291,7 @@ func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []mode
 }
 
 func (ss *SheetsService) isEmptyRow(values []interface{}) bool {
-	if values[Date] == "" {
+	if getStringField(values, Date) == "" {
 		return true
 	}
 	return false
@@ -392,7 +400,7 @@ func (ss *SheetsService) readRangeFormulas(readRange string) []string {
 	}
 
 	var retValues []string
-	for _, val := range rangeValues[0] {
+	for _, val := range getRowValues(rangeValues, 0) {
 		retValues = append(retValues, fmt.Sprintf("%v", val))
 	}
 	return retValues

@@ -372,6 +372,14 @@ func getStringField(values []interface{}, i int) string {
 	return ""
 }
 
+// getRowValues safely returns the i-th row of a value range, or nil if i is out of range.
+func getRowValues(values [][]interface{}, i int) []interface{} {
+	if i >= 0 && i < len(values) {
+		return values[i]
+	}
+	return nil
+}
+
 func intInSlice(a int, list []int) bool {
 	for _, b := range list {
 		if b == a {
@@ -405,14 +413,14 @@ func isRegisterClearedOrDeltaColumn(i int) bool {
 }
 
 func getSourceField(values []interface{}) string {
-	if fmt.Sprintf("%v", values[Source]) == "" {
+	if getStringField(values, Source) == "" {
 		return strings.ToLower(CheckingAccountSourceName)
 	}
 	return strings.ToLower(getStringField(values, Source))
 }
 
 func getDateField(values []interface{}) string {
-	dateString := fmt.Sprintf("%v", values[Date])
+	dateString := getStringField(values, Date)
 	if dateString == "" {
 		return ""
 	}
@@ -422,11 +430,11 @@ func getDateField(values []interface{}) string {
 func getAmountString(values []interface{}) string {
 	amt := ""
 	v := ""
-	if v = fmt.Sprintf("%v", values[Withdrawals]); v != "" {
+	if v = getStringField(values, Withdrawals); v != "" {
 		amt = v
-	} else if v = fmt.Sprintf("%v", values[Deposits]); v != "" {
+	} else if v = getStringField(values, Deposits); v != "" {
 		amt = v
-	} else if v = fmt.Sprintf("%v", values[CreditCards]); v != "" {
+	} else if v = getStringField(values, CreditCards); v != "" {
 		re := regexp.MustCompile(`[()]`)
 		if re.Match([]byte(v)) {
 			amt = re.ReplaceAllString(v, "")
@@ -493,11 +501,14 @@ func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, colum
 }
 
 func getDollarsCellByIndex(values []interface{}, i int) float64 {
-	return readDollarsValue(values[i])
+	if i >= 0 && i < len(values) {
+		return readDollarsValue(values[i])
+	}
+	return 0
 }
 
 func getNameField(values []interface{}) string {
-	return readStringValue(values[Description])
+	return getStringField(values, Description)
 }
 
 func WriteJSONFile(fileName string, data interface{}) error {

@@ -86,11 +86,12 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 				continue
 			}
 
-			for j := 10; j < len(rangeValues[i*2]); j++ {
+			row := getRowValues(rangeValues, i*2)
+			for j := 10; j < len(row); j++ {
 				if cols[j].Name == "Credit Cards" || r.Deposit != 0 {
 					continue
 				}
-				f32 := getDollarsCellByIndex(rangeValues[i*2], cols[j].ColumnIndex)
+				f32 := getDollarsCellByIndex(row, cols[j].ColumnIndex)
 				catAgg[k][cols[j].Name] = catAgg[k][cols[j].Name] + f32
 			}
 		}

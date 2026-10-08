@@ -1,0 +1,140 @@
+diff --git a/api/services/sheets_service/helpers.go b/api/services/sheets_service/helpers.go
+index a0ecfb2..6436fbd 100644
+--- a/api/services/sheets_service/helpers.go
++++ b/api/services/sheets_service/helpers.go
+@@ -372,6 +372,14 @@ func getStringField(values []interface{}, i int) string {
+ 	return ""
+ }
+ 
++// getRowValues safely returns the i-th row of a value range, or nil if i is out of range.
++func getRowValues(values [][]interface{}, i int) []interface{} {
++	if i >= 0 && i < len(values) {
++		return values[i]
++	}
++	return nil
++}
++
+ func intInSlice(a int, list []int) bool {
+ 	for _, b := range list {
+ 		if b == a {
+@@ -405,14 +413,14 @@ func isRegisterClearedOrDeltaColumn(i int) bool {
+ }
+ 
+ func getSourceField(values []interface{}) string {
+-	if fmt.Sprintf("%v", values[Source]) == "" {
++	if getStringField(values, Source) == "" {
+ 		return strings.ToLower(CheckingAccountSourceName)
+ 	}
+ 	return strings.ToLower(getStringField(values, Source))
+ }
+ 
+ func getDateField(values []interface{}) string {
+-	dateString := fmt.Sprintf("%v", values[Date])
++	dateString := getStringField(values, Date)
+ 	if dateString == "" {
+ 		return ""
+ 	}
+@@ -422,11 +430,11 @@ func getDateField(values []interface{}) string {
+ func getAmountString(values []interface{}) string {
+ 	amt := ""
+ 	v := ""
+-	if v = fmt.Sprintf("%v", values[Withdrawals]); v != "" {
++	if v = getStringField(values, Withdrawals); v != "" {
+ 		amt = v
+-	} else if v = fmt.Sprintf("%v", values[Deposits]); v != "" {
++	} else if v = getStringField(values, Deposits); v != "" {
+ 		amt = v
+-	} else if v = fmt.Sprintf("%v", values[CreditCards]); v != "" {
++	} else if v = getStringField(values, CreditCards); v != "" {
+ 		re := regexp.MustCompile(`[()]`)
+ 		if re.Match([]byte(v)) {
+ 			amt = re.ReplaceAllString(v, "")
+@@ -493,11 +501,14 @@ func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, colum
+ }
+ 
+ func getDollarsCellByIndex(values []interface{}, i int) float64 {
+-	return readDollarsValue(values[i])
++	if i >= 0 && i < len(values) {
++		return readDollarsValue(values[i])
++	}
++	return 0
+ }
+ 
+ func getNameField(values []interface{}) string {
+-	return readStringValue(values[Description])
++	return getStringField(values, Description)
+ }
+ 
+ func WriteJSONFile(fileName string, data interface{}) error {
+diff --git a/api/services/sheets_service/monthly_service.go b/api/services/sheets_service/monthly_service.go
+index b4f2aa1..6125c0d 100644
+--- a/api/services/sheets_service/monthly_service.go
++++ b/api/services/sheets_service/monthly_service.go
+@@ -86,11 +86,12 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
+ 				continue
+ 			}
+ 
+-			for j := 10; j < len(rangeValues[i*2]); j++ {
++			row := getRowValues(rangeValues, i*2)
++			for j := 10; j < len(row); j++ {
+ 				if cols[j].Name == "Credit Cards" || r.Deposit != 0 {
+ 					continue
+ 				}
+-				f32 := getDollarsCellByIndex(rangeValues[i*2], cols[j].ColumnIndex)
++				f32 := getDollarsCellByIndex(row, cols[j].ColumnIndex)
+ 				catAgg[k][cols[j].Name] = catAgg[k][cols[j].Name] + f32
+ 			}
+ 		}
+diff --git a/api/services/sheets_service/register_service.go b/api/services/sheets_service/register_service.go
+index 4bffd46..97efb67 100644
+--- a/api/services/sheets_service/register_service.go
++++ b/api/services/sheets_service/register_service.go
+@@ -83,10 +83,14 @@ func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
+ 	ss.RegisterSheet.SheetCoords.LastRow = ss.getLastRow(resp.Values)
+ 	keysMap := make(map[string]bool)
+ 
+-	for i = 0; i <= ss.RegisterSheet.SheetCoords.LastRow && !ss.isEmptyRow(resp.Values[i]); i += 2 {
+-		transactionKey := getTransactionKey(resp.Values[i])
++	for i = 0; i <= ss.RegisterSheet.SheetCoords.LastRow; i += 2 {
++		row := getRowValues(resp.Values, int(i))
++		if ss.isEmptyRow(row) {
++			break
++		}
++		transactionKey := getTransactionKey(row)
+ 		keysMap[transactionKey] = true
+-		registerEntry := ss.populateRegisterEntry(resp.Values[i])
++		registerEntry := ss.populateRegisterEntry(row)
+ 		registerEntry.RowID = ss.getRowID(i)
+ 		register = append(register, registerEntry)
+ 	}
+@@ -112,7 +116,11 @@ func (ss *SheetsService) ReadCell(cell string, cellDataType CellDataType) (inter
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	return resp.Values[0][0], nil
++	row := getRowValues(resp.Values, 0)
++	if len(row) == 0 {
++		return nil, fmt.Errorf("no data found for cell: %s", cell)
++	}
++	return row[0], nil
+ }
+ 
+ func (ss *SheetsService) CopyRows(numCopies int) error {
+@@ -283,7 +291,7 @@ func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []mode
+ }
+ 
+ func (ss *SheetsService) isEmptyRow(values []interface{}) bool {
+-	if values[Date] == "" {
++	if getStringField(values, Date) == "" {
+ 		return true
+ 	}
+ 	return false
+@@ -392,7 +400,7 @@ func (ss *SheetsService) readRangeFormulas(readRange string) []string {
+ 	}
+ 
+ 	var retValues []string
+-	for _, val := range rangeValues[0] {
++	for _, val := range getRowValues(rangeValues, 0) {
+ 		retValues = append(retValues, fmt.Sprintf("%v", val))
+ 	}
+ 	return retValues
