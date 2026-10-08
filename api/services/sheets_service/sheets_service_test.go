@@ -571,7 +571,7 @@ func Test_sheetsService_readRangeFormulas(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ss.readRangeFormulas(tt.args.readRange); !reflect.DeepEqual(got, tt.want) {
+			if got, _ := ss.readRangeFormulas(tt.args.readRange); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("readRangeFormulas() = %v, want %v", got, tt.want)
 			}
 		})
@@ -672,7 +672,7 @@ func Test_sheetsService_GetDollarsCellByIndex(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getDollarsCellByIndex(tt.args.values, tt.args.i); got != tt.want {
+			if got, _ := getDollarsCellByIndex(tt.args.values, tt.args.i); got != tt.want {
 				t.Errorf("GetDollarsCellByIndex() = %v, want %v", got, tt.want)
 			}
 		})

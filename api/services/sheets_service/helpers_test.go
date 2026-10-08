@@ -967,7 +967,7 @@ func Test_readDollarsValue(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := readDollarsValue(tt.args.value); got != tt.want {
+			if got, _ := readDollarsValue(tt.args.value); got != tt.want {
 				t.Errorf("readDollarsValue() = %+v, want %+v", got, tt.want)
 			}
 		})
@@ -2186,7 +2186,7 @@ func Test_getDollarsCellByIndex(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getDollarsCellByIndex(tt.args.values, tt.args.i); got != tt.want {
+			if got, _ := getDollarsCellByIndex(tt.args.values, tt.args.i); got != tt.want {
 				t.Errorf("getDollarsCellByIndex() = %v, want %v", got, tt.want)
 			}
 		})

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"google.golang.org/api/sheets/v4"
-	"log"
 	"math"
 	"os"
 	"regexp"
@@ -294,12 +293,12 @@ func readStringValue(text interface{}) string {
 	return fmt.Sprintf("%v", text)
 }
 
-func readDollarsValue(value interface{}) float64 {
+func readDollarsValue(value interface{}) (float64, error) {
 	dollars := readStringValue(value)
 	re := regexp.MustCompile(`[\s$,]`)
 	dollars = re.ReplaceAllString(dollars, "")
 	if dollars == "-" || dollars == "" {
-		return 0
+		return 0, nil
 	}
 
 	re = regexp.MustCompile(`[()]`)
@@ -308,11 +307,10 @@ func readDollarsValue(value interface{}) float64 {
 	}
 
 	f, err := strconv.ParseFloat(dollars, 64)
-	// TODO: change to error return
 	if err != nil {
-		log.Fatalf("parseFloat error: %s", err.Error())
+		return 0, fmt.Errorf("parseFloat error: %s", err.Error())
 	}
-	return f
+	return f, nil
 }
 
 func readDateValue(dateStr interface{}) string {
@@ -503,11 +501,11 @@ func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, colum
 	return cells
 }
 
-func getDollarsCellByIndex(values []interface{}, i int) float64 {
+func getDollarsCellByIndex(values []interface{}, i int) (float64, error) {
 	if i >= 0 && i < len(values) {
 		return readDollarsValue(values[i])
 	}
-	return 0
+	return 0, nil
 }
 
 func getNameField(values []interface{}) string {

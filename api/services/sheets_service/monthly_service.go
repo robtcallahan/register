@@ -59,7 +59,7 @@ func (ss *SheetsService) updateMonthly(sheetID int64, rows []*sheets.RowData) er
 	return nil
 }
 
-func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]float64, map[string]map[string]float64) {
+func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]float64, map[string]map[string]float64, error) {
 	// map of register entries by month and category
 	catAgg := make(map[string]map[string]float64)
 
@@ -91,12 +91,15 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 				if cols[j].Name == "Credit Cards" || r.Deposit != 0 {
 					continue
 				}
-				f32 := getDollarsCellByIndex(row, cols[j].ColumnIndex)
+				f32, err := getDollarsCellByIndex(row, cols[j].ColumnIndex)
+				if err != nil {
+					return nil, nil, err
+				}
 				catAgg[k][cols[j].Name] = catAgg[k][cols[j].Name] + f32
 			}
 		}
 	}
-	return catAgg, payeeAgg
+	return catAgg, payeeAgg, nil
 }
 
 func populateMonthlyCategories(catAgg map[string]map[string]float64, cats []models.Column) []*sheets.RowData {

@@ -2,7 +2,6 @@ package sheets_service
 
 import (
 	"fmt"
-	"log"
 	"register/pkg/config"
 	"register/pkg/models"
 
@@ -90,7 +89,10 @@ func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
 		}
 		transactionKey := getTransactionKey(row)
 		keysMap[transactionKey] = true
-		registerEntry := ss.populateRegisterEntry(row)
+		registerEntry, err := ss.populateRegisterEntry(row)
+		if err != nil {
+			return nil, err
+		}
 		registerEntry.RowID = ss.getRowID(i)
 		register = append(register, registerEntry)
 	}
@@ -145,7 +147,7 @@ func (ss *SheetsService) ReadDollarsCell(cell string) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return readDollarsValue(v), nil
+	return readDollarsValue(v)
 }
 
 func (ss *SheetsService) ReadFormulaCell(cell string) (string, error) {
@@ -234,7 +236,10 @@ func (ss *SheetsService) populateCells(columns []models.Column, transNameToColNa
 		}
 		cells = addAmountCell(cells, trans, bgColor)
 
-		totalsFormulas := ss.readRangeFormulas(getRegisterToDeltaReadRange(rowIndex))
+		totalsFormulas, err := ss.readRangeFormulas(getRegisterToDeltaReadRange(rowIndex))
+		if err != nil {
+			return nil, err
+		}
 		if isPaycheck(trans.Name) {
 			cells = ss.addSalaryCells(cells, columns, totalsFormulas)
 		} else {
@@ -314,21 +319,45 @@ func (ss *SheetsService) getRowID(i int64) int64 {
 	return ss.RegisterSheet.SheetCoords.StartRow + i
 }
 
-func (ss *SheetsService) populateRegisterEntry(values []interface{}) *RegisterEntry {
+func (ss *SheetsService) populateRegisterEntry(values []interface{}) (*RegisterEntry, error) {
+	withdrawal, err := getDollarsCellByIndex(values, Withdrawals)
+	if err != nil {
+		return nil, err
+	}
+	deposit, err := getDollarsCellByIndex(values, Deposits)
+	if err != nil {
+		return nil, err
+	}
+	creditCard, err := getDollarsCellByIndex(values, CreditCards)
+	if err != nil {
+		return nil, err
+	}
+	bankRegister, err := getDollarsCellByIndex(values, BankRegister)
+	if err != nil {
+		return nil, err
+	}
+	cleared, err := getDollarsCellByIndex(values, Cleared)
+	if err != nil {
+		return nil, err
+	}
+	delta, err := getDollarsCellByIndex(values, Delta)
+	if err != nil {
+		return nil, err
+	}
 	entry := &RegisterEntry{
 		Key:          getTransactionKey(values),
 		Reconciled:   getStringField(values, Reconciled),
 		Source:       getSourceField(values),
 		Date:         getDateField(values),
 		Name:         getNameField(values),
-		Withdrawal:   getDollarsCellByIndex(values, Withdrawals),
-		Deposit:      getDollarsCellByIndex(values, Deposits),
-		CreditCard:   getDollarsCellByIndex(values, CreditCards),
-		BankRegister: getDollarsCellByIndex(values, BankRegister),
-		Cleared:      getDollarsCellByIndex(values, Cleared),
-		Delta:        getDollarsCellByIndex(values, Delta),
+		Withdrawal:   withdrawal,
+		Deposit:      deposit,
+		CreditCard:   creditCard,
+		BankRegister: bankRegister,
+		Cleared:      cleared,
+		Delta:        delta,
 	}
-	return entry
+	return entry, nil
 }
 
 func (ss *SheetsService) getSheetID(tabName string) (int64, error) {
@@ -389,19 +418,19 @@ func (ss *SheetsService) getCopyDestination(index int64) *sheets.GridRange {
 	}
 }
 
-func (ss *SheetsService) readRangeFormulas(readRange string) []string {
+func (ss *SheetsService) readRangeFormulas(readRange string) ([]string, error) {
 	resp, err := ss.Provider.GetFormula(readRange)
 	if err != nil {
-		log.Fatalf("unable to retrieve data from sheet: %v", err)
+		return nil, fmt.Errorf("unable to retrieve data from sheet: %v", err)
 	}
 	rangeValues := resp.Values
 	if len(rangeValues) == 0 {
-		log.Fatalf("no data found for read range: %s", readRange)
+		return nil, fmt.Errorf("no data found for read range: %s", readRange)
 	}
 
 	var retValues []string
 	for _, val := range getRowValues(rangeValues, 0) {
 		retValues = append(retValues, fmt.Sprintf("%v", val))
 	}
-	return retValues
+	return retValues, nil
 }

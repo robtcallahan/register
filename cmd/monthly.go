@@ -83,7 +83,10 @@ func monthly() error {
 	cols := qHandler.GetColumns()
 
 	fmt.Println("Aggregating...")
-	catAgg, payeeAgg := sheetsService.Aggregate(cols)
+	catAgg, payeeAgg, err := sheetsService.Aggregate(cols)
+	if err != nil {
+		return err
+	}
 
 	//sheets_service.WriteJSONFile(jsonDir+"columns.json", cols)
 	//sheets_service.WriteJSONFile(jsonDir+"register.json", sheetsService.RegisterSheet.Register)

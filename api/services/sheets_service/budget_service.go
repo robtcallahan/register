@@ -62,7 +62,10 @@ func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
 		if ss.isEmptyBudgetRow(values) {
 			continue
 		}
-		entry := ss.populateBudgetEntry(values)
+		entry, err := ss.populateBudgetEntry(values)
+		if err != nil {
+			return nil, err
+		}
 		entries = append(entries, entry)
 		categoriesMap[ss.getBudgetCategory(values)] = entry
 	}
@@ -82,14 +85,30 @@ func (ss *SheetsService) getBudgetCategory(values []interface{}) string {
 	return fmt.Sprintf("%s", values[0])
 }
 
-func (ss *SheetsService) populateBudgetEntry(values []interface{}) *BudgetEntry {
+func (ss *SheetsService) populateBudgetEntry(values []interface{}) (*BudgetEntry, error) {
+	weekly, err := readDollarsValue(values[3])
+	if err != nil {
+		return nil, err
+	}
+	monthly, err := readDollarsValue(values[4])
+	if err != nil {
+		return nil, err
+	}
+	every2Weeks, err := readDollarsValue(values[5])
+	if err != nil {
+		return nil, err
+	}
+	twiceMonthly, err := readDollarsValue(values[6])
+	if err != nil {
+		return nil, err
+	}
 	return &BudgetEntry{
 		Category:     ss.getBudgetCategory(values),
-		Weekly:       readDollarsValue(values[3]),
-		Monthly:      readDollarsValue(values[4]),
-		Every2Weeks:  readDollarsValue(values[5]),
-		TwiceMonthly: readDollarsValue(values[6]),
+		Weekly:       weekly,
+		Monthly:      monthly,
+		Every2Weeks:  every2Weeks,
+		TwiceMonthly: twiceMonthly,
 		// Yearly:             readDollarsValue(values[6]),
 		// RegisterColumnName: config.BudgetCategories[category],
-	}
+	}, nil
 }
