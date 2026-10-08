@@ -130,7 +130,13 @@ func (c *Client) GetBalances(bankIDs []string) map[string]Balance {
 		bank := c.Banks[id]
 
 		tok, err := os.ReadFile(c.TokensDir + "/" + bank.Source + "AccessToken.txt")
-		checkError(err)
+		if err != nil {
+			balances[id] = Balance{
+				BankName: bank.Name,
+				Error:    err,
+			}
+			continue
+		}
 		accessToken := strings.ReplaceAll(string(tok), "\n", "")
 
 		amount, err := c.GetBalance(accessToken, id, ctx)
@@ -445,17 +451,24 @@ func (c *Client) FormatUniqueTransactionNames(trans []*models.Transaction) []*mo
 //	return checkingID
 //}
 
-func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) {
+func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) error {
 	f, err := os.Create("csv/" + fileName)
-	checkError(err)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 
 	_, err = f.WriteString("Date,Amount,Description\n")
-	checkError(err)
+	if err != nil {
+		return err
+	}
 	for _, t := range trans {
 		_, err = f.WriteString(fmt.Sprintf("%s,%.2f,%s,%v\n", t.Date, t.Amount, t.Name, t.MerchantName))
-		checkError(err)
+		if err != nil {
+			return err
+		}
 	}
-	_ = f.Sync()
+	return f.Sync()
 }
 
 func readDateValue(date string) string {
@@ -469,10 +482,4 @@ func readDateValue(date string) string {
 	dd, _ := strconv.Atoi(m[4])
 	d := fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
 	return d
-}
-
-func checkError(err error) {
-	if err != nil {
-		panic(err)
-	}
 }

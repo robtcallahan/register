@@ -7,11 +7,11 @@ Register Refactor Project
 - [X] 1.5 Fix budget off-by-one in budget_service.go:75 (guard vs values[6])
 - [X] 1.6 Fix makeNoteRow nil-prefill in register_service.go:252
 - [X] 1.7 Add safe accessor for spreadsheet row indexing, use everywhere
-- [ ] 1.8 Check regex matches before indexing in both readDateValues
+- [X] 1.8 Check regex matches before indexing in both readDateValues
 - [X] 1.9 Fix createLinkToken where it logs the error if it's "", but then keeps going
 - [X] 1.10 change config file and code use so that db_ is an object
-- [ ] --------------------
-- [ ] 2.1 checkError (panic) in banking.go → return errors
+-----------------------------------------------------------------------------------------
+- [X] 2.1 checkError (panic) in banking.go → return errors
 - [ ] 2.2 checkError (os.Exit) in root.go → return errors, exit once in cobra Run
 - [ ] 2.3 log.Fatalf in sheets_service → return errors
 - [ ] 2.4 log.Fatalf in sheets_auth → return errors
@@ -19,7 +19,7 @@ Register Refactor Project
 - [ ] 2.6 Replace panic(result.Error) on writes with returned errors
 - [ ] 2.7 Sheets-full detection → clean "add rows and re-run" message
 - [ ] 2.8 Fail fast on empty SESSION_KEY; fix 0644 token file perms
-- [ ] --------------------
+-----------------------------------------------------------------------------------------
 - [ ] 3.1 Extract fetchTransactions stage (Plaid or CSV)
 - [ ] 3.2 Extract normalizeMerchants stage (merchant name lookup)
 - [ ] 3.3 Extract dedupeAgainstSheet stage (fuzzy ±1-day date matching)
@@ -29,27 +29,27 @@ Register Refactor Project
 - [ ] 3.7 Rename --no-updates flag to --dry-run (fix double negative)
 - [ ] 3.8 Move interactive prompts before long silent work
 - [ ] 3.9 Centralize dedup key construction into one function
-- [ ] --------------------
+-----------------------------------------------------------------------------------------
 - [ ] 4.1 Add priority and match_type columns to merchants table
 - [ ] 4.2 Prune unused columns (TaxDeductible et al) — revamp vs new table
 - [ ] 4.3 Migrate config.json merchants map into DB, delete from config
 - [ ] 4.4 Write single MerchantMatcher, first-match-wins by priority
 - [ ] 4.5 Replace FormatMerchantNames + FormatUniqueTransactionNames with matcher
 - [ ] 4.6 Reference columns by name, kill magic indexes (10, 42)
-- [ ] --------------------
+-----------------------------------------------------------------------------------------
 - [ ] 5.1 Define IncomeSource in config (name, match rule, frequency, allocations)
 - [ ] 5.2 Add weekly paycheck + monthly Social Security as two income sources
 - [ ] 5.3 Remove hardcoded PayCheckBankName/PayCheckName from banking.go
 - [ ] 5.4 Replace addSalaryCells hack with income-source allocation logic
 - [ ] 5.5 Remove ColumnIndex=42 magic number
-- [ ] --------------------
+-----------------------------------------------------------------------------------------
 - [ ] 6.1 Make DB columns table the single source of truth
 - [ ] 6.2 Add register columns list|add|rename|delete commands
 - [ ] 6.3 Add register columns check for sheet-vs-DB drift
 - [ ] 6.4 Derive spreadsheet positions from ordered column list
 - [ ] 6.5 Derive budget category names from same source as register columns
 - [ ] 6.6 Remove ColumnIndexes/RegisterIndexes from config.json
-- [ ] --------------------
+-----------------------------------------------------------------------------------------
 - [ ] 7.1 Move cell addresses, colors, magic values to constants.go or config
 - [ ] 7.2 Split register_service.go into focused functions
 - [ ] 7.3 Split helpers.go into focused functions
