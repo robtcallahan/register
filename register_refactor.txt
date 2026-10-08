@@ -9,6 +9,7 @@ Register Refactor Project
 - [ ] 1.7 Add safe accessor for spreadsheet row indexing, use everywhere
 - [ ] 1.8 Check regex matches before indexing in both readDateValues
 - [X] 1.9 Fix createLinkToken where it logs the error if it's "", but then keeps going
+- [X] 1.10 change config file and code use so that db_ is an object
 - [ ] --------------------
 - [ ] 2.1 checkError (panic) in banking.go → return errors
 - [ ] 2.2 checkError (os.Exit) in root.go → return errors, exit once in cobra Run

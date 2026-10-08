@@ -44,16 +44,21 @@ type MerchantEntry struct {
 	ColumnIndex int    `json:"column_index"`
 }
 
+// DBConfig ...
+type DBConfig struct {
+	Type     string `json:"type"`
+	Host     string `json:"host"`
+	Port     string `json:"port"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 // Config ...
 type Config struct {
 	UserID                      string                   `json:"user_id"`
 	JSONDir                     string                   `json:"json_dir"`
-	DBType                      string                   `json:"db_type"`
-	DBHost                      string                   `json:"db_host"`
-	DBPort                      string                   `json:"db_port"`
-	DBName                      string                   `json:"db_name"`
-	DBUsername                  string                   `json:"db_username"`
-	DBPassword                  string                   `json:"db_password"`
+	DB                          DBConfig                 `json:"db"`
 	StartDate                   string                   `json:"start_date"`
 	EndDate                     string                   `json:"end_date"`
 	PlaidClientID               string                   `json:"plaid_client_id"`
