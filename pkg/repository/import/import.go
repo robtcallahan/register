@@ -97,10 +97,10 @@ func (c *Config) importMerchants(cl ColLookup) {
 	c.DB.AutoMigrate(&Merchant{})
 
 	f, err := os.Open("merchants.csv")
-	defer f.Close()
 	if err != nil {
 		panic(err)
 	}
+	defer f.Close()
 
 	rows := []*MerchantCSVRow{}
 	if err := gocsv.UnmarshalFile(f, &rows); err != nil {
@@ -129,10 +129,10 @@ func (c *Config) importMerchToCats() ColLookup {
 	c.DB.AutoMigrate(&Column{})
 
 	f, err := os.Open("merch_to_cats.csv")
-	defer f.Close()
 	if err != nil {
 		panic(err)
 	}
+	defer f.Close()
 
 	rows := []*MerchToColCSVRow{}
 	if err := gocsv.UnmarshalFile(f, &rows); err != nil {
@@ -153,10 +153,10 @@ func (c *Config) importColumns() {
 	c.DB.AutoMigrate(&Column{})
 
 	f, err := os.Open("columns.csv")
-	defer f.Close()
 	if err != nil {
 		panic(err)
 	}
+	defer f.Close()
 
 	rows := []*ColumnCSVRow{}
 	if err := gocsv.UnmarshalFile(f, &rows); err != nil {

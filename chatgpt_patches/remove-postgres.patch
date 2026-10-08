@@ -1,0 +1,195 @@
+diff --git a/pkg/driver/driver.go b/pkg/driver/driver.go
+index db07524..13c616a 100644
+--- a/pkg/driver/driver.go
++++ b/pkg/driver/driver.go
+@@ -4,7 +4,6 @@ import (
+ 	"fmt"
+ 
+ 	"gorm.io/driver/mysql"
+-	"gorm.io/driver/postgres"
+ 	"gorm.io/gorm"
+ )
+ 
+@@ -14,8 +13,6 @@ type DBType string
+ const (
+ 	// MySQL ...
+ 	MySQL = "MySQL"
+-	// PostgreSQL ...
+-	PostgreSQL = "PostgreSQL"
+ )
+ 
+ // DB ...
+@@ -50,15 +47,6 @@ func ConnectSQL(c *ConnectParams) (*DB, error) {
+ 			c.DBName,
+ 		)
+ 		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+-	case PostgreSQL:
+-		dsn := fmt.Sprintf(
+-			"user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=America/New_York",
+-			c.User,
+-			c.Pass,
+-			c.DBName,
+-			c.Port,
+-		)
+-		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+ 	default:
+ 		panic(fmt.Errorf("unknown DBType %s", c.DBType))
+ 	}
+diff --git a/pkg/handler/handler.go b/pkg/handler/handler.go
+index dd33fbe..d44e26c 100644
+--- a/pkg/handler/handler.go
++++ b/pkg/handler/handler.go
+@@ -5,7 +5,6 @@ import (
+ 	"register/pkg/models"
+ 	"register/pkg/repository"
+ 	"register/pkg/repository/mysql"
+-	"register/pkg/repository/postgres"
+ )
+ 
+ // Query ...
+@@ -20,8 +19,6 @@ func NewQueryHandler(db *driver.DB) *Query {
+ 	switch db.DBType {
+ 	case driver.MySQL:
+ 		repo = mysql.NewMySQLQueryRepo(db.SQL)
+-	case driver.PostgreSQL:
+-		repo = postgres.NewPostgreSQLQueryRepo(db.SQL)
+ 	}
+ 	return &Query{
+ 		repo: repo,
+diff --git a/pkg/repository/postgres/postgres.go b/pkg/repository/postgres/postgres.go
+deleted file mode 100644
+index 9b4ffee..0000000
+--- a/pkg/repository/postgres/postgres.go
++++ /dev/null
+@@ -1,131 +0,0 @@
+-package postgres
+-
+-import (
+-	"fmt"
+-	"gorm.io/gorm/clause"
+-
+-	"register/pkg/models"
+-	repo "register/pkg/repository"
+-
+-	"gorm.io/gorm"
+-)
+-
+-type postgresQueryRepo struct {
+-	Conn *gorm.DB
+-}
+-
+-// NewPostgreSQLQueryRepo returns the implementation of post repository interface
+-func NewPostgreSQLQueryRepo(conn *gorm.DB) repo.QueryRepo {
+-	return &postgresQueryRepo{
+-		Conn: conn,
+-	}
+-}
+-
+-func (r *postgresQueryRepo) GetTransactions() []models.Transaction {
+-	var trans []models.Transaction
+-	r.Conn.Order("date").Find(&trans)
+-	return trans
+-}
+-
+-func (r *postgresQueryRepo) SaveTransaction(trans *models.Transaction) {
+-	r.Conn.Save(trans)
+-}
+-
+-func (r *postgresQueryRepo) UpdateTransactionTables(trans []*models.Transaction) {
+-	_ = r.Conn.AutoMigrate(&models.Transaction{})
+-
+-	for _, t := range trans {
+-		result := r.Conn.Clauses(clause.OnConflict{
+-			UpdateAll: true,
+-		}).Create(t)
+-		if result.Error != nil {
+-			panic(result.Error)
+-		}
+-	}
+-}
+-
+-func (r *postgresQueryRepo) CreateDB(dbName string) (*gorm.DB, error) {
+-	db := r.Conn.Exec("CREATE DATABASE " + dbName)
+-	return db, db.Error
+-}
+-
+-// GetColumns ...
+-func (r *postgresQueryRepo) GetColumns() []models.Column {
+-	var cols []models.Column
+-	r.Conn.Order("column_index").Find(&cols)
+-	return cols
+-}
+-
+-// GetMerchants ...
+-func (r *postgresQueryRepo) GetMerchants() []models.Merchant {
+-	var merch []models.Merchant
+-	r.Conn.Order("name").Find(&merch)
+-	return merch
+-}
+-
+-// CreateMerchant ...
+-func (r *postgresQueryRepo) CreateMerchant(m *models.Merchant) {
+-	result := r.Conn.Create(&models.Merchant{
+-		Name:     m.Name,
+-		BankName: m.BankName,
+-		ColumnID: m.ColumnID,
+-	})
+-	if result.Error != nil {
+-		panic(result.Error)
+-	}
+-}
+-
+-// GetLookupData ...
+-func (r *postgresQueryRepo) GetLookupData() []*models.DataRow {
+-	var merchants []models.Merchant
+-
+-	r.Conn.Preload("Column").Find(&merchants)
+-
+-	var data []*models.DataRow
+-	for _, m := range merchants {
+-		data = append(data, &models.DataRow{
+-			Name:        m.Name,
+-			BankName:    m.BankName,
+-			ColumnName:  m.Column.Name,
+-			ColumnIndex: m.Column.ColumnIndex,
+-			Color:       m.Column.Color,
+-			IsCategory:  m.Column.IsCategory,
+-		})
+-	}
+-	return data
+-}
+-
+-// GetNameMapToColumn creates a map lookup from trans name to budget category/column names
+-func (r *postgresQueryRepo) GetNameMapToColumn() map[string]string {
+-	cols := r.GetLookupData()
+-
+-	transNameToColName := make(map[string]string)
+-	for _, c := range cols {
+-		transNameToColName[c.Name] = c.ColumnName
+-	}
+-	return transNameToColName
+-}
+-
+-// PrintData ...
+-func (r *postgresQueryRepo) PrintData() {
+-	var merchants []models.Merchant
+-	r.Conn.Preload("Column").Find(&merchants)
+-
+-	fmt.Printf("[Num] %-35s %-30s %-30s %-s\n", "Bank Name", "Name", "Column Name", "Column Index")
+-	for i, m := range merchants {
+-		fmt.Printf("[%3d] %-35s %-30s %-30s %2d\n", i+1, m.BankName, m.Name, m.Column.Name, m.Column.ColumnIndex)
+-	}
+-}
+-
+-// PrintTable ...
+-func (r *postgresQueryRepo) PrintTable(table string) {
+-	switch table {
+-	case "merchants":
+-		var merchants []models.Merchant
+-		result := r.Conn.Find(&merchants)
+-		fmt.Printf("%d rows found\n", result.RowsAffected)
+-		for _, m := range merchants {
+-			fmt.Printf("%d %s %s %s\n", m.ID, m.BankName, m.Name, m.Column.Name)
+-		}
+-	}
+-}
