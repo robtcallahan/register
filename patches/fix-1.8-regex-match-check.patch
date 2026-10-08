@@ -1,0 +1,49 @@
+diff --git a/api/services/sheets_service/helpers.go b/api/services/sheets_service/helpers.go
+index a0ecfb2..8f759f4 100644
+--- a/api/services/sheets_service/helpers.go
++++ b/api/services/sheets_service/helpers.go
+@@ -319,6 +319,9 @@ func readDateValue(dateStr interface{}) string {
+ 	date := readStringValue(dateStr)
+ 	re := regexp.MustCompile(`(\d+)/(\d+)/(20)?(\d+)`)
+ 	m := re.FindAllStringSubmatch(date, -1)
++	if len(m) == 0 {
++		return ""
++	}
+ 	mm, _ := strconv.Atoi(m[0][1])
+ 	dd, _ := strconv.Atoi(m[0][2])
+ 	yy, _ := strconv.Atoi(m[0][4])
+diff --git a/pkg/banking/banking.go b/pkg/banking/banking.go
+index 0c235c8..4935533 100644
+--- a/pkg/banking/banking.go
++++ b/pkg/banking/banking.go
+@@ -461,6 +461,9 @@ func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) {
+ func readDateValue(date string) string {
+ 	re := regexp.MustCompile(`(20)?(\d\d)-(\d\d)-(\d\d)`)
+ 	m := re.FindStringSubmatch(date)
++	if m == nil {
++		return ""
++	}
+ 	yy, _ := strconv.Atoi(m[2])
+ 	mm, _ := strconv.Atoi(m[3])
+ 	dd, _ := strconv.Atoi(m[4])
+diff --git a/pkg/csv/csv.go b/pkg/csv/csv.go
+index a6c6500..6154c07 100644
+--- a/pkg/csv/csv.go
++++ b/pkg/csv/csv.go
+@@ -358,10 +358,12 @@ func readDateValue(date string) string {
+ 	} else {
+ 		re := regexp.MustCompile(`(20)?(\d+)-(\d+)-(\d+)`)
+ 		m := re.FindAllStringSubmatch(date, -1)
+-		mm, _ := strconv.Atoi(m[0][3])
+-		dd, _ := strconv.Atoi(m[0][4])
+-		yy, _ := strconv.Atoi(m[0][2])
+-		d = fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
++		if m != nil {
++			mm, _ := strconv.Atoi(m[0][3])
++			dd, _ := strconv.Atoi(m[0][4])
++			yy, _ := strconv.Atoi(m[0][2])
++			d = fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
++		}
+ 	}
+ 	return d
+ }

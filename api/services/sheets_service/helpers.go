@@ -319,6 +319,9 @@ func readDateValue(dateStr interface{}) string {
 	date := readStringValue(dateStr)
 	re := regexp.MustCompile(`(\d+)/(\d+)/(20)?(\d+)`)
 	m := re.FindAllStringSubmatch(date, -1)
+	if len(m) == 0 {
+		return ""
+	}
 	mm, _ := strconv.Atoi(m[0][1])
 	dd, _ := strconv.Atoi(m[0][2])
 	yy, _ := strconv.Atoi(m[0][4])

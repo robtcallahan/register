@@ -358,10 +358,12 @@ func readDateValue(date string) string {
 	} else {
 		re := regexp.MustCompile(`(20)?(\d+)-(\d+)-(\d+)`)
 		m := re.FindAllStringSubmatch(date, -1)
-		mm, _ := strconv.Atoi(m[0][3])
-		dd, _ := strconv.Atoi(m[0][4])
-		yy, _ := strconv.Atoi(m[0][2])
-		d = fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
+		if m != nil {
+			mm, _ := strconv.Atoi(m[0][3])
+			dd, _ := strconv.Atoi(m[0][4])
+			yy, _ := strconv.Atoi(m[0][2])
+			d = fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
+		}
 	}
 	return d
 }

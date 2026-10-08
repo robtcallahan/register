@@ -6,7 +6,7 @@ Register Refactor Project
 - [X] 1.4 Fix nil context.Context in banking.go:178 → context.Background()
 - [X] 1.5 Fix budget off-by-one in budget_service.go:75 (guard vs values[6])
 - [X] 1.6 Fix makeNoteRow nil-prefill in register_service.go:252
-- [ ] 1.7 Add safe accessor for spreadsheet row indexing, use everywhere
+- [X] 1.7 Add safe accessor for spreadsheet row indexing, use everywhere
 - [ ] 1.8 Check regex matches before indexing in both readDateValues
 - [X] 1.9 Fix createLinkToken where it logs the error if it's "", but then keeps going
 - [X] 1.10 change config file and code use so that db_ is an object

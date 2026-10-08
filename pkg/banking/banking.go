@@ -461,6 +461,9 @@ func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) {
 func readDateValue(date string) string {
 	re := regexp.MustCompile(`(20)?(\d\d)-(\d\d)-(\d\d)`)
 	m := re.FindStringSubmatch(date)
+	if m == nil {
+		return ""
+	}
 	yy, _ := strconv.Atoi(m[2])
 	mm, _ := strconv.Atoi(m[3])
 	dd, _ := strconv.Atoi(m[4])
