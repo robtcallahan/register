@@ -10,20 +10,20 @@ import (
 type QueryRepo interface {
 	CreateDB(dbName string) (*gorm.DB, error)
 
-	GetColumns() []models.Column
+	GetColumns() ([]models.Column, error)
 
-	GetMerchants() []models.Merchant
+	GetMerchants() ([]models.Merchant, error)
 	CreateMerchant(m *models.Merchant)
 
-	GetTransactions() []models.Transaction
+	GetTransactions() ([]models.Transaction, error)
 	SaveTransaction(trans *models.Transaction)
 	UpdateTransactionTables(trans []*models.Transaction)
 
-	GetLookupData() []*models.DataRow
-	GetNameMapToColumn() map[string]string
+	GetLookupData() ([]*models.DataRow, error)
+	GetNameMapToColumn() (map[string]string, error)
 
-	PrintData()
-	PrintTable(table string)
+	PrintData() error
+	PrintTable(table string) error
 }
 
 func ColumnNames(cats []models.Column) *[]string {

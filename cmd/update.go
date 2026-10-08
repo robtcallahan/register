@@ -144,7 +144,10 @@ func update(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("Updating merchants...")
-	lookupData := qHandler.GetLookupData()
+	lookupData, err := qHandler.GetLookupData()
+	if err != nil {
+		return err
+	}
 
 	transactions = client.BankClient.FormatMerchantNames(transactions, lookupData)
 	if options.Debug {
@@ -173,7 +176,9 @@ func update(cmd *cobra.Command, args []string) error {
 
 		if needTransactionName(transactions) {
 			fmt.Println("Info needed...")
-			printColumns(qHandler)
+			if err := printColumns(qHandler); err != nil {
+				return err
+			}
 			transactions, err = getBankNameToName(client.BankClient, qHandler, transactions)
 			if err != nil {
 				return err
@@ -212,8 +217,14 @@ func update(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Printf("Updating spreadsheet...\n")
-		columns := qHandler.GetColumns()
-		transNameToColName := qHandler.GetNameMapToColumn()
+		columns, err := qHandler.GetColumns()
+		if err != nil {
+			return err
+		}
+		transNameToColName, err := qHandler.GetNameMapToColumn()
+		if err != nil {
+			return err
+		}
 
 		err = sheetsService.UpdateRows(columns, transNameToColName, transactions)
 		if err != nil {
@@ -344,8 +355,11 @@ func needTransactionName(trans []*models.Transaction) bool {
 	return false
 }
 
-func printColumns(db *handler.Query) {
-	columns := db.GetColumns()
+func printColumns(db *handler.Query) error {
+	columns, err := db.GetColumns()
+	if err != nil {
+		return err
+	}
 	filtered := filterNonCategoryColumns(columns)
 
 	// this will allow us to print 3 columns on the screen
@@ -365,6 +379,7 @@ func printColumns(db *handler.Query) {
 		fmt.Printf("%2d %-30s \n", filtered[i].ID, filtered[i].Name)
 		j++
 	}
+	return nil
 }
 
 func filterNonCategoryColumns(columns []models.Column) []models.Column {
@@ -397,7 +412,10 @@ func getBankNameToName(bankClient *banking.Client, db *handler.Query, trans []*m
 		if err != nil {
 			return nil, err
 		}
-		lookupData := db.GetLookupData()
+		lookupData, err := db.GetLookupData()
+		if err != nil {
+			return nil, err
+		}
 		trans = bankClient.FormatMerchantNames(trans, lookupData)
 	}
 	return trans, nil

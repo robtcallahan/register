@@ -1,0 +1,303 @@
+diff --git a/cmd/monthly.go b/cmd/monthly.go
+index 1d3eba2..6c43eca 100644
+--- a/cmd/monthly.go
++++ b/cmd/monthly.go
+@@ -80,7 +80,10 @@ func monthly() error {
+ 		return err
+ 	}
+ 
+-	cols := qHandler.GetColumns()
++	cols, err := qHandler.GetColumns()
++	if err != nil {
++		return err
++	}
+ 
+ 	fmt.Println("Aggregating...")
+ 	catAgg, payeeAgg, err := sheetsService.Aggregate(cols)
+diff --git a/cmd/update.go b/cmd/update.go
+index 1cf12b6..f99d019 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -144,7 +144,10 @@ func update(cmd *cobra.Command, args []string) error {
+ 	}
+ 
+ 	fmt.Println("Updating merchants...")
+-	lookupData := qHandler.GetLookupData()
++	lookupData, err := qHandler.GetLookupData()
++	if err != nil {
++		return err
++	}
+ 
+ 	transactions = client.BankClient.FormatMerchantNames(transactions, lookupData)
+ 	if options.Debug {
+@@ -173,7 +176,9 @@ func update(cmd *cobra.Command, args []string) error {
+ 
+ 		if needTransactionName(transactions) {
+ 			fmt.Println("Info needed...")
+-			printColumns(qHandler)
++			if err := printColumns(qHandler); err != nil {
++				return err
++			}
+ 			transactions, err = getBankNameToName(client.BankClient, qHandler, transactions)
+ 			if err != nil {
+ 				return err
+@@ -212,8 +217,14 @@ func update(cmd *cobra.Command, args []string) error {
+ 		}
+ 
+ 		fmt.Printf("Updating spreadsheet...\n")
+-		columns := qHandler.GetColumns()
+-		transNameToColName := qHandler.GetNameMapToColumn()
++		columns, err := qHandler.GetColumns()
++		if err != nil {
++			return err
++		}
++		transNameToColName, err := qHandler.GetNameMapToColumn()
++		if err != nil {
++			return err
++		}
+ 
+ 		err = sheetsService.UpdateRows(columns, transNameToColName, transactions)
+ 		if err != nil {
+@@ -344,8 +355,11 @@ func needTransactionName(trans []*models.Transaction) bool {
+ 	return false
+ }
+ 
+-func printColumns(db *handler.Query) {
+-	columns := db.GetColumns()
++func printColumns(db *handler.Query) error {
++	columns, err := db.GetColumns()
++	if err != nil {
++		return err
++	}
+ 	filtered := filterNonCategoryColumns(columns)
+ 
+ 	// this will allow us to print 3 columns on the screen
+@@ -365,6 +379,7 @@ func printColumns(db *handler.Query) {
+ 		fmt.Printf("%2d %-30s \n", filtered[i].ID, filtered[i].Name)
+ 		j++
+ 	}
++	return nil
+ }
+ 
+ func filterNonCategoryColumns(columns []models.Column) []models.Column {
+@@ -397,7 +412,10 @@ func getBankNameToName(bankClient *banking.Client, db *handler.Query, trans []*m
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		lookupData := db.GetLookupData()
++		lookupData, err := db.GetLookupData()
++		if err != nil {
++			return nil, err
++		}
+ 		trans = bankClient.FormatMerchantNames(trans, lookupData)
+ 	}
+ 	return trans, nil
+diff --git a/pkg/handler/handler.go b/pkg/handler/handler.go
+index d44e26c..82c4410 100644
+--- a/pkg/handler/handler.go
++++ b/pkg/handler/handler.go
+@@ -25,7 +25,7 @@ func NewQueryHandler(db *driver.DB) *Query {
+ 	}
+ }
+ 
+-func (q *Query) GetTransactions() []models.Transaction {
++func (q *Query) GetTransactions() ([]models.Transaction, error) {
+ 	return q.repo.GetTransactions()
+ }
+ 
+@@ -38,12 +38,12 @@ func (q *Query) UpdateTransactionTables(trans []*models.Transaction) {
+ }
+ 
+ // GetColumns get all columns
+-func (q *Query) GetColumns() []models.Column {
++func (q *Query) GetColumns() ([]models.Column, error) {
+ 	return q.repo.GetColumns()
+ }
+ 
+ // GetMerchants get all merchants
+-func (q *Query) GetMerchants() []models.Merchant {
++func (q *Query) GetMerchants() ([]models.Merchant, error) {
+ 	return q.repo.GetMerchants()
+ }
+ 
+@@ -53,21 +53,21 @@ func (q *Query) CreateMerchant(m *models.Merchant) {
+ }
+ 
+ // GetLookupData ...
+-func (q *Query) GetLookupData() []*models.DataRow {
++func (q *Query) GetLookupData() ([]*models.DataRow, error) {
+ 	return q.repo.GetLookupData()
+ }
+ 
+ // GetNameMapToColumn creates a map lookup from trans name to budget category/column names
+-func (q *Query) GetNameMapToColumn() map[string]string {
++func (q *Query) GetNameMapToColumn() (map[string]string, error) {
+ 	return q.repo.GetNameMapToColumn()
+ }
+ 
+ // PrintData ...
+-func (q *Query) PrintData() {
+-	q.repo.PrintData()
++func (q *Query) PrintData() error {
++	return q.repo.PrintData()
+ }
+ 
+ // PrintTable ...
+-func (q *Query) PrintTable(table string) {
+-	q.repo.PrintTable(table)
++func (q *Query) PrintTable(table string) error {
++	return q.repo.PrintTable(table)
+ }
+diff --git a/pkg/repository/mysql/mysql.go b/pkg/repository/mysql/mysql.go
+index b04463a..35c6077 100644
+--- a/pkg/repository/mysql/mysql.go
++++ b/pkg/repository/mysql/mysql.go
+@@ -20,10 +20,12 @@ func NewMySQLQueryRepo(conn *gorm.DB) repo.QueryRepo {
+ 	}
+ }
+ 
+-func (r *mysqlQueryRepo) GetTransactions() []models.Transaction {
++func (r *mysqlQueryRepo) GetTransactions() ([]models.Transaction, error) {
+ 	var trans []models.Transaction
+-	r.Conn.Order("date").Find(&trans)
+-	return trans
++	if result := r.Conn.Order("date").Find(&trans); result.Error != nil {
++		return nil, fmt.Errorf("unable to get transactions: %w", result.Error)
++	}
++	return trans, nil
+ }
+ 
+ func (r *mysqlQueryRepo) SaveTransaction(trans *models.Transaction) {
+@@ -51,17 +53,21 @@ func (r *mysqlQueryRepo) CreateDB(dbName string) (*gorm.DB, error) {
+ }
+ 
+ // GetColumns ...
+-func (r *mysqlQueryRepo) GetColumns() []models.Column {
++func (r *mysqlQueryRepo) GetColumns() ([]models.Column, error) {
+ 	var cols []models.Column
+-	r.Conn.Order("column_index").Find(&cols)
+-	return cols
++	if result := r.Conn.Order("column_index").Find(&cols); result.Error != nil {
++		return nil, fmt.Errorf("unable to get columns: %w", result.Error)
++	}
++	return cols, nil
+ }
+ 
+ // GetMerchants ...
+-func (r *mysqlQueryRepo) GetMerchants() []models.Merchant {
++func (r *mysqlQueryRepo) GetMerchants() ([]models.Merchant, error) {
+ 	var merch []models.Merchant
+-	r.Conn.Order("name").Find(&merch)
+-	return merch
++	if result := r.Conn.Order("name").Find(&merch); result.Error != nil {
++		return nil, fmt.Errorf("unable to get merchants: %w", result.Error)
++	}
++	return merch, nil
+ }
+ 
+ // CreateMerchant ...
+@@ -77,10 +83,12 @@ func (r *mysqlQueryRepo) CreateMerchant(m *models.Merchant) {
+ }
+ 
+ // GetLookupData ...
+-func (r *mysqlQueryRepo) GetLookupData() []*models.DataRow {
++func (r *mysqlQueryRepo) GetLookupData() ([]*models.DataRow, error) {
+ 	var merchants []models.Merchant
+ 
+-	r.Conn.Preload("Column").Find(&merchants)
++	if result := r.Conn.Preload("Column").Find(&merchants); result.Error != nil {
++		return nil, fmt.Errorf("unable to get lookup data: %w", result.Error)
++	}
+ 
+ 	var data []*models.DataRow
+ 	for _, m := range merchants {
+@@ -94,40 +102,50 @@ func (r *mysqlQueryRepo) GetLookupData() []*models.DataRow {
+ 			TaxDeductible: m.TaxDeductible,
+ 		})
+ 	}
+-	return data
++	return data, nil
+ }
+ 
+ // GetNameMapToColumn creates a map lookup from trans name to budget category/column names
+-func (r *mysqlQueryRepo) GetNameMapToColumn() map[string]string {
+-	cols := r.GetLookupData()
++func (r *mysqlQueryRepo) GetNameMapToColumn() (map[string]string, error) {
++	cols, err := r.GetLookupData()
++	if err != nil {
++		return nil, err
++	}
+ 
+ 	transNameToColName := make(map[string]string)
+ 	for _, c := range cols {
+ 		transNameToColName[c.Name] = c.ColumnName
+ 	}
+-	return transNameToColName
++	return transNameToColName, nil
+ }
+ 
+ // PrintData ...
+-func (r *mysqlQueryRepo) PrintData() {
++func (r *mysqlQueryRepo) PrintData() error {
+ 	var merchants []models.Merchant
+-	r.Conn.Preload("Column").Find(&merchants)
++	if result := r.Conn.Preload("Column").Find(&merchants); result.Error != nil {
++		return fmt.Errorf("unable to get merchants: %w", result.Error)
++	}
+ 
+ 	fmt.Printf("[Num] %-35s %-30s %-30s %-s\n", "Bank Name", "Name", "Column Name", "Column Index")
+ 	for i, m := range merchants {
+ 		fmt.Printf("[%3d] %-35s %-30s %-30s %2d\n", i+1, m.BankName, m.Name, m.Column.Name, m.Column.ColumnIndex)
+ 	}
++	return nil
+ }
+ 
+ // PrintTable ...
+-func (r *mysqlQueryRepo) PrintTable(table string) {
++func (r *mysqlQueryRepo) PrintTable(table string) error {
+ 	switch table {
+ 	case "merchants":
+ 		var merchants []models.Merchant
+ 		result := r.Conn.Find(&merchants)
++		if result.Error != nil {
++			return fmt.Errorf("unable to get merchants: %w", result.Error)
++		}
+ 		fmt.Printf("%d rows found\n", result.RowsAffected)
+ 		for _, m := range merchants {
+ 			fmt.Printf("%d %s %s %s\n", m.ID, m.BankName, m.Name, m.Column.Name)
+ 		}
+ 	}
++	return nil
+ }
+diff --git a/pkg/repository/repository.go b/pkg/repository/repository.go
+index cdbc817..b728f22 100644
+--- a/pkg/repository/repository.go
++++ b/pkg/repository/repository.go
+@@ -10,20 +10,20 @@ import (
+ type QueryRepo interface {
+ 	CreateDB(dbName string) (*gorm.DB, error)
+ 
+-	GetColumns() []models.Column
++	GetColumns() ([]models.Column, error)
+ 
+-	GetMerchants() []models.Merchant
++	GetMerchants() ([]models.Merchant, error)
+ 	CreateMerchant(m *models.Merchant)
+ 
+-	GetTransactions() []models.Transaction
++	GetTransactions() ([]models.Transaction, error)
+ 	SaveTransaction(trans *models.Transaction)
+ 	UpdateTransactionTables(trans []*models.Transaction)
+ 
+-	GetLookupData() []*models.DataRow
+-	GetNameMapToColumn() map[string]string
++	GetLookupData() ([]*models.DataRow, error)
++	GetNameMapToColumn() (map[string]string, error)
+ 
+-	PrintData()
+-	PrintTable(table string)
++	PrintData() error
++	PrintTable(table string) error
+ }
+ 
+ func ColumnNames(cats []models.Column) *[]string {

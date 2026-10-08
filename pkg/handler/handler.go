@@ -25,7 +25,7 @@ func NewQueryHandler(db *driver.DB) *Query {
 	}
 }
 
-func (q *Query) GetTransactions() []models.Transaction {
+func (q *Query) GetTransactions() ([]models.Transaction, error) {
 	return q.repo.GetTransactions()
 }
 
@@ -38,12 +38,12 @@ func (q *Query) UpdateTransactionTables(trans []*models.Transaction) {
 }
 
 // GetColumns get all columns
-func (q *Query) GetColumns() []models.Column {
+func (q *Query) GetColumns() ([]models.Column, error) {
 	return q.repo.GetColumns()
 }
 
 // GetMerchants get all merchants
-func (q *Query) GetMerchants() []models.Merchant {
+func (q *Query) GetMerchants() ([]models.Merchant, error) {
 	return q.repo.GetMerchants()
 }
 
@@ -53,21 +53,21 @@ func (q *Query) CreateMerchant(m *models.Merchant) {
 }
 
 // GetLookupData ...
-func (q *Query) GetLookupData() []*models.DataRow {
+func (q *Query) GetLookupData() ([]*models.DataRow, error) {
 	return q.repo.GetLookupData()
 }
 
 // GetNameMapToColumn creates a map lookup from trans name to budget category/column names
-func (q *Query) GetNameMapToColumn() map[string]string {
+func (q *Query) GetNameMapToColumn() (map[string]string, error) {
 	return q.repo.GetNameMapToColumn()
 }
 
 // PrintData ...
-func (q *Query) PrintData() {
-	q.repo.PrintData()
+func (q *Query) PrintData() error {
+	return q.repo.PrintData()
 }
 
 // PrintTable ...
-func (q *Query) PrintTable(table string) {
-	q.repo.PrintTable(table)
+func (q *Query) PrintTable(table string) error {
+	return q.repo.PrintTable(table)
 }

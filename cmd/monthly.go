@@ -80,7 +80,10 @@ func monthly() error {
 		return err
 	}
 
-	cols := qHandler.GetColumns()
+	cols, err := qHandler.GetColumns()
+	if err != nil {
+		return err
+	}
 
 	fmt.Println("Aggregating...")
 	catAgg, payeeAgg, err := sheetsService.Aggregate(cols)
