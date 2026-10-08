@@ -68,9 +68,9 @@ func main() {
 	c, _ := cfg.ReadConfig(ConfigFile)
 	config := &Config{
 		AppConfig:  c,
-		DBName:     c.DBName,
-		DBUsername: c.DBUsername,
-		DBPassword: c.DBPassword,
+		DBName:     c.DB.Name,
+		DBUsername: c.DB.Username,
+		DBPassword: c.DB.Password,
 	}
 
 	dsn := config.DBUsername + ":" + config.DBPassword + "@tcp(127.0.0.1:3306)/" +

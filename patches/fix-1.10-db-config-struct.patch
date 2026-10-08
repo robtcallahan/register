@@ -1,0 +1,63 @@
+diff --git a/cmd/monthly.go b/cmd/monthly.go
+index f563edd..cb8997b 100644
+--- a/cmd/monthly.go
++++ b/cmd/monthly.go
+@@ -49,12 +49,12 @@ const (
+ 
+ func monthly() {
+ 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
+-		DBType: driver.DBType(config.DBType),
+-		Host:   config.DBHost,
+-		Port:   config.DBPort,
+-		DBName: config.DBName,
+-		User:   config.DBUsername,
+-		Pass:   config.DBPassword,
++		DBType: driver.DBType(config.DB.Type),
++		Host:   config.DB.Host,
++		Port:   config.DB.Port,
++		DBName: config.DB.Name,
++		User:   config.DB.Username,
++		Pass:   config.DB.Password,
+ 	})
+ 	if err != nil {
+ 		panic(err)
+diff --git a/cmd/update.go b/cmd/update.go
+index 0ad3e4f..fcfc38d 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -68,12 +68,12 @@ func update(cmd *cobra.Command, args []string) {
+ 	)
+ 
+ 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
+-		DBType: driver.DBType(config.DBType),
+-		Host:   config.DBHost,
+-		Port:   config.DBPort,
+-		DBName: config.DBName,
+-		User:   config.DBUsername,
+-		Pass:   config.DBPassword,
++		DBType: driver.DBType(config.DB.Type),
++		Host:   config.DB.Host,
++		Port:   config.DB.Port,
++		DBName: config.DB.Name,
++		User:   config.DB.Username,
++		Pass:   config.DB.Password,
+ 	})
+ 	checkError(err)
+ 	qHandler := handler.NewQueryHandler(conn)
+diff --git a/pkg/repository/import/import.go b/pkg/repository/import/import.go
+index a7b147f..8889411 100644
+--- a/pkg/repository/import/import.go
++++ b/pkg/repository/import/import.go
+@@ -68,9 +68,9 @@ func main() {
+ 	c, _ := cfg.ReadConfig(ConfigFile)
+ 	config := &Config{
+ 		AppConfig:  c,
+-		DBName:     c.DBName,
+-		DBUsername: c.DBUsername,
+-		DBPassword: c.DBPassword,
++		DBName:     c.DB.Name,
++		DBUsername: c.DB.Username,
++		DBPassword: c.DB.Password,
+ 	}
+ 
+ 	dsn := config.DBUsername + ":" + config.DBPassword + "@tcp(127.0.0.1:3306)/" +

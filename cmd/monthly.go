@@ -49,12 +49,12 @@ const (
 
 func monthly() {
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
-		DBType: driver.DBType(config.DBType),
-		Host:   config.DBHost,
-		Port:   config.DBPort,
-		DBName: config.DBName,
-		User:   config.DBUsername,
-		Pass:   config.DBPassword,
+		DBType: driver.DBType(config.DB.Type),
+		Host:   config.DB.Host,
+		Port:   config.DB.Port,
+		DBName: config.DB.Name,
+		User:   config.DB.Username,
+		Pass:   config.DB.Password,
 	})
 	if err != nil {
 		panic(err)

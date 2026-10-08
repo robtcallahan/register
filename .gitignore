@@ -2,7 +2,7 @@
 .idea
 .vscode
 json
-config
+/config
 register
 sql/*.bak
 tmp/*
