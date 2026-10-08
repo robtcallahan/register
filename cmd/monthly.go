@@ -33,8 +33,8 @@ var monthlyCmd = &cobra.Command{
 	Use:   "monthly",
 	Short: "Monthly aggregates monthly budget category expenses and updates the monthly summary tabs",
 	Long:  `Monthly aggregates monthly budget category expenses and updates the monthly summary tabs`,
-	Run: func(cmd *cobra.Command, args []string) {
-		monthly()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return monthly()
 	},
 }
 
@@ -47,7 +47,7 @@ const (
 // jsonDir = "/Users/rcallahan/workspace/go/src/register/services/sheets_service/json"
 )
 
-func monthly() {
+func monthly() error {
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
 		DBType: driver.DBType(config.DB.Type),
 		Host:   config.DB.Host,
@@ -57,19 +57,28 @@ func monthly() {
 		Pass:   config.DB.Password,
 	})
 	if err != nil {
-		panic(err)
+		return err
 	}
 	qHandler := handler.NewQueryHandler(conn)
 
 	sheetsProvider, err := sheets_provider.New(options.SpreadsheetID, config)
-	checkError(err)
+	if err != nil {
+		return err
+	}
 	sheetsService := sheets_service.New(sheetsProvider)
-	checkError(err)
+	if err != nil {
+		return err
+	}
 	err = sheetsService.NewRegisterSheet(config)
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf("Reading Register...\n")
 	_, err = sheetsService.ReadRegisterSheet()
-	checkError(err)
+	if err != nil {
+		return err
+	}
 
 	cols := qHandler.GetColumns()
 
@@ -84,4 +93,5 @@ func monthly() {
 	fmt.Println("Updating...")
 	sheetsService.UpdateMonthlyCategories("MonthlyCategories", catAgg, cols)
 	sheetsService.UpdateMonthlyPayees("MonthlyPayees", payeeAgg)
+	return nil
 }

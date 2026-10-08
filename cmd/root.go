@@ -31,6 +31,8 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "register",
 	Short: "Reads bank transactions and updates the financial register spreadsheet",
+	SilenceErrors: true,
+	SilenceUsage:  true,
 	Long: `Register reads bank and credit card transactions from Wells Fargo, Fidelity, Chase,
 and Citi, both the Register and Budget tabs from your Google Sheets financial spreadsheet,
 removes duplicates and updates the Register tab with new transactions subtracting those
@@ -128,12 +130,4 @@ func getBankingClient() *Client {
 		Merchants:        config.Merchants,
 	})
 	return client
-}
-
-func checkError(err error) {
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-	return
 }

@@ -31,8 +31,8 @@ var copyCmd = &cobra.Command{
 	Short: "Copies the last 2 rows of the Register spreadsheet -c <num> times",
 	Long: `Copies the last 2 rows of the Register spreadsheet then number of times
 specified using the -c <num> or --copy <num> options. `,
-	Run: func(cmd *cobra.Command, args []string) {
-		copyRows()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return copyRows()
 	},
 }
 
@@ -45,24 +45,37 @@ func init() {
 	copyCmd.Flags().IntVarP(&options.NumCopies, "number", "n", 10, "he number of times to copy the last 2 rows; default=10")
 }
 
-func copyRows() {
+func copyRows() error {
 	var err error
 
 	config, err = cfg.ReadConfig(ConfigFile)
-	checkError(err)
+	if err != nil {
+		return err
+	}
 
 	sheetsProvider, err := sheets_provider.New(options.SpreadsheetID, config)
-	checkError(err)
+	if err != nil {
+		return err
+	}
 	sheetsService := sheets_service.New(sheetsProvider)
-	checkError(err)
+	if err != nil {
+		return err
+	}
 	err = sheetsService.NewRegisterSheet(config)
-	checkError(err)
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf("Reading Register...\n")
 	_, err = sheetsService.ReadRegisterSheet()
-	checkError(err)
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf("Copying rows %d times...\n", options.NumCopies)
 	err = sheetsService.CopyRows(options.NumCopies)
-	checkError(err)
+	if err != nil {
+		return err
+	}
+	return nil
 }
