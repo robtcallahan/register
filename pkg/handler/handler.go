@@ -29,12 +29,12 @@ func (q *Query) GetTransactions() ([]models.Transaction, error) {
 	return q.repo.GetTransactions()
 }
 
-func (q *Query) SaveTransaction(trans *models.Transaction) {
-	q.repo.SaveTransaction(trans)
+func (q *Query) SaveTransaction(trans *models.Transaction) error {
+	return q.repo.SaveTransaction(trans)
 }
 
-func (q *Query) UpdateTransactionTables(trans []*models.Transaction) {
-	q.repo.UpdateTransactionTables(trans)
+func (q *Query) UpdateTransactionTables(trans []*models.Transaction) error {
+	return q.repo.UpdateTransactionTables(trans)
 }
 
 // GetColumns get all columns
@@ -48,8 +48,8 @@ func (q *Query) GetMerchants() ([]models.Merchant, error) {
 }
 
 // CreateMerchant ...
-func (q *Query) CreateMerchant(m *models.Merchant) {
-	q.repo.CreateMerchant(m)
+func (q *Query) CreateMerchant(m *models.Merchant) error {
+	return q.repo.CreateMerchant(m)
 }
 
 // GetLookupData ...

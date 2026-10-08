@@ -13,11 +13,11 @@ type QueryRepo interface {
 	GetColumns() ([]models.Column, error)
 
 	GetMerchants() ([]models.Merchant, error)
-	CreateMerchant(m *models.Merchant)
+	CreateMerchant(m *models.Merchant) error
 
 	GetTransactions() ([]models.Transaction, error)
-	SaveTransaction(trans *models.Transaction)
-	UpdateTransactionTables(trans []*models.Transaction)
+	SaveTransaction(trans *models.Transaction) error
+	UpdateTransactionTables(trans []*models.Transaction) error
 
 	GetLookupData() ([]*models.DataRow, error)
 	GetNameMapToColumn() (map[string]string, error)

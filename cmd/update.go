@@ -172,7 +172,9 @@ func update(cmd *cobra.Command, args []string) error {
 
 	if !options.Update {
 		fmt.Println("Updating transactions table...")
-		qHandler.UpdateTransactionTables(transactions)
+		if err := qHandler.UpdateTransactionTables(transactions); err != nil {
+			return err
+		}
 
 		if needTransactionName(transactions) {
 			fmt.Println("Info needed...")
@@ -437,11 +439,13 @@ func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*mode
 			}
 			trans[i].Note = readString("           Note: ")
 
-			db.CreateMerchant(&models.Merchant{
+			if err := db.CreateMerchant(&models.Merchant{
 				Name:     trans[i].Name,
 				BankName: t.BankName,
 				ColumnID: trans[i].ColumnIndex,
-			})
+			}); err != nil {
+				return false, nil, err
+			}
 			return true, trans, nil
 		}
 	}

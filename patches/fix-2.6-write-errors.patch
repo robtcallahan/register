@@ -1,0 +1,139 @@
+diff --git a/cmd/update.go b/cmd/update.go
+index f99d019..9ca4b6e 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -172,7 +172,9 @@ func update(cmd *cobra.Command, args []string) error {
+ 
+ 	if !options.Update {
+ 		fmt.Println("Updating transactions table...")
+-		qHandler.UpdateTransactionTables(transactions)
++		if err := qHandler.UpdateTransactionTables(transactions); err != nil {
++			return err
++		}
+ 
+ 		if needTransactionName(transactions) {
+ 			fmt.Println("Info needed...")
+@@ -437,11 +439,13 @@ func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*mode
+ 			}
+ 			trans[i].Note = readString("           Note: ")
+ 
+-			db.CreateMerchant(&models.Merchant{
++			if err := db.CreateMerchant(&models.Merchant{
+ 				Name:     trans[i].Name,
+ 				BankName: t.BankName,
+ 				ColumnID: trans[i].ColumnIndex,
+-			})
++			}); err != nil {
++				return false, nil, err
++			}
+ 			return true, trans, nil
+ 		}
+ 	}
+diff --git a/pkg/handler/handler.go b/pkg/handler/handler.go
+index 82c4410..db191f2 100644
+--- a/pkg/handler/handler.go
++++ b/pkg/handler/handler.go
+@@ -29,12 +29,12 @@ func (q *Query) GetTransactions() ([]models.Transaction, error) {
+ 	return q.repo.GetTransactions()
+ }
+ 
+-func (q *Query) SaveTransaction(trans *models.Transaction) {
+-	q.repo.SaveTransaction(trans)
++func (q *Query) SaveTransaction(trans *models.Transaction) error {
++	return q.repo.SaveTransaction(trans)
+ }
+ 
+-func (q *Query) UpdateTransactionTables(trans []*models.Transaction) {
+-	q.repo.UpdateTransactionTables(trans)
++func (q *Query) UpdateTransactionTables(trans []*models.Transaction) error {
++	return q.repo.UpdateTransactionTables(trans)
+ }
+ 
+ // GetColumns get all columns
+@@ -48,8 +48,8 @@ func (q *Query) GetMerchants() ([]models.Merchant, error) {
+ }
+ 
+ // CreateMerchant ...
+-func (q *Query) CreateMerchant(m *models.Merchant) {
+-	q.repo.CreateMerchant(m)
++func (q *Query) CreateMerchant(m *models.Merchant) error {
++	return q.repo.CreateMerchant(m)
+ }
+ 
+ // GetLookupData ...
+diff --git a/pkg/repository/mysql/mysql.go b/pkg/repository/mysql/mysql.go
+index 35c6077..3e0217c 100644
+--- a/pkg/repository/mysql/mysql.go
++++ b/pkg/repository/mysql/mysql.go
+@@ -28,22 +28,28 @@ func (r *mysqlQueryRepo) GetTransactions() ([]models.Transaction, error) {
+ 	return trans, nil
+ }
+ 
+-func (r *mysqlQueryRepo) SaveTransaction(trans *models.Transaction) {
+-	r.Conn.Save(trans)
++func (r *mysqlQueryRepo) SaveTransaction(trans *models.Transaction) error {
++	if result := r.Conn.Save(trans); result.Error != nil {
++		return fmt.Errorf("unable to save transaction: %w", result.Error)
++	}
++	return nil
+ }
+ 
+ // UpdateTransactionTables ...
+-func (r *mysqlQueryRepo) UpdateTransactionTables(trans []*models.Transaction) {
+-	_ = r.Conn.AutoMigrate(&models.Transaction{})
++func (r *mysqlQueryRepo) UpdateTransactionTables(trans []*models.Transaction) error {
++	if err := r.Conn.AutoMigrate(&models.Transaction{}); err != nil {
++		return fmt.Errorf("unable to migrate transactions table: %w", err)
++	}
+ 
+ 	for _, t := range trans {
+ 		result := r.Conn.Clauses(clause.OnConflict{
+ 			UpdateAll: true,
+ 		}).Create(t)
+ 		if result.Error != nil {
+-			panic(result.Error)
++			return fmt.Errorf("unable to create transaction: %w", result.Error)
+ 		}
+ 	}
++	return nil
+ }
+ 
+ // CreateDB ...
+@@ -71,15 +77,16 @@ func (r *mysqlQueryRepo) GetMerchants() ([]models.Merchant, error) {
+ }
+ 
+ // CreateMerchant ...
+-func (r *mysqlQueryRepo) CreateMerchant(m *models.Merchant) {
++func (r *mysqlQueryRepo) CreateMerchant(m *models.Merchant) error {
+ 	result := r.Conn.Create(&models.Merchant{
+ 		Name:     m.Name,
+ 		BankName: m.BankName,
+ 		ColumnID: m.ColumnID,
+ 	})
+ 	if result.Error != nil {
+-		panic(result.Error)
++		return fmt.Errorf("unable to create merchant: %w", result.Error)
+ 	}
++	return nil
+ }
+ 
+ // GetLookupData ...
+diff --git a/pkg/repository/repository.go b/pkg/repository/repository.go
+index b728f22..d6034df 100644
+--- a/pkg/repository/repository.go
++++ b/pkg/repository/repository.go
+@@ -13,11 +13,11 @@ type QueryRepo interface {
+ 	GetColumns() ([]models.Column, error)
+ 
+ 	GetMerchants() ([]models.Merchant, error)
+-	CreateMerchant(m *models.Merchant)
++	CreateMerchant(m *models.Merchant) error
+ 
+ 	GetTransactions() ([]models.Transaction, error)
+-	SaveTransaction(trans *models.Transaction)
+-	UpdateTransactionTables(trans []*models.Transaction)
++	SaveTransaction(trans *models.Transaction) error
++	UpdateTransactionTables(trans []*models.Transaction) error
+ 
+ 	GetLookupData() ([]*models.DataRow, error)
+ 	GetNameMapToColumn() (map[string]string, error)

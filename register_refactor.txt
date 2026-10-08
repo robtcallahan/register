@@ -15,7 +15,7 @@ Register Refactor Project
 - [X] 2.2 checkError (os.Exit) in root.go → return errors, exit once in cobra Run
 - [X] 2.3 log.Fatalf in sheets_service → return errors
 - [X] 2.4 log.Fatalf in sheets_auth → return errors
-- [ ] 2.5 Check result.Error on every GORM read
+- [X] 2.5 Check result.Error on every GORM read
 - [ ] 2.6 Replace panic(result.Error) on writes with returned errors
 - [ ] 2.7 Sheets-full detection → clean "add rows and re-run" message
 - [ ] 2.8 Fail fast on empty SESSION_KEY; fix 0644 token file perms
@@ -57,3 +57,11 @@ Register Refactor Project
 - [ ] 7.5 Go-idiom cleanup (boolean returns, *[]string, fmt.Errorf)
 - [ ] 7.6 Slim SheetsService god-object (RowBuilder type)
 - [ ] 7.7 Remove handler.Query delegation layer or give it a job
+-----------------------------------------------------------------------------------------
+- [ ] 8.1 Return errors from UpdateMonthlyCategories/UpdateMonthlyPayees in monthly() instead of swallowing them (monthly() always returns nil today)
+- [ ] 8.2 Remove dead if err != nil after sheets_service.New() in monthly() (New returns no error; it re-checks the provider's)
+- [ ] 8.3 Remove commented-out JSON debug block + dead jsonDir const in monthly.go
+- [ ] 8.4 Fix populateMonthlyPayees: builds payee rows from month keys (sorted twice), so MonthlyPayees shows month labels and zeros; build the payee list from the inner map keys
+- [ ] 8.5 Derive the summary formula range from the actual month count (hardcoded B:L = 11 months today) in addSummaryRows/addSummarySalaryRow
+- [ ] 8.6 Replace magic j := 10 start and cols[j].Name == "Credit Cards" check in Aggregate with category-driven iteration
+- [ ] 8.7 Normalize error wrapping in monthly_service.go to fmt.Errorf("...: %w") (drop "error: %s\n")

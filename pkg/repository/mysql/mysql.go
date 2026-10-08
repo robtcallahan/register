@@ -28,22 +28,28 @@ func (r *mysqlQueryRepo) GetTransactions() ([]models.Transaction, error) {
 	return trans, nil
 }
 
-func (r *mysqlQueryRepo) SaveTransaction(trans *models.Transaction) {
-	r.Conn.Save(trans)
+func (r *mysqlQueryRepo) SaveTransaction(trans *models.Transaction) error {
+	if result := r.Conn.Save(trans); result.Error != nil {
+		return fmt.Errorf("unable to save transaction: %w", result.Error)
+	}
+	return nil
 }
 
 // UpdateTransactionTables ...
-func (r *mysqlQueryRepo) UpdateTransactionTables(trans []*models.Transaction) {
-	_ = r.Conn.AutoMigrate(&models.Transaction{})
+func (r *mysqlQueryRepo) UpdateTransactionTables(trans []*models.Transaction) error {
+	if err := r.Conn.AutoMigrate(&models.Transaction{}); err != nil {
+		return fmt.Errorf("unable to migrate transactions table: %w", err)
+	}
 
 	for _, t := range trans {
 		result := r.Conn.Clauses(clause.OnConflict{
 			UpdateAll: true,
 		}).Create(t)
 		if result.Error != nil {
-			panic(result.Error)
+			return fmt.Errorf("unable to create transaction: %w", result.Error)
 		}
 	}
+	return nil
 }
 
 // CreateDB ...
@@ -71,15 +77,16 @@ func (r *mysqlQueryRepo) GetMerchants() ([]models.Merchant, error) {
 }
 
 // CreateMerchant ...
-func (r *mysqlQueryRepo) CreateMerchant(m *models.Merchant) {
+func (r *mysqlQueryRepo) CreateMerchant(m *models.Merchant) error {
 	result := r.Conn.Create(&models.Merchant{
 		Name:     m.Name,
 		BankName: m.BankName,
 		ColumnID: m.ColumnID,
 	})
 	if result.Error != nil {
-		panic(result.Error)
+		return fmt.Errorf("unable to create merchant: %w", result.Error)
 	}
+	return nil
 }
 
 // GetLookupData ...
