@@ -13,7 +13,7 @@ Register Refactor Project
 -----------------------------------------------------------------------------------------
 - [X] 2.1 checkError (panic) in banking.go → return errors
 - [X] 2.2 checkError (os.Exit) in root.go → return errors, exit once in cobra Run
-- [ ] 2.3 log.Fatalf in sheets_service → return errors
+- [X] 2.3 log.Fatalf in sheets_service → return errors
 - [ ] 2.4 log.Fatalf in sheets_auth → return errors
 - [ ] 2.5 Check result.Error on every GORM read
 - [ ] 2.6 Replace panic(result.Error) on writes with returned errors

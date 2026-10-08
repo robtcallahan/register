@@ -1,0 +1,111 @@
+diff --git a/api/providers/sheets_provider/sheets_provider.go b/api/providers/sheets_provider/sheets_provider.go
+index 9d6ee29..2bdec40 100644
+--- a/api/providers/sheets_provider/sheets_provider.go
++++ b/api/providers/sheets_provider/sheets_provider.go
+@@ -31,8 +31,12 @@ type SheetsProvider struct {
+ func New(spreadsheetID string, cfg *config.Config) (*SheetsProvider, error) {
+ 	ctx := context.Background()
+ 	//service, err := sheets.New(client)
++	httpClient, err := sheets_auth.GetClient()
++	if err != nil {
++		return nil, fmt.Errorf("unable to get http client: %w", err)
++	}
+ 	service, err := sheets.NewService(ctx,
+-		option.WithHTTPClient(sheets_auth.GetClient()),
++		option.WithHTTPClient(httpClient),
+ 		option.WithCredentialsFile(cfg.GoogleCredentialsFile),
+ 	)
+ 	if err != nil {
+diff --git a/pkg/sheets_auth/sheets_auth.go b/pkg/sheets_auth/sheets_auth.go
+index 08b1ab8..20cf950 100644
+--- a/pkg/sheets_auth/sheets_auth.go
++++ b/pkg/sheets_auth/sheets_auth.go
+@@ -19,7 +19,6 @@ package sheets_auth
+ import (
+ 	"encoding/json"
+ 	"fmt"
+-	"log"
+ 	"net/http"
+ 	"os"
+ 	"time"
+@@ -29,16 +28,16 @@ import (
+ 	"golang.org/x/oauth2/google"
+ )
+ 
+-func GetClient() *http.Client {
++func GetClient() (*http.Client, error) {
+ 	ctx := context.Background()
+ 	b, err := os.ReadFile("json/credentials.json")
+ 	if err != nil {
+-		log.Fatalf("Unable to read client secret file: %v", err)
++		return nil, fmt.Errorf("unable to read client secret file: %w", err)
+ 	}
+ 
+ 	config, err := google.ConfigFromJSON(b, "https://www.googleapis.com/auth/spreadsheets")
+ 	if err != nil {
+-		log.Fatalf("Unable to parse client secret file to config: %v", err)
++		return nil, fmt.Errorf("unable to parse client secret file to config: %w", err)
+ 	}
+ 
+ 	// The file token.json stores the user's access and refresh tokens, and is
+@@ -49,10 +48,15 @@ func GetClient() *http.Client {
+ 	//printExpirationDifference(tok.Expiry)
+ 
+ 	if err != nil || time.Now().Sub(tok.Expiry) >= time.Hour*24*7 {
+-		tok = getTokenFromWeb(config)
+-		saveToken(tokFile, tok)
++		tok, err = getTokenFromWeb(config)
++		if err != nil {
++			return nil, err
++		}
++		if err := saveToken(tokFile, tok); err != nil {
++			return nil, err
++		}
+ 	}
+-	return config.Client(ctx, tok)
++	return config.Client(ctx, tok), nil
+ }
+ 
+ func printExpirationDifference(expiry time.Time) {
+@@ -74,21 +78,21 @@ func printExpirationDifference(expiry time.Time) {
+ }
+ 
+ // Request a token from the web, then returns the retrieved token.
+-func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
++func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
+ 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+ 	fmt.Printf("Go to the following link in your browser then type the "+
+ 		"authorization code: \n%v\n", authURL)
+ 
+ 	var authCode string
+ 	if _, err := fmt.Scan(&authCode); err != nil {
+-		log.Fatalf("Unable to read authorization code: %v", err)
++		return nil, fmt.Errorf("unable to read authorization code: %w", err)
+ 	}
+ 
+ 	tok, err := config.Exchange(context.TODO(), authCode)
+ 	if err != nil {
+-		log.Fatalf("Unable to retrieve token from web: %v", err)
++		return nil, fmt.Errorf("unable to retrieve token from web: %w", err)
+ 	}
+-	return tok
++	return tok, nil
+ }
+ 
+ // Retrieves a token from a local file.
+@@ -104,12 +108,12 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
+ }
+ 
+ // Saves a token to a file path.
+-func saveToken(path string, token *oauth2.Token) {
++func saveToken(path string, token *oauth2.Token) error {
+ 	fmt.Printf("Saving credential file to: %s\n", path)
+ 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+ 	if err != nil {
+-		log.Fatalf("Unable to cache oauth token: %v", err)
++		return fmt.Errorf("unable to cache oauth token: %w", err)
+ 	}
+ 	defer f.Close()
+-	_ = json.NewEncoder(f).Encode(token)
++	return json.NewEncoder(f).Encode(token)
+ }

@@ -31,8 +31,12 @@ type SheetsProvider struct {
 func New(spreadsheetID string, cfg *config.Config) (*SheetsProvider, error) {
 	ctx := context.Background()
 	//service, err := sheets.New(client)
+	httpClient, err := sheets_auth.GetClient()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get http client: %w", err)
+	}
 	service, err := sheets.NewService(ctx,
-		option.WithHTTPClient(sheets_auth.GetClient()),
+		option.WithHTTPClient(httpClient),
 		option.WithCredentialsFile(cfg.GoogleCredentialsFile),
 	)
 	if err != nil {
