@@ -82,7 +82,8 @@ func (c *Client) createLinkToken(w http.ResponseWriter, r *http.Request) {
 	linkToken, err := plaid_auth.GetLinkToken(c.BankClient)
 	if err != nil {
 		log.Println(err.Error())
-		fmt.Print(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	s := LinkToken{LinkToken: linkToken}
