@@ -4,7 +4,7 @@ Register Refactor Project
 - [X] 1.2 Fix err.Error() on nil err in cmd/server.go (4 handlers)
 - [X] 1.3 Fix ae.Reason() nil deref in sheets_provider.go:44
 - [X] 1.4 Fix nil context.Context in banking.go:178 → context.Background()
-- [ ] 1.5 Fix budget off-by-one in budget_service.go:75 (guard vs values[6])
+- [X] 1.5 Fix budget off-by-one in budget_service.go:75 (guard vs values[6])
 - [ ] 1.6 Fix makeNoteRow nil-prefill in register_service.go:252
 - [ ] 1.7 Add safe accessor for spreadsheet row indexing, use everywhere
 - [ ] 1.8 Check regex matches before indexing in both readDateValues

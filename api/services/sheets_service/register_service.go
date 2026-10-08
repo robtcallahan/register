@@ -249,7 +249,7 @@ func (ss *SheetsService) populateCells(columns []models.Column, transNameToColNa
 }
 
 func (ss *SheetsService) makeNoteRow(note string) *sheets.RowData {
-	var cells = make([]*sheets.CellData, ss.RegisterSheet.SheetCoords.EndColumnIndex)
+	var cells = make([]*sheets.CellData, 0, ss.RegisterSheet.SheetCoords.EndColumnIndex)
 	for i := 1; i < 4; i++ {
 		cells = append(cells, mkCellDataString("", "left", "lightgrey", false))
 	}
