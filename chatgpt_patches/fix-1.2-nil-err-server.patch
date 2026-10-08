@@ -1,0 +1,37 @@
+diff --git a/cmd/server.go b/cmd/server.go
+index 9db07e1..38c67be 100644
+--- a/cmd/server.go
++++ b/cmd/server.go
+@@ -138,8 +138,8 @@ func (c *Client) getAccounts(w http.ResponseWriter, r *http.Request) {
+ 	}
+ 	accessToken := fmt.Sprintf("%s", session.Values["AccessToken"])
+ 	if accessToken == "" {
+-		log.Println(err.Error())
+-		http.Error(w, err.Error(), http.StatusInternalServerError)
++		log.Println("no access token in session")
++		http.Error(w, "bank account not connected", http.StatusUnauthorized)
+ 		return
+ 	}
+ 
+@@ -162,8 +162,8 @@ func (c *Client) getBalance(w http.ResponseWriter, r *http.Request) {
+ 	}
+ 	accessToken := fmt.Sprintf("%s", session.Values["AccessToken"])
+ 	if accessToken == "" {
+-		log.Println(err.Error())
+-		http.Error(w, err.Error(), http.StatusInternalServerError)
++		log.Println("no access token in session")
++		http.Error(w, "bank account not connected", http.StatusUnauthorized)
+ 		return
+ 	}
+ 
+@@ -186,8 +186,8 @@ func (c *Client) getTransactions(w http.ResponseWriter, r *http.Request) {
+ 	}
+ 	accessToken := fmt.Sprintf("%s", session.Values["AccessToken"])
+ 	if accessToken == "" {
+-		log.Println(err.Error())
+-		http.Error(w, err.Error(), http.StatusInternalServerError)
++		log.Println("no access token in session")
++		http.Error(w, "bank account not connected", http.StatusUnauthorized)
+ 		return
+ 	}
+ 
