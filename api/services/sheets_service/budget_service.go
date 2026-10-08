@@ -72,7 +72,7 @@ func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
 }
 
 func (ss *SheetsService) isEmptyBudgetRow(values []interface{}) bool {
-	if len(values) < 6 || ss.getBudgetCategory(values) == "" {
+	if len(values) < 7 || ss.getBudgetCategory(values) == "" {
 		return true
 	}
 	return false
