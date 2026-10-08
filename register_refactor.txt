@@ -16,7 +16,7 @@ Register Refactor Project
 - [X] 2.3 log.Fatalf in sheets_service → return errors
 - [X] 2.4 log.Fatalf in sheets_auth → return errors
 - [X] 2.5 Check result.Error on every GORM read
-- [ ] 2.6 Replace panic(result.Error) on writes with returned errors
+- [X] 2.6 Replace panic(result.Error) on writes with returned errors
 - [ ] 2.7 Sheets-full detection → clean "add rows and re-run" message
 - [ ] 2.8 Fail fast on empty SESSION_KEY; fix 0644 token file perms
 -----------------------------------------------------------------------------------------
