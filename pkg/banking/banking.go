@@ -175,7 +175,7 @@ func (c *Client) GetBalance(accessToken string, bankID string, ctx context.Conte
 }
 
 func (c *Client) GetBankStatus(bankID string) (*plaid.Institution, error) {
-	var ctx context.Context
+	ctx := context.Background()
 	bankConfig := c.Banks[bankID]
 	req := plaid.InstitutionsGetByIdRequest{
 		InstitutionId: bankConfig.Institution,
