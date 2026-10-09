@@ -544,18 +544,29 @@ func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*mode
 			fmt.Printf("Source: %s, Date: %s, Amt: $%0.2f\n", t.BankName, t.Date, t.Amount)
 
 			trans[i].Name = readString("            Name: ")
+			var columnID int
 			for err = fmt.Errorf(""); err != nil; {
-				trans[i].ColumnIndex, err = readInt("    Column Index: ")
+				columnID, err = readInt("       Column ID: ")
 				if err != nil {
 					fmt.Println(err.Error())
 				}
 			}
 			trans[i].Note = readString("           Note: ")
 
+			// the menu prints column IDs, but the transaction wants the
+			// column's position — translate instead of sharing one number
+			columns, err := db.GetColumns()
+			if err != nil {
+				return false, nil, err
+			}
+			if index, ok := models.NewColumnSet(columns).IndexForID(columnID); ok {
+				trans[i].ColumnIndex = index
+			}
+
 			if err := db.CreateMerchant(&models.Merchant{
 				Name:     trans[i].Name,
 				BankName: t.BankName,
-				ColumnID: trans[i].ColumnIndex,
+				ColumnID: columnID,
 			}); err != nil {
 				return false, nil, err
 			}

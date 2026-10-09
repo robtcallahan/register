@@ -50,7 +50,7 @@ Phase 5 — Paycheck redesign
 - [X] 5.5 Remove ColumnIndex=42 magic number
 -----------------------------------------------------------------------------------------
 Phase 6 — Column management CLI
-- [ ] 6.1 Make DB columns table the single source of truth
+- [X] 6.1 Make DB columns table the single source of truth
 - [ ] 6.2 Add register columns list|add|rename|delete commands
 - [ ] 6.3 Add register columns check for sheet-vs-DB drift
 - [ ] 6.4 Derive spreadsheet positions from ordered column list
