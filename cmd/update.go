@@ -101,28 +101,10 @@ func update(cmd *cobra.Command, args []string) error {
 
 	client = getBankingClient()
 
-	fmt.Println("Getting Fidelity transactions (CSV)...")
-	transactions, err = getCSVTransactions([]string{"fidelity"})
+	transactions, err = fetchTransactions(client)
 	if err != nil {
 		return err
 	}
-
-	var newTrans []*models.Transaction
-	options.BankIDs = []string{"wellsfargo", "chase"}
-	if options.UseCSVFiles {
-		fmt.Println("Getting Wells Fargo & Chase transactions (CSV)...")
-		newTrans, err = getCSVTransactions(options.BankIDs)
-		if err != nil {
-			return err
-		}
-	} else {
-		fmt.Println("Getting Wells Fargo & Chase transactions (Plaid)...")
-		newTrans, err = getTransactions(client, options.BankIDs)
-		if err != nil {
-			return err
-		}
-	}
-	transactions = append(transactions, newTrans...)
 
 	if len(transactions) < 1 {
 		fmt.Println("No transactions")
@@ -256,6 +238,31 @@ func update(cmd *cobra.Command, args []string) error {
 		fmt.Println("No updates needed")
 	}
 	return nil
+}
+
+// fetchTransactions gathers transactions from every bank: Fidelity always
+// comes from its CSV (Plaid no longer supports it), while Wells Fargo and
+// Chase come from CSV or Plaid depending on the --csv flag.
+func fetchTransactions(client *Client) ([]*models.Transaction, error) {
+	fmt.Println("Getting Fidelity transactions (CSV)...")
+	transactions, err := getCSVTransactions([]string{"fidelity"})
+	if err != nil {
+		return nil, err
+	}
+
+	options.BankIDs = []string{"wellsfargo", "chase"}
+	var newTrans []*models.Transaction
+	if options.UseCSVFiles {
+		fmt.Println("Getting Wells Fargo & Chase transactions (CSV)...")
+		newTrans, err = getCSVTransactions(options.BankIDs)
+	} else {
+		fmt.Println("Getting Wells Fargo & Chase transactions (Plaid)...")
+		newTrans, err = getTransactions(client, options.BankIDs)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return append(transactions, newTrans...), nil
 }
 
 func shellout(command string) (string, string, error) {

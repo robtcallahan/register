@@ -20,10 +20,10 @@ Phase 2 — Errors instead of process kills
 - [X] 2.5 Check result.Error on every GORM read
 - [X] 2.6 Replace panic(result.Error) on writes with returned errors
 - [X] 2.7 Sheets-full detection → clean "add rows and re-run" message
-- [ ] 2.8 Fail fast on empty SESSION_KEY; fix 0644 token file perms
+- [X] 2.8 Fail fast on empty SESSION_KEY; fix 0644 token file perms
 -----------------------------------------------------------------------------------------
 Phase 3 — De-god update()
-- [ ] 3.1 Extract fetchTransactions stage (Plaid or CSV)
+- [X] 3.1 Extract fetchTransactions stage (Plaid or CSV)
 - [ ] 3.2 Extract normalizeMerchants stage (merchant name lookup)
 - [ ] 3.3 Extract dedupeAgainstSheet stage (fuzzy ±1-day date matching)
 - [ ] 3.4 Extract persistTransactions stage (DB + interactive prompts)
