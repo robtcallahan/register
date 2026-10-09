@@ -1,0 +1,69 @@
+diff --git a/pkg/config/config.go b/pkg/config/config.go
+index 3064e59..438a5aa 100644
+--- a/pkg/config/config.go
++++ b/pkg/config/config.go
+@@ -81,6 +81,18 @@ type Config struct {
+ 	RegisterCategoryEndColumn   string                   `json:"register_category_end_column"`
+ 	RegisterIndexes             map[string]int           `json:"register_indexes"`
+ 	ColumnIndexes               map[string]int64         `json:"column_indexes"`
++	IncomeSources               []IncomeSource           `json:"income_sources"`
++}
++
++// IncomeSource describes one configured source of income (a paycheck, a
++// benefit deposit, ...): how to recognize it in the bank feed and what to
++// call it in the register. Instances live in config.json; matching and the
++// sheet write are wired up in 5.2/5.3.
++type IncomeSource struct {
++	Name      string `json:"name"`       // display name in the register
++	Match     string `json:"match"`      // bank-name pattern to recognize the deposit
++	MatchType string `json:"match_type"` // "exact" | "substring" | "regex" ("" = substring)
++	Frequency string `json:"frequency"`  // "weekly" | "biweekly" | "monthly"
+ }
+ 
+ // ReadConfig ...
+diff --git a/pkg/config/config_test.go b/pkg/config/config_test.go
+new file mode 100644
+index 0000000..8d4335c
+--- /dev/null
++++ b/pkg/config/config_test.go
+@@ -0,0 +1,40 @@
++package config
++
++import (
++	"encoding/json"
++	"testing"
++)
++
++func TestConfig_IncomeSources(t *testing.T) {
++	data := []byte(`{
++		"income_sources": [
++			{"name": "Taylor House Paycheck", "match": "TAYLOR HOUSE", "match_type": "substring", "frequency": "biweekly"},
++			{"name": "Social Security", "match": "SSA", "frequency": "monthly"}
++		]
++	}`)
++
++	var cfg Config
++	if err := json.Unmarshal(data, &cfg); err != nil {
++		t.Fatal(err)
++	}
++	if len(cfg.IncomeSources) != 2 {
++		t.Fatalf("got %d income sources, want 2", len(cfg.IncomeSources))
++	}
++	got := cfg.IncomeSources[0]
++	if got.Name != "Taylor House Paycheck" || got.Match != "TAYLOR HOUSE" || got.MatchType != "substring" || got.Frequency != "biweekly" {
++		t.Errorf("first source parsed wrong: %+v", got)
++	}
++	if cfg.IncomeSources[1].MatchType != "" {
++		t.Errorf("omitted match_type should stay empty (substring by default): %+v", cfg.IncomeSources[1])
++	}
++}
++
++func TestConfig_NoIncomeSources(t *testing.T) {
++	var cfg Config
++	if err := json.Unmarshal([]byte(`{}`), &cfg); err != nil {
++		t.Fatal(err)
++	}
++	if len(cfg.IncomeSources) != 0 {
++		t.Errorf("missing income_sources should mean none configured, got %+v", cfg.IncomeSources)
++	}
++}

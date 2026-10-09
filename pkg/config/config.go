@@ -81,6 +81,18 @@ type Config struct {
 	RegisterCategoryEndColumn   string                   `json:"register_category_end_column"`
 	RegisterIndexes             map[string]int           `json:"register_indexes"`
 	ColumnIndexes               map[string]int64         `json:"column_indexes"`
+	IncomeSources               []IncomeSource           `json:"income_sources"`
+}
+
+// IncomeSource describes one configured source of income (a paycheck, a
+// benefit deposit, ...): how to recognize it in the bank feed and what to
+// call it in the register. Instances live in config.json; matching and the
+// sheet write are wired up in 5.2/5.3.
+type IncomeSource struct {
+	Name      string `json:"name"`       // display name in the register
+	Match     string `json:"match"`      // bank-name pattern to recognize the deposit
+	MatchType string `json:"match_type"` // "exact" | "substring" | "regex" ("" = substring)
+	Frequency string `json:"frequency"`  // "weekly" | "biweekly" | "monthly"
 }
 
 // ReadConfig ...
