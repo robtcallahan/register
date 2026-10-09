@@ -60,4 +60,6 @@ type DataRow struct {
 	Color         string
 	IsCategory    bool
 	TaxDeductible bool
+	Priority      int
+	MatchType     string
 }

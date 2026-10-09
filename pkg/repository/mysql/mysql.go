@@ -100,6 +100,7 @@ func (r *mysqlQueryRepo) GetLookupData() ([]*models.DataRow, error) {
 	var data []*models.DataRow
 	for _, m := range merchants {
 		data = append(data, &models.DataRow{
+			ID:            m.ID,
 			Name:          m.Name,
 			BankName:      m.BankName,
 			ColumnName:    m.Column.Name,
@@ -107,6 +108,8 @@ func (r *mysqlQueryRepo) GetLookupData() ([]*models.DataRow, error) {
 			Color:         m.Column.Color,
 			IsCategory:    m.Column.IsCategory,
 			TaxDeductible: m.TaxDeductible,
+			Priority:      m.Priority,
+			MatchType:     m.MatchType,
 		})
 	}
 	return data, nil
