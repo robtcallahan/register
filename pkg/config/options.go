@@ -7,6 +7,6 @@ type Options struct {
 	NumCopies     int
 	BankIDs       []string
 	Debug         bool
-	Update        bool
+	DryRun        bool
 	UseCSVFiles   bool
 }

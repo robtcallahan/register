@@ -54,7 +54,7 @@ func init() {
 	config, _ = cfg.ReadConfig(ConfigFile)
 	rootCmd.AddCommand(updateCmd)
 
-	updateCmd.Flags().BoolVarP(&options.Update, "no-updates", "u", false, "If set, no spreadsheet updates performed")
+	updateCmd.Flags().BoolVar(&options.DryRun, "dry-run", false, "Print-only run: no DB or spreadsheet updates performed")
 	updateCmd.Flags().BoolVarP(&options.UseCSVFiles, "csv", "c", false, "Read CSV files; default=false")
 }
 
@@ -228,9 +228,9 @@ func fuzzyKeySet(keys map[string]bool) map[string]bool {
 }
 
 // persistTransactions saves transactions to the DB and interactively fills
-// in any missing names and notes. Skipped entirely on --no-updates runs.
+// in any missing names and notes. Skipped entirely on --dry-run runs.
 func persistTransactions(client *Client, qHandler *handler.Query, transactions []*models.Transaction) ([]*models.Transaction, error) {
-	if options.Update {
+	if options.DryRun {
 		return transactions, nil
 	}
 
@@ -256,9 +256,9 @@ func persistTransactions(client *Client, qHandler *handler.Query, transactions [
 
 // updateSpreadsheet writes the transactions into the register sheet and
 // refreshes the bank balances. Skipped when there is nothing to write or on
-// --no-updates runs.
+// --dry-run runs.
 func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsService, qHandler *handler.Query, transactions []*models.Transaction) error {
-	if len(transactions) == 0 || options.Update {
+	if len(transactions) == 0 || options.DryRun {
 		fmt.Println("No updates needed")
 		return nil
 	}
