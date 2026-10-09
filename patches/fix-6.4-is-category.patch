@@ -1,0 +1,143 @@
+diff --git a/api/services/sheets_service/register_service.go b/api/services/sheets_service/register_service.go
+index 4a6f2c0..e75e96b 100644
+--- a/api/services/sheets_service/register_service.go
++++ b/api/services/sheets_service/register_service.go
+@@ -225,10 +225,6 @@ func (ss *SheetsService) WriteCell(cell string, value interface{}) (*sheets.Upda
+ 	return resp, nil
+ }
+ 
+-// firstCategoryColumnIndex is the first 1-based position past the fixed
+-// A-J register block (K) — where category columns begin.
+-const firstCategoryColumnIndex = 11
+-
+ // CheckRegisterColumns reports drift between the columns table and the
+ // Register tab: structural problems in the DB indexes, a sheet grid wider
+ // or narrower than the DB's last column, and row-4 header names that
+@@ -266,7 +262,7 @@ func compareColumnHeaders(columns []models.Column, headerRow []interface{}) []st
+ 	var problems []string
+ 	set := models.NewColumnSet(columns)
+ 	for _, col := range columns {
+-		if col.ColumnIndex < firstCategoryColumnIndex {
++		if col.ColumnIndex < models.FirstCategoryIndex {
+ 			continue
+ 		}
+ 		header := ""
+diff --git a/cmd/columns.go b/cmd/columns.go
+index d8e03c9..f6fa3ea 100644
+--- a/cmd/columns.go
++++ b/cmd/columns.go
+@@ -13,11 +13,6 @@ import (
+ 	"github.com/spf13/cobra"
+ )
+ 
+-// firstCategoryIndex is the first column position (1-based) a category may
+-// occupy: K. Indexes 1-10 (A-J: Reconciled through Delta) are the fixed
+-// register block the code's column constants assume, so add/delete refuse
+-// to touch them.
+-const firstCategoryIndex = 11
+ 
+ var columnsCmd = &cobra.Command{
+ 	Use:   "columns",
+@@ -134,7 +129,7 @@ func listColumns() error {
+ 	fmt.Printf("%4s  %-4s  %-30s %-8s %-9s %s\n", "IDX", "COL", "NAME", "COLOR", "CATEGORY", "ID")
+ 	for _, col := range columns {
+ 		category := "no"
+-		if col.IsCategory {
++		if col.IsCategory() {
+ 			category = "yes"
+ 		}
+ 		fmt.Printf("%4d  %-4s  %-30s %-8s %-9s %d\n",
+@@ -177,12 +172,12 @@ func addColumn(name string) error {
+ 		}
+ 		newIndex = afterIndex + 1
+ 	}
+-	if newIndex < firstCategoryIndex {
++	if newIndex < models.FirstCategoryIndex {
+ 		return fmt.Errorf("cannot insert at index %d: indexes 1-%d are the fixed register block",
+-			newIndex, firstCategoryIndex-1)
++			newIndex, models.FirstCategoryIndex-1)
+ 	}
+ 
+-	col := &models.Column{Name: name, Color: addColor, ColumnIndex: newIndex, IsCategory: true}
++	col := &models.Column{Name: name, Color: addColor, ColumnIndex: newIndex}
+ 	if err := q.AddColumn(col); err != nil {
+ 		return err
+ 	}
+@@ -253,9 +248,9 @@ func deleteColumn(name string) error {
+ 	if !ok {
+ 		return fmt.Errorf("no column named %q", name)
+ 	}
+-	if index < firstCategoryIndex {
++	if index < models.FirstCategoryIndex {
+ 		return fmt.Errorf("cannot delete %q: indexes 1-%d are the fixed register block",
+-			name, firstCategoryIndex-1)
++			name, models.FirstCategoryIndex-1)
+ 	}
+ 	col, _ := set.ByIndex(index)
+ 
+diff --git a/cmd/update.go b/cmd/update.go
+index d021a6e..111e6ab 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -484,7 +484,7 @@ func printColumns(db *handler.Query) error {
+ func filterNonCategoryColumns(columns []models.Column) []models.Column {
+ 	var filtered []models.Column
+ 	for _, col := range columns {
+-		if !col.IsCategory {
++		if !col.IsCategory() {
+ 			continue
+ 		}
+ 		filtered = append(filtered, col)
+diff --git a/pkg/models/models.go b/pkg/models/models.go
+index 0441c91..37a871f 100644
+--- a/pkg/models/models.go
++++ b/pkg/models/models.go
+@@ -46,7 +46,17 @@ type Column struct {
+ 	Name        string
+ 	Color       string
+ 	ColumnIndex int
+-	IsCategory  bool
++}
++
++// FirstCategoryIndex is the first 1-based Register position that holds a
++// budget category; positions 1-10 (A-J) are the fixed register block.
++const FirstCategoryIndex = 11
++
++// IsCategory reports whether the column sits in the category block. It
++// replaces the old is_category database flag: position alone decides, so
++// the two can never disagree.
++func (c Column) IsCategory() bool {
++	return c.ColumnIndex >= FirstCategoryIndex
+ }
+ 
+ // DataRow ...
+diff --git a/pkg/repository/mysql/mysql.go b/pkg/repository/mysql/mysql.go
+index cb0b8a8..59e175e 100644
+--- a/pkg/repository/mysql/mysql.go
++++ b/pkg/repository/mysql/mysql.go
+@@ -106,7 +106,7 @@ func (r *mysqlQueryRepo) GetLookupData() ([]*models.DataRow, error) {
+ 			ColumnName:    m.Column.Name,
+ 			ColumnIndex:   m.Column.ColumnIndex,
+ 			Color:         m.Column.Color,
+-			IsCategory:    m.Column.IsCategory,
++			IsCategory:    m.Column.IsCategory(),
+ 			TaxDeductible: m.TaxDeductible,
+ 			Priority:      m.Priority,
+ 			MatchType:     m.MatchType,
+@@ -144,7 +144,15 @@ func (r *mysqlQueryRepo) AddColumn(col *models.Column) error {
+ 				return fmt.Errorf("unable to shift column %s: %w", shifting[i].Name, err)
+ 			}
+ 		}
+-		if err := tx.Create(col).Error; err != nil {
++		// is_category is still NOT NULL in the DDL (until Rob drops the
++		// column), so the insert writes the value derived from position.
++		row := map[string]interface{}{
++			"name":         col.Name,
++			"color":        col.Color,
++			"column_index": col.ColumnIndex,
++			"is_category":  col.IsCategory(),
++		}
++		if err := tx.Table("columns").Create(row).Error; err != nil {
+ 			return fmt.Errorf("unable to create column %s: %w", col.Name, err)
+ 		}
+ 		return nil

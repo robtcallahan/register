@@ -46,7 +46,17 @@ type Column struct {
 	Name        string
 	Color       string
 	ColumnIndex int
-	IsCategory  bool
+}
+
+// FirstCategoryIndex is the first 1-based Register position that holds a
+// budget category; positions 1-10 (A-J) are the fixed register block.
+const FirstCategoryIndex = 11
+
+// IsCategory reports whether the column sits in the category block. It
+// replaces the old is_category database flag: position alone decides, so
+// the two can never disagree.
+func (c Column) IsCategory() bool {
+	return c.ColumnIndex >= FirstCategoryIndex
 }
 
 // DataRow ...

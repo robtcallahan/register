@@ -106,7 +106,7 @@ func (r *mysqlQueryRepo) GetLookupData() ([]*models.DataRow, error) {
 			ColumnName:    m.Column.Name,
 			ColumnIndex:   m.Column.ColumnIndex,
 			Color:         m.Column.Color,
-			IsCategory:    m.Column.IsCategory,
+			IsCategory:    m.Column.IsCategory(),
 			TaxDeductible: m.TaxDeductible,
 			Priority:      m.Priority,
 			MatchType:     m.MatchType,
@@ -144,7 +144,15 @@ func (r *mysqlQueryRepo) AddColumn(col *models.Column) error {
 				return fmt.Errorf("unable to shift column %s: %w", shifting[i].Name, err)
 			}
 		}
-		if err := tx.Create(col).Error; err != nil {
+		// is_category is still NOT NULL in the DDL (until Rob drops the
+		// column), so the insert writes the value derived from position.
+		row := map[string]interface{}{
+			"name":         col.Name,
+			"color":        col.Color,
+			"column_index": col.ColumnIndex,
+			"is_category":  col.IsCategory(),
+		}
+		if err := tx.Table("columns").Create(row).Error; err != nil {
 			return fmt.Errorf("unable to create column %s: %w", col.Name, err)
 		}
 		return nil

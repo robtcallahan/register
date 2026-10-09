@@ -225,10 +225,6 @@ func (ss *SheetsService) WriteCell(cell string, value interface{}) (*sheets.Upda
 	return resp, nil
 }
 
-// firstCategoryColumnIndex is the first 1-based position past the fixed
-// A-J register block (K) — where category columns begin.
-const firstCategoryColumnIndex = 11
-
 // CheckRegisterColumns reports drift between the columns table and the
 // Register tab: structural problems in the DB indexes, a sheet grid wider
 // or narrower than the DB's last column, and row-4 header names that
@@ -266,7 +262,7 @@ func compareColumnHeaders(columns []models.Column, headerRow []interface{}) []st
 	var problems []string
 	set := models.NewColumnSet(columns)
 	for _, col := range columns {
-		if col.ColumnIndex < firstCategoryColumnIndex {
+		if col.ColumnIndex < models.FirstCategoryIndex {
 			continue
 		}
 		header := ""

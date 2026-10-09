@@ -13,11 +13,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// firstCategoryIndex is the first column position (1-based) a category may
-// occupy: K. Indexes 1-10 (A-J: Reconciled through Delta) are the fixed
-// register block the code's column constants assume, so add/delete refuse
-// to touch them.
-const firstCategoryIndex = 11
 
 var columnsCmd = &cobra.Command{
 	Use:   "columns",
@@ -134,7 +129,7 @@ func listColumns() error {
 	fmt.Printf("%4s  %-4s  %-30s %-8s %-9s %s\n", "IDX", "COL", "NAME", "COLOR", "CATEGORY", "ID")
 	for _, col := range columns {
 		category := "no"
-		if col.IsCategory {
+		if col.IsCategory() {
 			category = "yes"
 		}
 		fmt.Printf("%4d  %-4s  %-30s %-8s %-9s %d\n",
@@ -177,12 +172,12 @@ func addColumn(name string) error {
 		}
 		newIndex = afterIndex + 1
 	}
-	if newIndex < firstCategoryIndex {
+	if newIndex < models.FirstCategoryIndex {
 		return fmt.Errorf("cannot insert at index %d: indexes 1-%d are the fixed register block",
-			newIndex, firstCategoryIndex-1)
+			newIndex, models.FirstCategoryIndex-1)
 	}
 
-	col := &models.Column{Name: name, Color: addColor, ColumnIndex: newIndex, IsCategory: true}
+	col := &models.Column{Name: name, Color: addColor, ColumnIndex: newIndex}
 	if err := q.AddColumn(col); err != nil {
 		return err
 	}
@@ -253,9 +248,9 @@ func deleteColumn(name string) error {
 	if !ok {
 		return fmt.Errorf("no column named %q", name)
 	}
-	if index < firstCategoryIndex {
+	if index < models.FirstCategoryIndex {
 		return fmt.Errorf("cannot delete %q: indexes 1-%d are the fixed register block",
-			name, firstCategoryIndex-1)
+			name, models.FirstCategoryIndex-1)
 	}
 	col, _ := set.ByIndex(index)
 

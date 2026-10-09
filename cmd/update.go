@@ -477,7 +477,7 @@ func printColumns(db *handler.Query) error {
 func filterNonCategoryColumns(columns []models.Column) []models.Column {
 	var filtered []models.Column
 	for _, col := range columns {
-		if !col.IsCategory {
+		if !col.IsCategory() {
 			continue
 		}
 		filtered = append(filtered, col)
