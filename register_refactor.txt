@@ -1,5 +1,6 @@
 Register Refactor Project
 
+Phase 1 — Crash fixes
 - [X] 1.1 Fix defer f.Close() before error check in import.go (3 spots)
 - [X] 1.2 Fix err.Error() on nil err in cmd/server.go (4 handlers)
 - [X] 1.3 Fix ae.Reason() nil deref in sheets_provider.go:44
@@ -11,15 +12,17 @@ Register Refactor Project
 - [X] 1.9 Fix createLinkToken where it logs the error if it's "", but then keeps going
 - [X] 1.10 change config file and code use so that db_ is an object
 -----------------------------------------------------------------------------------------
+Phase 2 — Errors instead of process kills
 - [X] 2.1 checkError (panic) in banking.go → return errors
 - [X] 2.2 checkError (os.Exit) in root.go → return errors, exit once in cobra Run
 - [X] 2.3 log.Fatalf in sheets_service → return errors
 - [X] 2.4 log.Fatalf in sheets_auth → return errors
 - [X] 2.5 Check result.Error on every GORM read
 - [X] 2.6 Replace panic(result.Error) on writes with returned errors
-- [ ] 2.7 Sheets-full detection → clean "add rows and re-run" message
+- [X] 2.7 Sheets-full detection → clean "add rows and re-run" message
 - [ ] 2.8 Fail fast on empty SESSION_KEY; fix 0644 token file perms
 -----------------------------------------------------------------------------------------
+Phase 3 — De-god update()
 - [ ] 3.1 Extract fetchTransactions stage (Plaid or CSV)
 - [ ] 3.2 Extract normalizeMerchants stage (merchant name lookup)
 - [ ] 3.3 Extract dedupeAgainstSheet stage (fuzzy ±1-day date matching)
@@ -30,6 +33,7 @@ Register Refactor Project
 - [ ] 3.8 Move interactive prompts before long silent work
 - [ ] 3.9 Centralize dedup key construction into one function
 -----------------------------------------------------------------------------------------
+Phase 4 — Unify merchant matching in DB
 - [ ] 4.1 Add priority and match_type columns to merchants table
 - [ ] 4.2 Prune unused columns (TaxDeductible et al) — revamp vs new table
 - [ ] 4.3 Migrate config.json merchants map into DB, delete from config
@@ -37,12 +41,14 @@ Register Refactor Project
 - [ ] 4.5 Replace FormatMerchantNames + FormatUniqueTransactionNames with matcher
 - [ ] 4.6 Reference columns by name, kill magic indexes (10, 42)
 -----------------------------------------------------------------------------------------
+Phase 5 — Paycheck redesign
 - [ ] 5.1 Define IncomeSource in config (name, match rule, frequency, allocations)
 - [ ] 5.2 Add weekly paycheck + monthly Social Security as two income sources
 - [ ] 5.3 Remove hardcoded PayCheckBankName/PayCheckName from banking.go
 - [ ] 5.4 Replace addSalaryCells hack with income-source allocation logic
 - [ ] 5.5 Remove ColumnIndex=42 magic number
 -----------------------------------------------------------------------------------------
+Phase 6 — Column management CLI
 - [ ] 6.1 Make DB columns table the single source of truth
 - [ ] 6.2 Add register columns list|add|rename|delete commands
 - [ ] 6.3 Add register columns check for sheet-vs-DB drift
@@ -50,6 +56,7 @@ Register Refactor Project
 - [ ] 6.5 Derive budget category names from same source as register columns
 - [ ] 6.6 Remove ColumnIndexes/RegisterIndexes from config.json
 -----------------------------------------------------------------------------------------
+Phase 7 — Constants + readability
 - [ ] 7.1 Move cell addresses, colors, magic values to constants.go or config
 - [ ] 7.2 Split register_service.go into focused functions
 - [ ] 7.3 Split helpers.go into focused functions
@@ -58,6 +65,7 @@ Register Refactor Project
 - [ ] 7.6 Slim SheetsService god-object (RowBuilder type)
 - [ ] 7.7 Remove handler.Query delegation layer or give it a job
 -----------------------------------------------------------------------------------------
+Phase 8 — Monthly summary correction
 - [ ] 8.1 Return errors from UpdateMonthlyCategories/UpdateMonthlyPayees in monthly() instead of swallowing them (monthly() always returns nil today)
 - [ ] 8.2 Remove dead if err != nil after sheets_service.New() in monthly() (New returns no error; it re-checks the provider's)
 - [ ] 8.3 Remove commented-out JSON debug block + dead jsonDir const in monthly.go
@@ -65,3 +73,8 @@ Register Refactor Project
 - [ ] 8.5 Derive the summary formula range from the actual month count (hardcoded B:L = 11 months today) in addSummaryRows/addSummarySalaryRow
 - [ ] 8.6 Replace magic j := 10 start and cols[j].Name == "Credit Cards" check in Aggregate with category-driven iteration
 - [ ] 8.7 Normalize error wrapping in monthly_service.go to fmt.Errorf("...: %w") (drop "error: %s\n")
+- [ ] 8.8 Create a pie chart for monthy summar on a separate worksheet to the right of the register tab
+-----------------------------------------------------------------------------------------
+Phase 9 — Miscellaneous fixes
+- [ ] 9.1 Add unique index on transactions.key so UpdateTransactionTables upserts instead of duplicating (empty the table once first; OnConflict UpdateAll already in place)
+- [ ] 9.2 Amazon ±1-day date drift can still mint a second key — handled by Phase 3 fuzzy matching (cross-reference, not a separate fix)

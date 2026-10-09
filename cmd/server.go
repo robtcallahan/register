@@ -51,6 +51,10 @@ func init() {
 var store = sessions.NewCookieStore([]byte(os.Getenv("SESSION_KEY")))
 
 func server() {
+	if os.Getenv("SESSION_KEY") == "" {
+		log.Fatal("SESSION_KEY environment variable is not set: refusing to start the server with an empty session key")
+	}
+
 	r := mux.NewRouter()
 
 	fs := http.FileServer(http.Dir("./www/public/"))
@@ -108,7 +112,7 @@ func (c *Client) exchangePublicToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	err = os.WriteFile(config.PlaidTokensDir+"/"+"AccessToken.txt", []byte(accessToken+"\n"), 0644)
+	err = os.WriteFile(config.PlaidTokensDir+"/"+"AccessToken.txt", []byte(accessToken+"\n"), 0600)
 	if err != nil {
 		log.Printf("could not write access token: %s", err.Error())
 	}
