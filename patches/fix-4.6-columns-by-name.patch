@@ -1,0 +1,142 @@
+diff --git a/cmd/update.go b/cmd/update.go
+index 29a2648..d180455 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -217,7 +217,12 @@ func normalizeMerchants(client *Client, qHandler *handler.Query, transactions []
+ 		return nil, err
+ 	}
+ 
+-	transactions = client.BankClient.FormatMerchantNames(transactions, matcher)
++	columns, err := qHandler.GetColumns()
++	if err != nil {
++		return nil, err
++	}
++
++	transactions = client.BankClient.FormatMerchantNames(transactions, matcher, columns)
+ 	if options.Debug {
+ 		printTransactions(transactions)
+ 	}
+@@ -508,7 +513,11 @@ func getBankNameToName(bankClient *banking.Client, db *handler.Query, trans []*m
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		trans = bankClient.FormatMerchantNames(trans, matcher)
++		columns, err := db.GetColumns()
++		if err != nil {
++			return nil, err
++		}
++		trans = bankClient.FormatMerchantNames(trans, matcher, columns)
+ 	}
+ 	return trans, nil
+ }
+diff --git a/pkg/banking/banking.go b/pkg/banking/banking.go
+index ad45c79..f40c1b0 100644
+--- a/pkg/banking/banking.go
++++ b/pkg/banking/banking.go
+@@ -34,6 +34,18 @@ import (
+ const (
+ 	PayCheckBankName = "NOVA BEER LLC"
+ 	PayCheckName     = "50/50 Taphouse Paycheck"
++
++	// Specials in FormatMerchantNames, expressed as lookup values instead of
++	// hardcoded positions: checks (ingested with the name "CHECK") are
++	// categorized by the merchant rule whose bank pattern is CheckBankPattern
++	// — adding such a rule to the DB is how their position changes now.
++	// Paychecks get the income column's index, resolved from the categories
++	// list by the column's name. Phase 5 replaces this whole paycheck path;
++	// paychecks become configured income sources.
++	CheckTransactionName = "CHECK"
++	CheckBankPattern     = "CHECK"
++	PayCheckColumnName   = "Salary"
++
+ 	WellsFargoID     = "wellsfargo"
+ 	FidelityID       = "fidelity"
+ 	ChaseID          = "chase"
+@@ -357,21 +369,36 @@ func (c *Client) PrintTransactionHead() {
+ 		"Key", "Name", "Bank Name", "Merchant Name", "Withdrawal", "Deposit", "Credit Card", "Amount", "ColIndx", "Color")
+ }
+ 
++// ColumnIndexForName resolves a sheet column's position from its name, using
++// the columns table contents. Returns 0 when the name is absent.
++func ColumnIndexForName(columns []models.Column, name string) int {
++	for _, col := range columns {
++		if col.Name == name {
++			return col.ColumnIndex
++		}
++	}
++	return 0
++}
++
+ // FormatMerchantNames applies merchant rules to each transaction: a match
+ // sets the display name, color, and budget column. Rules come from the
+-// matcher (first-match-wins by priority); the CHECK and paycheck specials
+-// stay until 4.6 replaces their hardcoded column indexes.
+-func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher) []*models.Transaction {
++// matcher (first-match-wins by priority). The CHECK and paycheck specials
++// resolve their column by lookup, not by hardcoded index: checks take the
++// position of the "CHECK" merchant rule, paychecks the position of the
++// "Salary" column.
++func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher, columns []models.Column) []*models.Transaction {
+ 	for i, t := range trans {
+-		if t.Name == "CHECK" {
++		if t.Name == CheckTransactionName {
+ 			trans[i].Color = "white"
+-			trans[i].ColumnIndex = 10
++			if l, ok := matcher.FindByBankPattern(CheckBankPattern); ok {
++				trans[i].ColumnIndex = l.ColumnIndex
++			}
+ 			trans[i].IsCategory = false
+ 			trans[i].TaxDeductible = false
+ 		} else if strings.Contains(t.BankName, PayCheckBankName) {
+ 			trans[i].Name = PayCheckName
+ 			trans[i].Color = "green"
+-			trans[i].ColumnIndex = 42
++			trans[i].ColumnIndex = ColumnIndexForName(columns, PayCheckColumnName)
+ 			trans[i].IsCategory = false
+ 			trans[i].TaxDeductible = false
+ 		} else if l, ok := matcher.Match(t.BankName); ok {
+diff --git a/pkg/banking/merchant_matcher.go b/pkg/banking/merchant_matcher.go
+index f3d5897..e2951fc 100644
+--- a/pkg/banking/merchant_matcher.go
++++ b/pkg/banking/merchant_matcher.go
+@@ -76,3 +76,14 @@ func (m *MerchantMatcher) Match(bankName string) (*models.DataRow, bool) {
+ 	}
+ 	return nil, false
+ }
++
++// FindByBankPattern returns the rule with the given bank-name pattern
++// (folded case), whether it would win a match or not.
++func (m *MerchantMatcher) FindByBankPattern(pattern string) (*models.DataRow, bool) {
++	for _, rule := range m.rules {
++		if strings.EqualFold(rule.row.BankName, pattern) {
++			return rule.row, true
++		}
++	}
++	return nil, false
++}
+diff --git a/pkg/banking/merchant_matcher_test.go b/pkg/banking/merchant_matcher_test.go
+index c99a437..98b2c73 100644
+--- a/pkg/banking/merchant_matcher_test.go
++++ b/pkg/banking/merchant_matcher_test.go
+@@ -91,10 +91,12 @@ func TestNewMerchantMatcher_BadRegex(t *testing.T) {
+ func TestFormatMerchantNames_AppliesRules(t *testing.T) {
+ 	matcher, err := NewMerchantMatcher([]*models.DataRow{
+ 		{ID: 1, BankName: "AMAZON", Name: "Amazon", ColumnIndex: 11, Color: "black", IsCategory: true, TaxDeductible: true},
++		{ID: 2, BankName: "CHECK", Name: "Check", ColumnIndex: 10, Color: "white"},
+ 	})
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
++	columns := []models.Column{{Name: "Salary", ColumnIndex: 42}}
+ 
+ 	trans := []*models.Transaction{
+ 		{BankName: "AMAZON.COM*AMZN MKTP"},
+@@ -102,7 +104,7 @@ func TestFormatMerchantNames_AppliesRules(t *testing.T) {
+ 		{BankName: "NOVA BEER LLC PAYROLL"},
+ 		{BankName: "LOCAL BAKERY"},
+ 	}
+-	got := (&Client{}).FormatMerchantNames(trans, matcher)
++	got := (&Client{}).FormatMerchantNames(trans, matcher, columns)
+ 
+ 	if got[0].Name != "Amazon" || got[0].ColumnIndex != 11 || !got[0].IsCategory || !got[0].TaxDeductible {
+ 		t.Errorf("matcher rule not applied: %+v", got[0])

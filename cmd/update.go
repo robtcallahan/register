@@ -217,7 +217,12 @@ func normalizeMerchants(client *Client, qHandler *handler.Query, transactions []
 		return nil, err
 	}
 
-	transactions = client.BankClient.FormatMerchantNames(transactions, matcher)
+	columns, err := qHandler.GetColumns()
+	if err != nil {
+		return nil, err
+	}
+
+	transactions = client.BankClient.FormatMerchantNames(transactions, matcher, columns)
 	if options.Debug {
 		printTransactions(transactions)
 	}
@@ -508,7 +513,11 @@ func getBankNameToName(bankClient *banking.Client, db *handler.Query, trans []*m
 		if err != nil {
 			return nil, err
 		}
-		trans = bankClient.FormatMerchantNames(trans, matcher)
+		columns, err := db.GetColumns()
+		if err != nil {
+			return nil, err
+		}
+		trans = bankClient.FormatMerchantNames(trans, matcher, columns)
 	}
 	return trans, nil
 }

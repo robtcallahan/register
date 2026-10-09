@@ -76,3 +76,14 @@ func (m *MerchantMatcher) Match(bankName string) (*models.DataRow, bool) {
 	}
 	return nil, false
 }
+
+// FindByBankPattern returns the rule with the given bank-name pattern
+// (folded case), whether it would win a match or not.
+func (m *MerchantMatcher) FindByBankPattern(pattern string) (*models.DataRow, bool) {
+	for _, rule := range m.rules {
+		if strings.EqualFold(rule.row.BankName, pattern) {
+			return rule.row, true
+		}
+	}
+	return nil, false
+}

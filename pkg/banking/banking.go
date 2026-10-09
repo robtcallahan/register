@@ -34,6 +34,18 @@ import (
 const (
 	PayCheckBankName = "NOVA BEER LLC"
 	PayCheckName     = "50/50 Taphouse Paycheck"
+
+	// Specials in FormatMerchantNames, expressed as lookup values instead of
+	// hardcoded positions: checks (ingested with the name "CHECK") are
+	// categorized by the merchant rule whose bank pattern is CheckBankPattern
+	// — adding such a rule to the DB is how their position changes now.
+	// Paychecks get the income column's index, resolved from the categories
+	// list by the column's name. Phase 5 replaces this whole paycheck path;
+	// paychecks become configured income sources.
+	CheckTransactionName = "CHECK"
+	CheckBankPattern     = "CHECK"
+	PayCheckColumnName   = "Salary"
+
 	WellsFargoID     = "wellsfargo"
 	FidelityID       = "fidelity"
 	ChaseID          = "chase"
@@ -357,21 +369,36 @@ func (c *Client) PrintTransactionHead() {
 		"Key", "Name", "Bank Name", "Merchant Name", "Withdrawal", "Deposit", "Credit Card", "Amount", "ColIndx", "Color")
 }
 
+// ColumnIndexForName resolves a sheet column's position from its name, using
+// the columns table contents. Returns 0 when the name is absent.
+func ColumnIndexForName(columns []models.Column, name string) int {
+	for _, col := range columns {
+		if col.Name == name {
+			return col.ColumnIndex
+		}
+	}
+	return 0
+}
+
 // FormatMerchantNames applies merchant rules to each transaction: a match
 // sets the display name, color, and budget column. Rules come from the
-// matcher (first-match-wins by priority); the CHECK and paycheck specials
-// stay until 4.6 replaces their hardcoded column indexes.
-func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher) []*models.Transaction {
+// matcher (first-match-wins by priority). The CHECK and paycheck specials
+// resolve their column by lookup, not by hardcoded index: checks take the
+// position of the "CHECK" merchant rule, paychecks the position of the
+// "Salary" column.
+func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher, columns []models.Column) []*models.Transaction {
 	for i, t := range trans {
-		if t.Name == "CHECK" {
+		if t.Name == CheckTransactionName {
 			trans[i].Color = "white"
-			trans[i].ColumnIndex = 10
+			if l, ok := matcher.FindByBankPattern(CheckBankPattern); ok {
+				trans[i].ColumnIndex = l.ColumnIndex
+			}
 			trans[i].IsCategory = false
 			trans[i].TaxDeductible = false
 		} else if strings.Contains(t.BankName, PayCheckBankName) {
 			trans[i].Name = PayCheckName
 			trans[i].Color = "green"
-			trans[i].ColumnIndex = 42
+			trans[i].ColumnIndex = ColumnIndexForName(columns, PayCheckColumnName)
 			trans[i].IsCategory = false
 			trans[i].TaxDeductible = false
 		} else if l, ok := matcher.Match(t.BankName); ok {
