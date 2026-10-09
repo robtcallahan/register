@@ -145,23 +145,9 @@ func update(cmd *cobra.Command, args []string) error {
 
 	printTransactions(transactions)
 
-	if !options.Update {
-		fmt.Println("Updating transactions table...")
-		if err := qHandler.UpdateTransactionTables(transactions); err != nil {
-			return err
-		}
-
-		if needTransactionName(transactions) {
-			fmt.Println("Info needed...")
-			if err := printColumns(qHandler); err != nil {
-				return err
-			}
-			transactions, err = getBankNameToName(client.BankClient, qHandler, transactions)
-			if err != nil {
-				return err
-			}
-		}
-		transactions = getNotes(transactions)
+	transactions, err = persistTransactions(client, qHandler, transactions)
+	if err != nil {
+		return err
 	}
 
 	if len(transactions) > 0 && !options.Update {
@@ -304,6 +290,33 @@ func fuzzyKeySet(keys map[string]bool) map[string]bool {
 		}
 	}
 	return fuzzy
+}
+
+// persistTransactions saves transactions to the DB and interactively fills
+// in any missing names and notes. Skipped entirely on --no-updates runs.
+func persistTransactions(client *Client, qHandler *handler.Query, transactions []*models.Transaction) ([]*models.Transaction, error) {
+	if options.Update {
+		return transactions, nil
+	}
+
+	fmt.Println("Updating transactions table...")
+	if err := qHandler.UpdateTransactionTables(transactions); err != nil {
+		return nil, err
+	}
+
+	if needTransactionName(transactions) {
+		fmt.Println("Info needed...")
+		if err := printColumns(qHandler); err != nil {
+			return nil, err
+		}
+		var err error
+		transactions, err = getBankNameToName(client.BankClient, qHandler, transactions)
+		if err != nil {
+			return nil, err
+		}
+	}
+	transactions = getNotes(transactions)
+	return transactions, nil
 }
 
 func shellout(command string) (string, string, error) {

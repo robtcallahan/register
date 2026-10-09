@@ -25,7 +25,7 @@ Phase 2 — Errors instead of process kills
 Phase 3 — De-god update()
 - [X] 3.1 Extract fetchTransactions stage (Plaid or CSV)
 - [X] 3.2 Extract normalizeMerchants stage (merchant name lookup)
-- [ ] 3.3 Extract dedupeAgainstSheet stage (fuzzy ±1-day date matching)
+- [X] 3.3 Extract dedupeAgainstSheet stage (fuzzy ±1-day date matching)
 - [ ] 3.4 Extract persistTransactions stage (DB + interactive prompts)
 - [ ] 3.5 Extract updateSpreadsheet stage (CopyRows + UpdateRows + balances)
 - [ ] 3.6 Replace shellout("./register copy") with direct sheetsService.CopyRows call
