@@ -38,11 +38,11 @@ func (ss *SheetsService) NewBudgetSheet(cfg *config.Config) error {
 			EndColumnIndex: 9,
 		},
 	}
-	id, err := ss.getSheetID("Budget")
+	props, err := ss.getSheetProperties("Budget")
 	if err != nil {
-		return fmt.Errorf("unable to retrieve spreadsheet: %v", err)
+		return err
 	}
-	ss.BudgetSheet.ID = id
+	ss.BudgetSheet.ID = props.SheetId
 	return nil
 }
 

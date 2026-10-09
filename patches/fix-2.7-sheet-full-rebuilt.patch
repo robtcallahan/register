@@ -1,0 +1,222 @@
+diff --git a/api/services/sheets_service/budget_service.go b/api/services/sheets_service/budget_service.go
+index 92d07e3..5fff21d 100644
+--- a/api/services/sheets_service/budget_service.go
++++ b/api/services/sheets_service/budget_service.go
+@@ -38,11 +38,11 @@ func (ss *SheetsService) NewBudgetSheet(cfg *config.Config) error {
+ 			EndColumnIndex: 9,
+ 		},
+ 	}
+-	id, err := ss.getSheetID("Budget")
++	props, err := ss.getSheetProperties("Budget")
+ 	if err != nil {
+-		return fmt.Errorf("unable to retrieve spreadsheet: %v", err)
++		return err
+ 	}
+-	ss.BudgetSheet.ID = id
++	ss.BudgetSheet.ID = props.SheetId
+ 	return nil
+ }
+ 
+diff --git a/api/services/sheets_service/monthly_service.go b/api/services/sheets_service/monthly_service.go
+index f6cc549..38c6769 100644
+--- a/api/services/sheets_service/monthly_service.go
++++ b/api/services/sheets_service/monthly_service.go
+@@ -12,20 +12,20 @@ import (
+ 
+ func (ss *SheetsService) UpdateMonthlyCategories(tabName string, catAgg map[string]map[string]float64, columns []models.Column) error {
+ 	rows := populateMonthlyCategories(catAgg, columns)
+-	id, err := ss.getSheetID(tabName)
++	props, err := ss.getSheetProperties(tabName)
+ 	if err != nil {
+ 		return fmt.Errorf("error: %s\n", err.Error())
+ 	}
+-	return ss.updateMonthly(id, rows)
++	return ss.updateMonthly(props.SheetId, rows)
+ }
+ 
+ func (ss *SheetsService) UpdateMonthlyPayees(tabName string, catAgg map[string]map[string]float64) error {
+ 	rows := populateMonthlyPayees(catAgg)
+-	id, err := ss.getSheetID(tabName)
++	props, err := ss.getSheetProperties(tabName)
+ 	if err != nil {
+ 		return fmt.Errorf("error: %s\n", err.Error())
+ 	}
+-	return ss.updateMonthly(id, rows)
++	return ss.updateMonthly(props.SheetId, rows)
+ }
+ 
+ func (ss *SheetsService) updateMonthly(sheetID int64, rows []*sheets.RowData) error {
+diff --git a/api/services/sheets_service/register_service.go b/api/services/sheets_service/register_service.go
+index 74e25cf..743f442 100644
+--- a/api/services/sheets_service/register_service.go
++++ b/api/services/sheets_service/register_service.go
+@@ -1,9 +1,11 @@
+ package sheets_service
+ 
+ import (
++	"errors"
+ 	"fmt"
+ 	"register/pkg/config"
+ 	"register/pkg/models"
++	"strings"
+ 
+ 	"google.golang.org/api/sheets/v4"
+ )
+@@ -12,6 +14,7 @@ type SheetCoords struct {
+ 	StartRow         int64
+ 	EndRow           int64
+ 	LastRow          int64
++	RowCount         int64
+ 	FirstRowToUpdate int64
+ 	EndColumnName    string
+ 	EndColumnIndex   int64
+@@ -57,11 +60,14 @@ func (ss *SheetsService) NewRegisterSheet(cfg *config.Config) error {
+ 		},
+ 	}
+ 
+-	id, err := ss.getSheetID("Register")
++	props, err := ss.getSheetProperties("Register")
+ 	if err != nil {
+-		return fmt.Errorf("unable to retrieve spreadsheet: %v", err)
++		return err
++	}
++	ss.RegisterSheet.ID = props.SheetId
++	if props.GridProperties != nil {
++		ss.RegisterSheet.SheetCoords.RowCount = props.GridProperties.RowCount
+ 	}
+-	ss.RegisterSheet.ID = id
+ 	return nil
+ }
+ 
+@@ -125,15 +131,38 @@ func (ss *SheetsService) ReadCell(cell string, cellDataType CellDataType) (inter
+ 	return row[0], nil
+ }
+ 
++// errSheetFull means the copy would run past the end of the sheet's grid.
++var errSheetFull = errors.New("register sheet is full")
++
+ func (ss *SheetsService) CopyRows(numCopies int) error {
++	if err := ss.checkRowsFit(numCopies); err != nil {
++		return err
++	}
+ 	updateReq := ss.copyRowsBatchUpdateRequest(numCopies)
+ 	_, err := ss.Provider.BatchUpdate(&updateReq)
+ 	if err != nil {
++		if strings.Contains(err.Error(), "grid limits") {
++			return fmt.Errorf("%w — add rows and re-run", errSheetFull)
++		}
+ 		return fmt.Errorf("could not perform copy: %v", err)
+ 	}
+ 	return nil
+ }
+ 
++func (ss *SheetsService) checkRowsFit(numCopies int) error {
++	coords := ss.RegisterSheet.SheetCoords
++	if coords.RowCount == 0 {
++		return nil // grid size unknown; let the API be the judge
++	}
++	lastNeeded := coords.LastRow + 2*int64(numCopies)
++	if lastNeeded <= coords.RowCount {
++		return nil
++	}
++	shortfall := lastNeeded - coords.RowCount
++	add := (shortfall + 999) / 1000 * 1000
++	return fmt.Errorf("%w — add %d rows and re-run (copy needs row %d, sheet has %d rows)", errSheetFull, add, lastNeeded, coords.RowCount)
++}
++
+ func (ss *SheetsService) ReadStringCell(cell string) (string, error) {
+ 	v, err := ss.ReadCell(cell, CellDataString)
+ 	if err != nil {
+@@ -360,19 +389,18 @@ func (ss *SheetsService) populateRegisterEntry(values []interface{}) (*RegisterE
+ 	return entry, nil
+ }
+ 
+-func (ss *SheetsService) getSheetID(tabName string) (int64, error) {
++func (ss *SheetsService) getSheetProperties(tabName string) (*sheets.SheetProperties, error) {
+ 	spreadsheet, err := ss.Provider.GetSpreadsheet()
+ 	if err != nil {
+-		return 0, fmt.Errorf("unable to retrieve spreadsheet: %v", err)
++		return nil, fmt.Errorf("unable to retrieve spreadsheet: %w", err)
+ 	}
+ 
+ 	for _, sheet := range spreadsheet.Sheets {
+-		p := sheet.Properties
+-		if p.Title == tabName {
+-			return p.SheetId, nil
++		if sheet.Properties.Title == tabName {
++			return sheet.Properties, nil
+ 		}
+ 	}
+-	return 0, fmt.Errorf("could not get sheet id: %v", err)
++	return nil, fmt.Errorf("could not find sheet: %s", tabName)
+ }
+ 
+ func (ss *SheetsService) copyRowsBatchUpdateRequest(numCopies int) sheets.BatchUpdateSpreadsheetRequest {
+diff --git a/api/services/sheets_service/sheets_service_test.go b/api/services/sheets_service/sheets_service_test.go
+index 300b762..b571671 100644
+--- a/api/services/sheets_service/sheets_service_test.go
++++ b/api/services/sheets_service/sheets_service_test.go
+@@ -437,7 +437,7 @@ func Test_sheetsService_addSourceDateNameCells(t *testing.T) {
+ 	}
+ }
+ 
+-func Test_sheetsService_getSheetID(t *testing.T) {
++func Test_sheetsService_getSheetProperties(t *testing.T) {
+ 	type args struct {
+ 		tabName string
+ 	}
+@@ -448,7 +448,7 @@ func Test_sheetsService_getSheetID(t *testing.T) {
+ 		wantErr bool
+ 	}{
+ 		{
+-			name:    "Test get spreadsheet ID",
++			name:    "Test get spreadsheet properties",
+ 			args:    args{tabName: "Register"},
+ 			want:    617336355,
+ 			wantErr: false,
+@@ -456,18 +456,41 @@ func Test_sheetsService_getSheetID(t *testing.T) {
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+-			got, err := ss.getSheetID(tt.args.tabName)
++			got, err := ss.getSheetProperties(tt.args.tabName)
+ 			if (err != nil) != tt.wantErr {
+-				t.Errorf("getSheetID() error = %v, wantErr %v", err, tt.wantErr)
++				t.Errorf("getSheetProperties() error = %v, wantErr %v", err, tt.wantErr)
+ 				return
+ 			}
+-			if got != tt.want {
+-				t.Errorf("getSheetID() got = %v, want %v", got, tt.want)
++			if got.SheetId != tt.want {
++				t.Errorf("getSheetProperties() got = %v, want %v", got.SheetId, tt.want)
+ 			}
+ 		})
+ 	}
+ }
+ 
++func TestSheetsService_CopyRows_sheetFull(t *testing.T) {
++	svc := New(&providerMock{})
++	svc.RegisterSheet = &RegisterSheet{
++		TabName: "Register",
++		SheetCoords: SheetCoords{
++			LastRow:        100,
++			RowCount:       101,
++			EndColumnIndex: 45,
++		},
++	}
++
++	// last row 100 + 1 copy (2 rows) = 102 > 101 grid rows: must not fit
++	if err := svc.CopyRows(1); !errors.Is(err, errSheetFull) {
++		t.Errorf("CopyRows() error = %v, want errSheetFull", err)
++	}
++
++	// plenty of room: the copy proceeds and the provider accepts it
++	svc.RegisterSheet.SheetCoords.RowCount = 1000
++	if err := svc.CopyRows(10); err != nil {
++		t.Errorf("CopyRows() error = %v, want nil", err)
++	}
++}
++
+ func Test_sheetsService_populateCells(t *testing.T) {
+ 	type fields struct {
+ 		service       *sheets.Service

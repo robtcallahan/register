@@ -12,20 +12,20 @@ import (
 
 func (ss *SheetsService) UpdateMonthlyCategories(tabName string, catAgg map[string]map[string]float64, columns []models.Column) error {
 	rows := populateMonthlyCategories(catAgg, columns)
-	id, err := ss.getSheetID(tabName)
+	props, err := ss.getSheetProperties(tabName)
 	if err != nil {
 		return fmt.Errorf("error: %s\n", err.Error())
 	}
-	return ss.updateMonthly(id, rows)
+	return ss.updateMonthly(props.SheetId, rows)
 }
 
 func (ss *SheetsService) UpdateMonthlyPayees(tabName string, catAgg map[string]map[string]float64) error {
 	rows := populateMonthlyPayees(catAgg)
-	id, err := ss.getSheetID(tabName)
+	props, err := ss.getSheetProperties(tabName)
 	if err != nil {
 		return fmt.Errorf("error: %s\n", err.Error())
 	}
-	return ss.updateMonthly(id, rows)
+	return ss.updateMonthly(props.SheetId, rows)
 }
 
 func (ss *SheetsService) updateMonthly(sheetID int64, rows []*sheets.RowData) error {

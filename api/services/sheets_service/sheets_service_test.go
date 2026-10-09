@@ -437,7 +437,7 @@ func Test_sheetsService_addSourceDateNameCells(t *testing.T) {
 	}
 }
 
-func Test_sheetsService_getSheetID(t *testing.T) {
+func Test_sheetsService_getSheetProperties(t *testing.T) {
 	type args struct {
 		tabName string
 	}
@@ -448,7 +448,7 @@ func Test_sheetsService_getSheetID(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "Test get spreadsheet ID",
+			name:    "Test get spreadsheet properties",
 			args:    args{tabName: "Register"},
 			want:    617336355,
 			wantErr: false,
@@ -456,15 +456,38 @@ func Test_sheetsService_getSheetID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ss.getSheetID(tt.args.tabName)
+			got, err := ss.getSheetProperties(tt.args.tabName)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("getSheetID() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("getSheetProperties() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if got != tt.want {
-				t.Errorf("getSheetID() got = %v, want %v", got, tt.want)
+			if got.SheetId != tt.want {
+				t.Errorf("getSheetProperties() got = %v, want %v", got.SheetId, tt.want)
 			}
 		})
+	}
+}
+
+func TestSheetsService_CopyRows_sheetFull(t *testing.T) {
+	svc := New(&providerMock{})
+	svc.RegisterSheet = &RegisterSheet{
+		TabName: "Register",
+		SheetCoords: SheetCoords{
+			LastRow:        100,
+			RowCount:       101,
+			EndColumnIndex: 45,
+		},
+	}
+
+	// last row 100 + 1 copy (2 rows) = 102 > 101 grid rows: must not fit
+	if err := svc.CopyRows(1); !errors.Is(err, errSheetFull) {
+		t.Errorf("CopyRows() error = %v, want errSheetFull", err)
+	}
+
+	// plenty of room: the copy proceeds and the provider accepts it
+	svc.RegisterSheet.SheetCoords.RowCount = 1000
+	if err := svc.CopyRows(10); err != nil {
+		t.Errorf("CopyRows() error = %v, want nil", err)
 	}
 }
 

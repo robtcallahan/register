@@ -1,9 +1,11 @@
 package sheets_service
 
 import (
+	"errors"
 	"fmt"
 	"register/pkg/config"
 	"register/pkg/models"
+	"strings"
 
 	"google.golang.org/api/sheets/v4"
 )
@@ -12,6 +14,7 @@ type SheetCoords struct {
 	StartRow         int64
 	EndRow           int64
 	LastRow          int64
+	RowCount         int64
 	FirstRowToUpdate int64
 	EndColumnName    string
 	EndColumnIndex   int64
@@ -57,11 +60,14 @@ func (ss *SheetsService) NewRegisterSheet(cfg *config.Config) error {
 		},
 	}
 
-	id, err := ss.getSheetID("Register")
+	props, err := ss.getSheetProperties("Register")
 	if err != nil {
-		return fmt.Errorf("unable to retrieve spreadsheet: %v", err)
+		return err
 	}
-	ss.RegisterSheet.ID = id
+	ss.RegisterSheet.ID = props.SheetId
+	if props.GridProperties != nil {
+		ss.RegisterSheet.SheetCoords.RowCount = props.GridProperties.RowCount
+	}
 	return nil
 }
 
@@ -125,13 +131,36 @@ func (ss *SheetsService) ReadCell(cell string, cellDataType CellDataType) (inter
 	return row[0], nil
 }
 
+// errSheetFull means the copy would run past the end of the sheet's grid.
+var errSheetFull = errors.New("register sheet is full")
+
 func (ss *SheetsService) CopyRows(numCopies int) error {
+	if err := ss.checkRowsFit(numCopies); err != nil {
+		return err
+	}
 	updateReq := ss.copyRowsBatchUpdateRequest(numCopies)
 	_, err := ss.Provider.BatchUpdate(&updateReq)
 	if err != nil {
+		if strings.Contains(err.Error(), "grid limits") {
+			return fmt.Errorf("%w — add rows and re-run", errSheetFull)
+		}
 		return fmt.Errorf("could not perform copy: %v", err)
 	}
 	return nil
+}
+
+func (ss *SheetsService) checkRowsFit(numCopies int) error {
+	coords := ss.RegisterSheet.SheetCoords
+	if coords.RowCount == 0 {
+		return nil // grid size unknown; let the API be the judge
+	}
+	lastNeeded := coords.LastRow + 2*int64(numCopies)
+	if lastNeeded <= coords.RowCount {
+		return nil
+	}
+	shortfall := lastNeeded - coords.RowCount
+	add := (shortfall + 999) / 1000 * 1000
+	return fmt.Errorf("%w — add %d rows and re-run (copy needs row %d, sheet has %d rows)", errSheetFull, add, lastNeeded, coords.RowCount)
 }
 
 func (ss *SheetsService) ReadStringCell(cell string) (string, error) {
@@ -360,19 +389,18 @@ func (ss *SheetsService) populateRegisterEntry(values []interface{}) (*RegisterE
 	return entry, nil
 }
 
-func (ss *SheetsService) getSheetID(tabName string) (int64, error) {
+func (ss *SheetsService) getSheetProperties(tabName string) (*sheets.SheetProperties, error) {
 	spreadsheet, err := ss.Provider.GetSpreadsheet()
 	if err != nil {
-		return 0, fmt.Errorf("unable to retrieve spreadsheet: %v", err)
+		return nil, fmt.Errorf("unable to retrieve spreadsheet: %w", err)
 	}
 
 	for _, sheet := range spreadsheet.Sheets {
-		p := sheet.Properties
-		if p.Title == tabName {
-			return p.SheetId, nil
+		if sheet.Properties.Title == tabName {
+			return sheet.Properties, nil
 		}
 	}
-	return 0, fmt.Errorf("could not get sheet id: %v", err)
+	return nil, fmt.Errorf("could not find sheet: %s", tabName)
 }
 
 func (ss *SheetsService) copyRowsBatchUpdateRequest(numCopies int) sheets.BatchUpdateSpreadsheetRequest {
