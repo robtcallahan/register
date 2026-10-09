@@ -1,0 +1,151 @@
+diff --git a/cmd/update.go b/cmd/update.go
+index 8427449..7465794 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -150,71 +150,8 @@ func update(cmd *cobra.Command, args []string) error {
+ 		return err
+ 	}
+ 
+-	if len(transactions) > 0 && !options.Update {
+-		fmt.Printf("Reading Budget...\n")
+-		err = sheetsService.NewBudgetSheet(config)
+-		if err != nil {
+-			return err
+-		}
+-		_, err = sheetsService.ReadBudgetSheet()
+-		if err != nil {
+-			return err
+-		}
+-
+-		fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", "Num", "Source", "Date", "Amount", "Name", "Note")
+-		fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", dashes(3), dashes(12), dashes(10), dashes(8), dashes(30), dashes(15))
+-		for i, r := range transactions {
+-			fmt.Printf("    (%3d) %-12s %-10s %8.2f %-30s %s\n", i+1, r.Source, r.Date, -1*r.Amount, r.Name, r.Note)
+-		}
+-
+-		// add the needed number of rows for transactions
+-		fmt.Println("Adding rows...")
+-		out, errOut, err := shellout("./register copy -n " + strconv.Itoa(len(transactions)))
+-		if err != nil {
+-			return fmt.Errorf("error: %v\n--- stdout ---\n%s\n--- stderr ---\n%s", err, out, errOut)
+-		}
+-
+-		fmt.Printf("Transaction updates...\n")
+-		if options.Update {
+-			return nil
+-		}
+-
+-		fmt.Printf("Updating spreadsheet...\n")
+-		columns, err := qHandler.GetColumns()
+-		if err != nil {
+-			return err
+-		}
+-		transNameToColName, err := qHandler.GetNameMapToColumn()
+-		if err != nil {
+-			return err
+-		}
+-
+-		err = sheetsService.UpdateRows(columns, transNameToColName, transactions)
+-		if err != nil {
+-			return err
+-		}
+-
+-		lastRowUpdated := sheetsService.RegisterSheet.SheetCoords.FirstRowToUpdate + int64(len(transactions)*2) + 1
+-		_, err = sheetsService.WriteCell("F1", time.Now().Format("01/02/2006"))
+-		if err != nil {
+-			return err
+-		}
+-		_, err = sheetsService.WriteCell("G2", fmt.Sprintf("=SUM(G1-I%d)", lastRowUpdated))
+-		if err != nil {
+-			return err
+-		}
+-
+-		if !options.UseCSVFiles {
+-			fmt.Println("Getting accounts balances...")
+-			balances := client.BankClient.GetBalances(options.BankIDs)
+-			printBalances(balances)
+-			fmt.Println("Updating balances...")
+-			if err := updateBalances(sheetsService, balances); err != nil {
+-				return err
+-			}
+-		}
+-	} else {
+-		fmt.Println("No updates needed")
++	if err := updateSpreadsheet(client, sheetsService, qHandler, transactions); err != nil {
++		return err
+ 	}
+ 	return nil
+ }
+@@ -319,6 +256,72 @@ func persistTransactions(client *Client, qHandler *handler.Query, transactions [
+ 	return transactions, nil
+ }
+ 
++// updateSpreadsheet writes the transactions into the register sheet and
++// refreshes the bank balances. Skipped when there is nothing to write or on
++// --no-updates runs.
++func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsService, qHandler *handler.Query, transactions []*models.Transaction) error {
++	if len(transactions) == 0 || options.Update {
++		fmt.Println("No updates needed")
++		return nil
++	}
++
++	fmt.Printf("Reading Budget...\n")
++	if err := sheetsService.NewBudgetSheet(config); err != nil {
++		return err
++	}
++	if _, err := sheetsService.ReadBudgetSheet(); err != nil {
++		return err
++	}
++
++	fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", "Num", "Source", "Date", "Amount", "Name", "Note")
++	fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", dashes(3), dashes(12), dashes(10), dashes(8), dashes(30), dashes(15))
++	for i, r := range transactions {
++		fmt.Printf("    (%3d) %-12s %-10s %8.2f %-30s %s\n", i+1, r.Source, r.Date, -1*r.Amount, r.Name, r.Note)
++	}
++
++	// add the needed number of rows for transactions
++	fmt.Println("Adding rows...")
++	out, errOut, err := shellout("./register copy -n " + strconv.Itoa(len(transactions)))
++	if err != nil {
++		return fmt.Errorf("error: %v\n--- stdout ---\n%s\n--- stderr ---\n%s", err, out, errOut)
++	}
++
++	fmt.Printf("Transaction updates...\n")
++
++	fmt.Printf("Updating spreadsheet...\n")
++	columns, err := qHandler.GetColumns()
++	if err != nil {
++		return err
++	}
++	transNameToColName, err := qHandler.GetNameMapToColumn()
++	if err != nil {
++		return err
++	}
++
++	if err := sheetsService.UpdateRows(columns, transNameToColName, transactions); err != nil {
++		return err
++	}
++
++	lastRowUpdated := sheetsService.RegisterSheet.SheetCoords.FirstRowToUpdate + int64(len(transactions)*2) + 1
++	if _, err := sheetsService.WriteCell("F1", time.Now().Format("01/02/2006")); err != nil {
++		return err
++	}
++	if _, err := sheetsService.WriteCell("G2", fmt.Sprintf("=SUM(G1-I%d)", lastRowUpdated)); err != nil {
++		return err
++	}
++
++	if !options.UseCSVFiles {
++		fmt.Println("Getting accounts balances...")
++		balances := client.BankClient.GetBalances(options.BankIDs)
++		printBalances(balances)
++		fmt.Println("Updating balances...")
++		if err := updateBalances(sheetsService, balances); err != nil {
++			return err
++		}
++	}
++	return nil
++}
++
+ func shellout(command string) (string, string, error) {
+ 	var stdout bytes.Buffer
+ 	var stderr bytes.Buffer
