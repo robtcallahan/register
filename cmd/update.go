@@ -176,7 +176,7 @@ func fetchTransactions(client *Client) ([]*models.Transaction, error) {
 // including ones already recorded in the register. encoding/csv quotes the
 // fields, so bank names containing commas can't shift the columns.
 func writeRawTransactionsCSV(transactions []*models.Transaction) error {
-	fmt.Println("Writing CSV file...")
+	fmt.Println("Writing raw transactions CSV file...")
 	file, err := os.Create(config.FinanceDir + "/transactions.csv")
 	if err != nil {
 		return fmt.Errorf("error creating file %s: %v", config.FinanceDir+"/transactions.csv", err)
