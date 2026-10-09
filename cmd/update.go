@@ -227,16 +227,12 @@ func fuzzyKeySet(keys map[string]bool) map[string]bool {
 	return fuzzy
 }
 
-// persistTransactions saves transactions to the DB and interactively fills
-// in any missing names and notes. Skipped entirely on --dry-run runs.
+// persistTransactions interactively fills in any missing names and notes,
+// then saves the transactions to the DB. All questions come first, so the rest
+// of the run is unattended. Skipped entirely on --dry-run runs.
 func persistTransactions(client *Client, qHandler *handler.Query, transactions []*models.Transaction) ([]*models.Transaction, error) {
 	if options.DryRun {
 		return transactions, nil
-	}
-
-	fmt.Println("Updating transactions table...")
-	if err := qHandler.UpdateTransactionTables(transactions); err != nil {
-		return nil, err
 	}
 
 	if needTransactionName(transactions) {
@@ -251,6 +247,11 @@ func persistTransactions(client *Client, qHandler *handler.Query, transactions [
 		}
 	}
 	transactions = getNotes(transactions)
+
+	fmt.Println("Updating transactions table...")
+	if err := qHandler.UpdateTransactionTables(transactions); err != nil {
+		return nil, err
+	}
 	return transactions, nil
 }
 
