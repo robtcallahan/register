@@ -127,7 +127,6 @@ func getBankingClient() *Client {
 		PlaidSecret:      config.PlaidEnvSecrets[config.PlaidEnvironment],
 		PlaidEnvironment: plaidEnvironment,
 		PlaidTokensDir:   config.PlaidTokensDir,
-		Merchants:        config.Merchants,
 	})
 	return client
 }

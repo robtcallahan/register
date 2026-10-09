@@ -35,8 +35,8 @@ Phase 3 — De-god update()
 - [X] 3.10 Extract writeRawTransactionsCSV stage (raw fetch dump via encoding/csv)
 -----------------------------------------------------------------------------------------
 Phase 4 — Unify merchant matching in DB
-- [ ] 4.1 Add priority and match_type columns to merchants table
-- [ ] 4.2 Prune unused columns (TaxDeductible et al) — revamp vs new table
+- [X] 4.1 Add priority and match_type columns to merchants table
+- [X] 4.2 Prune unused columns (TaxDeductible et al) — keep TaxDeductible (house purchase next year); no prune, table stays
 - [ ] 4.3 Migrate config.json merchants map into DB, delete from config
 - [ ] 4.4 Write single MerchantMatcher, first-match-wins by priority
 - [ ] 4.5 Replace FormatMerchantNames + FormatUniqueTransactionNames with matcher

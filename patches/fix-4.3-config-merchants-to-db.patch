@@ -1,0 +1,89 @@
+diff --git a/cmd/root.go b/cmd/root.go
+index 83d9207..bb3901b 100644
+--- a/cmd/root.go
++++ b/cmd/root.go
+@@ -127,7 +127,6 @@ func getBankingClient() *Client {
+ 		PlaidSecret:      config.PlaidEnvSecrets[config.PlaidEnvironment],
+ 		PlaidEnvironment: plaidEnvironment,
+ 		PlaidTokensDir:   config.PlaidTokensDir,
+-		Merchants:        config.Merchants,
+ 	})
+ 	return client
+ }
+diff --git a/pkg/banking/banking.go b/pkg/banking/banking.go
+index 2a31769..699f96e 100644
+--- a/pkg/banking/banking.go
++++ b/pkg/banking/banking.go
+@@ -63,7 +63,6 @@ type ClientOptions struct {
+ 	Banks            map[string]config.Bank
+ 	Debug            bool
+ 	Verbose          bool
+-	Merchants        map[string]config.MerchantEntry
+ }
+ 
+ type Client struct {
+@@ -76,7 +75,6 @@ type Client struct {
+ 	Banks       map[string]config.Bank
+ 	Debug       bool
+ 	Verbose     bool
+-	Merchants   map[string]config.MerchantEntry
+ }
+ 
+ type Balance struct {
+@@ -95,7 +93,6 @@ func NewClient(o *ClientOptions) *Client {
+ 		Banks:       o.Banks,
+ 		Debug:       o.Debug,
+ 		Verbose:     o.Debug,
+-		Merchants:   o.Merchants,
+ 	}
+ 	configuration := plaid.NewConfiguration()
+ 	configuration.AddDefaultHeader("PLAID-CLIENT-ID", o.PlaidClientID)
+@@ -409,19 +406,15 @@ func (c *Client) FilterRecordedTransactions(trans []*models.Transaction, regLook
+ 	return filtered
+ }
+ 
+-// FormatUniqueTransactionNames changes transaction names that are non-generic. eg., "GLO FIBER BILLPAY 260502 GLO FIBER ROBERT CALLAHAN" changes to GloFiber
++// FormatUniqueTransactionNames drops credit card payment transactions: those
++// payments also appear as Wells Fargo transactions, so keeping both would
++// double-count them. (The merchant-name overrides that used to run here moved
++// to the merchants table in 4.3; until the 4.4 matcher lands, name formatting
++// is FormatMerchantNames' job alone.)
+ func (c *Client) FormatUniqueTransactionNames(trans []*models.Transaction) []*models.Transaction {
+ 	var newTrans []*models.Transaction
+ 
+ 	for _, t := range trans {
+-		// Use the Merchants map[string]string in config.json to assign shorter transaction names
+-		for merchant, merchantEntry := range c.Merchants {
+-			if ok := strings.Contains(t.BankName, merchant); ok {
+-				t.Name = merchantEntry.Name
+-				t.ColumnIndex = merchantEntry.ColumnIndex
+-			}
+-		}
+-
+ 		// check if this is a credit card transaction showing a payment. If so, skip as it will show up as a Wells Fargo transaction,
+ 		// and we don't need it in both places
+ 		re := regexp.MustCompile(`PAYMENT MADE BY ACCOUNT ENDING IN:5409`)
+diff --git a/pkg/config/config.go b/pkg/config/config.go
+index b336f21..3064e59 100644
+--- a/pkg/config/config.go
++++ b/pkg/config/config.go
+@@ -39,11 +39,6 @@ type Bank struct {
+ 	AccessToken string `json:"access_token"`
+ }
+ 
+-type MerchantEntry struct {
+-	Name        string `json:"name"`
+-	ColumnIndex int    `json:"column_index"`
+-}
+-
+ // DBConfig ...
+ type DBConfig struct {
+ 	Type     string `json:"type"`
+@@ -86,7 +81,6 @@ type Config struct {
+ 	RegisterCategoryEndColumn   string                   `json:"register_category_end_column"`
+ 	RegisterIndexes             map[string]int           `json:"register_indexes"`
+ 	ColumnIndexes               map[string]int64         `json:"column_indexes"`
+-	Merchants                   map[string]MerchantEntry `json:"merchants"`
+ }
+ 
+ // ReadConfig ...

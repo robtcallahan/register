@@ -63,7 +63,6 @@ type ClientOptions struct {
 	Banks            map[string]config.Bank
 	Debug            bool
 	Verbose          bool
-	Merchants        map[string]config.MerchantEntry
 }
 
 type Client struct {
@@ -76,7 +75,6 @@ type Client struct {
 	Banks       map[string]config.Bank
 	Debug       bool
 	Verbose     bool
-	Merchants   map[string]config.MerchantEntry
 }
 
 type Balance struct {
@@ -95,7 +93,6 @@ func NewClient(o *ClientOptions) *Client {
 		Banks:       o.Banks,
 		Debug:       o.Debug,
 		Verbose:     o.Debug,
-		Merchants:   o.Merchants,
 	}
 	configuration := plaid.NewConfiguration()
 	configuration.AddDefaultHeader("PLAID-CLIENT-ID", o.PlaidClientID)
@@ -409,19 +406,15 @@ func (c *Client) FilterRecordedTransactions(trans []*models.Transaction, regLook
 	return filtered
 }
 
-// FormatUniqueTransactionNames changes transaction names that are non-generic. eg., "GLO FIBER BILLPAY 260502 GLO FIBER ROBERT CALLAHAN" changes to GloFiber
+// FormatUniqueTransactionNames drops credit card payment transactions: those
+// payments also appear as Wells Fargo transactions, so keeping both would
+// double-count them. (The merchant-name overrides that used to run here moved
+// to the merchants table in 4.3; until the 4.4 matcher lands, name formatting
+// is FormatMerchantNames' job alone.)
 func (c *Client) FormatUniqueTransactionNames(trans []*models.Transaction) []*models.Transaction {
 	var newTrans []*models.Transaction
 
 	for _, t := range trans {
-		// Use the Merchants map[string]string in config.json to assign shorter transaction names
-		for merchant, merchantEntry := range c.Merchants {
-			if ok := strings.Contains(t.BankName, merchant); ok {
-				t.Name = merchantEntry.Name
-				t.ColumnIndex = merchantEntry.ColumnIndex
-			}
-		}
-
 		// check if this is a credit card transaction showing a payment. If so, skip as it will show up as a Wells Fargo transaction,
 		// and we don't need it in both places
 		re := regexp.MustCompile(`PAYMENT MADE BY ACCOUNT ENDING IN:5409`)

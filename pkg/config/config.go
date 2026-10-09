@@ -39,11 +39,6 @@ type Bank struct {
 	AccessToken string `json:"access_token"`
 }
 
-type MerchantEntry struct {
-	Name        string `json:"name"`
-	ColumnIndex int    `json:"column_index"`
-}
-
 // DBConfig ...
 type DBConfig struct {
 	Type     string `json:"type"`
@@ -86,7 +81,6 @@ type Config struct {
 	RegisterCategoryEndColumn   string                   `json:"register_category_end_column"`
 	RegisterIndexes             map[string]int           `json:"register_indexes"`
 	ColumnIndexes               map[string]int64         `json:"column_indexes"`
-	Merchants                   map[string]MerchantEntry `json:"merchants"`
 }
 
 // ReadConfig ...
