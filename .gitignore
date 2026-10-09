@@ -1,9 +1,9 @@
 .DS_Store
 .idea
 .vscode
-json
 /config/config.json
+json
 register
-sql/*.bak
-tmp/*
-bin/*
+/sql/*.bak
+/tmp/*
+/bin/*
