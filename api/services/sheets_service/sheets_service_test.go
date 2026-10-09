@@ -364,6 +364,7 @@ func Test_sheetsService_addSalaryCells(t *testing.T) {
 		cells          []*sheets.CellData
 		columns        []models.Column
 		totalsFormulas []string
+		frequency      string
 	}
 	tests := []struct {
 		name string
@@ -380,13 +381,14 @@ func Test_sheetsService_addSalaryCells(t *testing.T) {
 					"=C1+D1",
 					"=E1+F1",
 				},
+				frequency: "weekly",
 			},
 			want: want,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ss.addSalaryCells(tt.args.cells, tt.args.columns, tt.args.totalsFormulas); !reflect.DeepEqual(got, tt.want) {
+			if got := ss.addSalaryCells(tt.args.cells, tt.args.columns, tt.args.totalsFormulas, tt.args.frequency); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("addSalaryCells() = %v, want %v", got, tt.want)
 			}
 		})

@@ -9,13 +9,13 @@ import (
 	"google.golang.org/api/sheets/v4"
 )
 
+// BudgetEntry is one category row of the Budget tab: the raw allocation at
+// each of the two cadences Rob gets paid on. (The Yearly column on the sheet
+// is display-only; the app never reads it.)
 type BudgetEntry struct {
-	Category     string
-	Weekly       float64
-	Monthly      float64
-	Every2Weeks  float64
-	TwiceMonthly float64
-	Yearly       float64
+	Category string
+	Weekly   float64
+	Monthly  float64
 }
 
 type BudgetSheet struct {
@@ -94,21 +94,9 @@ func (ss *SheetsService) populateBudgetEntry(values []interface{}) (*BudgetEntry
 	if err != nil {
 		return nil, err
 	}
-	every2Weeks, err := readDollarsValue(values[5])
-	if err != nil {
-		return nil, err
-	}
-	twiceMonthly, err := readDollarsValue(values[6])
-	if err != nil {
-		return nil, err
-	}
 	return &BudgetEntry{
-		Category:     ss.getBudgetCategory(values),
-		Weekly:       weekly,
-		Monthly:      monthly,
-		Every2Weeks:  every2Weeks,
-		TwiceMonthly: twiceMonthly,
-		// Yearly:             readDollarsValue(values[6]),
-		// RegisterColumnName: config.BudgetCategories[category],
+		Category: ss.getBudgetCategory(values),
+		Weekly:   weekly,
+		Monthly:  monthly,
 	}, nil
 }

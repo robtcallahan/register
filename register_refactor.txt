@@ -45,9 +45,9 @@ Phase 4 — Unify merchant matching in DB
 Phase 5 — Paycheck redesign
 - [X] 5.1 Define IncomeSource in config (name, match rule, frequency, allocations)
 - [X] 5.2 Add weekly paycheck + monthly Social Security as two income sources
-- [ ] 5.3 Remove hardcoded PayCheckBankName/PayCheckName from banking.go
-- [ ] 5.4 Replace addSalaryCells hack with income-source allocation logic
-- [ ] 5.5 Remove ColumnIndex=42 magic number
+- [X] 5.3 Remove hardcoded PayCheckBankName/PayCheckName from banking.go
+- [X] 5.4 Replace addSalaryCells hack with income-source allocation logic
+- [X] 5.5 Remove ColumnIndex=42 magic number
 -----------------------------------------------------------------------------------------
 Phase 6 — Column management CLI
 - [ ] 6.1 Make DB columns table the single source of truth

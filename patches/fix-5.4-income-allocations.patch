@@ -1,0 +1,146 @@
+diff --git a/api/services/sheets_service/budget_service.go b/api/services/sheets_service/budget_service.go
+index 5fff21d..23c0824 100644
+--- a/api/services/sheets_service/budget_service.go
++++ b/api/services/sheets_service/budget_service.go
+@@ -9,13 +9,13 @@ import (
+ 	"google.golang.org/api/sheets/v4"
+ )
+ 
++// BudgetEntry is one category row of the Budget tab: the raw allocation at
++// each of the two cadences Rob gets paid on. (The Yearly column on the sheet
++// is display-only; the app never reads it.)
+ type BudgetEntry struct {
+-	Category     string
+-	Weekly       float64
+-	Monthly      float64
+-	Every2Weeks  float64
+-	TwiceMonthly float64
+-	Yearly       float64
++	Category string
++	Weekly   float64
++	Monthly  float64
+ }
+ 
+ type BudgetSheet struct {
+@@ -94,21 +94,9 @@ func (ss *SheetsService) populateBudgetEntry(values []interface{}) (*BudgetEntry
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	every2Weeks, err := readDollarsValue(values[5])
+-	if err != nil {
+-		return nil, err
+-	}
+-	twiceMonthly, err := readDollarsValue(values[6])
+-	if err != nil {
+-		return nil, err
+-	}
+ 	return &BudgetEntry{
+-		Category:     ss.getBudgetCategory(values),
+-		Weekly:       weekly,
+-		Monthly:      monthly,
+-		Every2Weeks:  every2Weeks,
+-		TwiceMonthly: twiceMonthly,
+-		// Yearly:             readDollarsValue(values[6]),
+-		// RegisterColumnName: config.BudgetCategories[category],
++		Category: ss.getBudgetCategory(values),
++		Weekly:   weekly,
++		Monthly:  monthly,
+ 	}, nil
+ }
+diff --git a/api/services/sheets_service/register_service.go b/api/services/sheets_service/register_service.go
+index e4ebd22..825f4bb 100644
+--- a/api/services/sheets_service/register_service.go
++++ b/api/services/sheets_service/register_service.go
+@@ -270,7 +270,7 @@ func (ss *SheetsService) populateCells(columns []models.Column, transNameToColNa
+ 			return nil, err
+ 		}
+ 		if ss.isIncomeName(trans.Name) {
+-			cells = ss.addSalaryCells(cells, columns, totalsFormulas)
++			cells = ss.addSalaryCells(cells, columns, totalsFormulas, ss.incomeFrequency(trans.Name))
+ 		} else {
+ 			cells = addCategoryCells(cells, trans, columns, transNameToColName, totalsFormulas)
+ 		}
+@@ -301,7 +301,24 @@ func (ss *SheetsService) makeNoteRow(note string) *sheets.RowData {
+ 	}
+ }
+ 
+-func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []models.Column, totalsFormulas []string) []*sheets.CellData {
++// allocationFor returns a category's budgeted amount at the income source's
++// cadence: "weekly" deposits allocate the Weekly amounts, "monthly" the
++// Monthly ones. Any other frequency allocates nothing (visible zeros), so a
++// misconfigured frequency is obvious rather than quietly wrong.
++func allocationFor(entry *BudgetEntry, frequency string) float64 {
++	if entry == nil {
++		return 0
++	}
++	switch strings.ToLower(frequency) {
++	case "weekly":
++		return entry.Weekly
++	case "monthly":
++		return entry.Monthly
++	}
++	return 0
++}
++
++func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []models.Column, totalsFormulas []string, frequency string) []*sheets.CellData {
+ 	// colOffset is because we've already taken care of cols A-G (0-6)
+ 	colOffset := BankRegister
+ 
+@@ -314,8 +331,8 @@ func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []mode
+ 			// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here
+ 			cells = append(cells, mkCellDataFormula(totalsFormulas[i], "right", col.Color, false))
+ 		} else if isBudgetColumn(col.Name) && entry != nil {
+-			// enter the budgeted amount in this category column
+-			cells = append(cells, mkCellDataDollars(entry.Every2Weeks, "left", col.Color, true))
++			// enter the budgeted amount for this cadence in this category column
++			cells = append(cells, mkCellDataDollars(allocationFor(entry, frequency), "left", col.Color, true))
+ 		} else {
+ 			// this cell doesn't apply. Just create an empty (opaque) cell.
+ 			cells = append(cells, mkCellDataDollars(0.00, "left", col.Color, true))
+diff --git a/api/services/sheets_service/sheets_service.go b/api/services/sheets_service/sheets_service.go
+index 8471c0a..48c3893 100644
+--- a/api/services/sheets_service/sheets_service.go
++++ b/api/services/sheets_service/sheets_service.go
+@@ -60,3 +60,14 @@ func (ss *SheetsService) isIncomeName(name string) bool {
+ 	}
+ 	return false
+ }
++
++// incomeFrequency returns the configured pay frequency ("weekly", "monthly",
++// ...) of the income source with the given display name, or "".
++func (ss *SheetsService) incomeFrequency(name string) string {
++	for _, src := range ss.IncomeSources {
++		if src.Name == name {
++			return src.Frequency
++		}
++	}
++	return ""
++}
+diff --git a/api/services/sheets_service/sheets_service_test.go b/api/services/sheets_service/sheets_service_test.go
+index b571671..6eb7123 100644
+--- a/api/services/sheets_service/sheets_service_test.go
++++ b/api/services/sheets_service/sheets_service_test.go
+@@ -364,6 +364,7 @@ func Test_sheetsService_addSalaryCells(t *testing.T) {
+ 		cells          []*sheets.CellData
+ 		columns        []models.Column
+ 		totalsFormulas []string
++		frequency      string
+ 	}
+ 	tests := []struct {
+ 		name string
+@@ -380,13 +381,14 @@ func Test_sheetsService_addSalaryCells(t *testing.T) {
+ 					"=C1+D1",
+ 					"=E1+F1",
+ 				},
++				frequency: "weekly",
+ 			},
+ 			want: want,
+ 		},
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+-			if got := ss.addSalaryCells(tt.args.cells, tt.args.columns, tt.args.totalsFormulas); !reflect.DeepEqual(got, tt.want) {
++			if got := ss.addSalaryCells(tt.args.cells, tt.args.columns, tt.args.totalsFormulas, tt.args.frequency); !reflect.DeepEqual(got, tt.want) {
+ 				t.Errorf("addSalaryCells() = %v, want %v", got, tt.want)
+ 			}
+ 		})

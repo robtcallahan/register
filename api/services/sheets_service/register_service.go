@@ -270,7 +270,7 @@ func (ss *SheetsService) populateCells(columns []models.Column, transNameToColNa
 			return nil, err
 		}
 		if ss.isIncomeName(trans.Name) {
-			cells = ss.addSalaryCells(cells, columns, totalsFormulas)
+			cells = ss.addSalaryCells(cells, columns, totalsFormulas, ss.incomeFrequency(trans.Name))
 		} else {
 			cells = addCategoryCells(cells, trans, columns, transNameToColName, totalsFormulas)
 		}
@@ -301,7 +301,24 @@ func (ss *SheetsService) makeNoteRow(note string) *sheets.RowData {
 	}
 }
 
-func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []models.Column, totalsFormulas []string) []*sheets.CellData {
+// allocationFor returns a category's budgeted amount at the income source's
+// cadence: "weekly" deposits allocate the Weekly amounts, "monthly" the
+// Monthly ones. Any other frequency allocates nothing (visible zeros), so a
+// misconfigured frequency is obvious rather than quietly wrong.
+func allocationFor(entry *BudgetEntry, frequency string) float64 {
+	if entry == nil {
+		return 0
+	}
+	switch strings.ToLower(frequency) {
+	case "weekly":
+		return entry.Weekly
+	case "monthly":
+		return entry.Monthly
+	}
+	return 0
+}
+
+func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []models.Column, totalsFormulas []string, frequency string) []*sheets.CellData {
 	// colOffset is because we've already taken care of cols A-G (0-6)
 	colOffset := BankRegister
 
@@ -314,8 +331,8 @@ func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []mode
 			// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here
 			cells = append(cells, mkCellDataFormula(totalsFormulas[i], "right", col.Color, false))
 		} else if isBudgetColumn(col.Name) && entry != nil {
-			// enter the budgeted amount in this category column
-			cells = append(cells, mkCellDataDollars(entry.Every2Weeks, "left", col.Color, true))
+			// enter the budgeted amount for this cadence in this category column
+			cells = append(cells, mkCellDataDollars(allocationFor(entry, frequency), "left", col.Color, true))
 		} else {
 			// this cell doesn't apply. Just create an empty (opaque) cell.
 			cells = append(cells, mkCellDataDollars(0.00, "left", col.Color, true))
