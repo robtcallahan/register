@@ -1,5 +1,35 @@
 package models
 
+import "fmt"
+
+// Validate reports structural problems in the set: non-positive, duplicate,
+// or missing indexes. An empty result means the indexes run gapless from 1 —
+// the precondition the sheet write path relies on.
+func (s *ColumnSet) Validate() []string {
+	var problems []string
+	seen := make(map[int]string)
+	max := 0
+	for _, col := range s.columns {
+		if col.ColumnIndex < 1 {
+			problems = append(problems, fmt.Sprintf("column %q has non-positive index %d", col.Name, col.ColumnIndex))
+			continue
+		}
+		if prev, dup := seen[col.ColumnIndex]; dup {
+			problems = append(problems, fmt.Sprintf("index %d is shared by %q and %q", col.ColumnIndex, prev, col.Name))
+		}
+		seen[col.ColumnIndex] = col.Name
+		if col.ColumnIndex > max {
+			max = col.ColumnIndex
+		}
+	}
+	for i := 1; i <= max; i++ {
+		if _, ok := seen[i]; !ok {
+			problems = append(problems, fmt.Sprintf("no column at index %d (%s)", i, ColumnLetter(i)))
+		}
+	}
+	return problems
+}
+
 // ColumnSet wraps the columns-table rows fetched for a run and is the single
 // place that knows how DB column indexes map to spreadsheet positions.
 //

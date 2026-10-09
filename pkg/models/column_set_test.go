@@ -38,3 +38,21 @@ func TestColumnSet(t *testing.T) {
 		t.Errorf("SliceOffset(42) = %d; want 41", got)
 	}
 }
+
+func TestColumnSetValidate(t *testing.T) {
+	if problems := NewColumnSet([]Column{
+		{ID: 1, Name: "A", ColumnIndex: 1},
+		{ID: 2, Name: "B", ColumnIndex: 2},
+	}).Validate(); len(problems) != 0 {
+		t.Errorf("Validate() on gapless set = %v; want no problems", problems)
+	}
+
+	problems := NewColumnSet([]Column{
+		{ID: 1, Name: "A", ColumnIndex: 1},
+		{ID: 2, Name: "B", ColumnIndex: 1},
+		{ID: 3, Name: "D", ColumnIndex: 4},
+	}).Validate()
+	if len(problems) != 3 { // duplicate index 1, missing 2, missing 3
+		t.Errorf("Validate() = %v; want 3 problems", problems)
+	}
+}

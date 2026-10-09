@@ -16,6 +16,7 @@ type SheetCoords struct {
 	EndRow           int64
 	LastRow          int64
 	RowCount         int64
+	ColumnCount      int64
 	FirstRowToUpdate int64
 	EndColumnName    string
 	EndColumnIndex   int64
@@ -80,6 +81,7 @@ func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.C
 	ss.RegisterSheet.ID = props.SheetId
 	if props.GridProperties != nil {
 		ss.RegisterSheet.SheetCoords.RowCount = props.GridProperties.RowCount
+		ss.RegisterSheet.SheetCoords.ColumnCount = props.GridProperties.ColumnCount
 	}
 	return nil
 }
@@ -221,6 +223,64 @@ func (ss *SheetsService) WriteCell(cell string, value interface{}) (*sheets.Upda
 		return nil, fmt.Errorf("unable to write cell data: %s", err.Error())
 	}
 	return resp, nil
+}
+
+// firstCategoryColumnIndex is the first 1-based position past the fixed
+// A-J register block (K) — where category columns begin.
+const firstCategoryColumnIndex = 11
+
+// CheckRegisterColumns reports drift between the columns table and the
+// Register tab: structural problems in the DB indexes, a sheet grid wider
+// or narrower than the DB's last column, and row-4 header names that
+// disagree with the DB. Report-only; it never writes anything.
+func (ss *SheetsService) CheckRegisterColumns(columns []models.Column) ([]string, error) {
+	set := models.NewColumnSet(columns)
+	problems := set.Validate()
+
+	headerRange := fmt.Sprintf("%s!A4:%s4", ss.RegisterSheet.TabName, ss.RegisterSheet.SheetCoords.EndColumnName)
+	resp, err := ss.Provider.GetValues(headerRange)
+	if err != nil {
+		return nil, fmt.Errorf("could not read header row: %w", err)
+	}
+	var headerRow []interface{}
+	if len(resp.Values) > 0 {
+		headerRow = resp.Values[0]
+	}
+	problems = append(problems, compareColumnHeaders(columns, headerRow)...)
+
+	if end, ok := set.End(); ok {
+		if count := ss.RegisterSheet.SheetCoords.ColumnCount; count > 0 && int64(end.ColumnIndex) != count {
+			problems = append(problems, fmt.Sprintf(
+				"column count mismatch: DB ends at %s (index %d) but the sheet grid has %d columns",
+				set.LetterFor(end.ColumnIndex), end.ColumnIndex, count))
+		}
+	}
+	return problems, nil
+}
+
+// compareColumnHeaders matches each category column's DB name against the
+// sheet's row-4 header at its position. Only category columns (K, index 11
+// and up) are compared: the fixed block's sheet labels ("Register") predate
+// its DB names ("BankRegister") and are the code's business, not drift.
+func compareColumnHeaders(columns []models.Column, headerRow []interface{}) []string {
+	var problems []string
+	set := models.NewColumnSet(columns)
+	for _, col := range columns {
+		if col.ColumnIndex < firstCategoryColumnIndex {
+			continue
+		}
+		header := ""
+		if offset := set.SliceOffset(col.ColumnIndex); offset >= 0 && offset < len(headerRow) {
+			if s, ok := headerRow[offset].(string); ok {
+				header = strings.TrimSpace(s)
+			}
+		}
+		if header != col.Name {
+			problems = append(problems, fmt.Sprintf("header mismatch at %s (index %d): DB has %q, sheet has %q",
+				set.LetterFor(col.ColumnIndex), col.ColumnIndex, col.Name, header))
+		}
+	}
+	return problems
 }
 
 // InsertRegisterColumn inserts a blank sheet column at the given 1-based

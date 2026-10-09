@@ -53,8 +53,8 @@ Phase 6 — Column management CLI
 [X] 6.1 ColumnSet + identity write path — done
 [X] finding #5 prompt fix — done
 [X] finding #6 cleanup — done
-[ ] 6.2 columns CLI (list/add/rename/delete — first thing that ever writes the columns table)
-[ ] 6.3 columns check (report-only)
+[X] 6.2 columns CLI (list/add/rename/delete — first thing that ever writes the columns table)
+[X] 6.3 columns check (report-only)
 [ ] 6.4 positions derived everywhere
 [ ] 6.5 budget category names from the same source
 [ ] 6.6 config index cleanup

@@ -53,6 +53,14 @@ var columnsRenameCmd = &cobra.Command{
 	},
 }
 
+var columnsCheckCmd = &cobra.Command{
+	Use:   "check",
+	Short: "Report drift between the columns table and the Register sheet (read-only)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return checkColumns()
+	},
+}
+
 var columnsDeleteCmd = &cobra.Command{
 	Use:   "delete <name>",
 	Short: "Delete a register column, its sheet column, and its merchant rules",
@@ -74,6 +82,7 @@ func init() {
 	columnsCmd.AddCommand(columnsAddCmd)
 	columnsCmd.AddCommand(columnsRenameCmd)
 	columnsCmd.AddCommand(columnsDeleteCmd)
+	columnsCmd.AddCommand(columnsCheckCmd)
 
 	columnsAddCmd.Flags().StringVar(&addColor, "color", "", "column color: green, yellow, or blue (required)")
 	columnsAddCmd.Flags().StringVar(&addAfter, "after", "", "insert after this column (default: at the end)")
@@ -285,6 +294,34 @@ func deleteColumn(name string) error {
 
 	fmt.Printf("Deleted %q (column %s, index %d)\n", name, set.LetterFor(index), index)
 	return nil
+}
+
+func checkColumns() error {
+	q, err := columnsQuery()
+	if err != nil {
+		return err
+	}
+	columns, err := q.GetColumns()
+	if err != nil {
+		return err
+	}
+	ss, err := columnsSheetService(q)
+	if err != nil {
+		return err
+	}
+	problems, err := ss.CheckRegisterColumns(columns)
+	if err != nil {
+		return err
+	}
+	if len(problems) == 0 {
+		fmt.Printf("OK: %d columns, DB and sheet agree\n", len(columns))
+		return nil
+	}
+	fmt.Println("Column drift detected:")
+	for _, p := range problems {
+		fmt.Println("  - " + p)
+	}
+	return fmt.Errorf("%d column problem(s) found", len(problems))
 }
 
 func confirm(prompt string) bool {
