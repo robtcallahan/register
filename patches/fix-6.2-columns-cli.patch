@@ -1,0 +1,587 @@
+diff --git a/api/services/sheets_service/register_service.go b/api/services/sheets_service/register_service.go
+index 33f55ee..e3da956 100644
+--- a/api/services/sheets_service/register_service.go
++++ b/api/services/sheets_service/register_service.go
+@@ -3,6 +3,7 @@ package sheets_service
+ import (
+ 	"errors"
+ 	"fmt"
++	"regexp"
+ 	"register/pkg/config"
+ 	"register/pkg/models"
+ 	"strings"
+@@ -222,6 +223,122 @@ func (ss *SheetsService) WriteCell(cell string, value interface{}) (*sheets.Upda
+ 	return resp, nil
+ }
+ 
++// InsertRegisterColumn inserts a blank sheet column at the given 1-based
++// index, labels it in the row-4 header, and fills its running-total
++// formulas by translating the left neighbor column's formulas. The
++// position math is the caller's (DB) job; this keeps the sheet in step.
++func (ss *SheetsService) InsertRegisterColumn(index int, name string) error {
++	insertReq := sheets.BatchUpdateSpreadsheetRequest{
++		Requests: []*sheets.Request{{
++			InsertDimension: &sheets.InsertDimensionRequest{
++				Range: &sheets.DimensionRange{
++					SheetId:    ss.RegisterSheet.ID,
++					Dimension:  "COLUMNS",
++					StartIndex: int64(index - 1),
++					EndIndex:   int64(index),
++				},
++				InheritFromBefore: true,
++			},
++		}},
++	}
++	if _, err := ss.Provider.BatchUpdate(&insertReq); err != nil {
++		return fmt.Errorf("could not insert column: %w", err)
++	}
++
++	rowCount := ss.RegisterSheet.SheetCoords.RowCount
++	newLetter := models.ColumnLetter(index)
++	values := make([][]interface{}, rowCount)
++	for i := range values {
++		values[i] = []interface{}{""}
++	}
++	if rowCount > 3 {
++		values[3] = []interface{}{name} // row 4 holds the column name
++	}
++	if index > 1 && rowCount > 0 {
++		neighborLetter := models.ColumnLetter(index - 1)
++		formulas, err := ss.readColumnFormulas(neighborLetter, rowCount)
++		if err != nil {
++			return err
++		}
++		// totals formulas live in the data rows (row 5 down); rows 1-4 are
++		// titles, the totals block, the group header, and the name
++		for row := 4; row < len(formulas); row++ {
++			if formulas[row] != "" {
++				values[row] = []interface{}{shiftFormulaColumn(formulas[row], neighborLetter, newLetter)}
++			}
++		}
++	}
++	writeRange := fmt.Sprintf("%s!%s1:%s%d", ss.RegisterSheet.TabName, newLetter, newLetter, rowCount)
++	if _, err := ss.Provider.Update(writeRange, &sheets.ValueRange{Values: values}); err != nil {
++		return fmt.Errorf("could not write column %s: %w", newLetter, err)
++	}
++	return nil
++}
++
++// DeleteRegisterColumn removes the sheet column at the given 1-based index.
++func (ss *SheetsService) DeleteRegisterColumn(index int) error {
++	deleteReq := sheets.BatchUpdateSpreadsheetRequest{
++		Requests: []*sheets.Request{{
++			DeleteDimension: &sheets.DeleteDimensionRequest{
++				Range: &sheets.DimensionRange{
++					SheetId:    ss.RegisterSheet.ID,
++					Dimension:  "COLUMNS",
++					StartIndex: int64(index - 1),
++					EndIndex:   int64(index),
++				},
++			},
++		}},
++	}
++	if _, err := ss.Provider.BatchUpdate(&deleteReq); err != nil {
++		return fmt.Errorf("could not delete column %s: %w", models.ColumnLetter(index), err)
++	}
++	return nil
++}
++
++// RenameRegisterColumnHeader rewrites the row-4 name cell of the column at
++// the given 1-based index.
++func (ss *SheetsService) RenameRegisterColumnHeader(index int, name string) error {
++	_, err := ss.WriteCell(models.ColumnLetter(index)+"4", name)
++	return err
++}
++
++// readColumnFormulas returns the formulas of one sheet column, one entry per
++// row ("" where the cell holds no formula).
++func (ss *SheetsService) readColumnFormulas(letter string, rowCount int64) ([]string, error) {
++	rng := fmt.Sprintf("%s!%s1:%s%d", ss.RegisterSheet.TabName, letter, letter, rowCount)
++	resp, err := ss.Provider.GetFormula(rng)
++	if err != nil {
++		return nil, fmt.Errorf("could not read formulas from column %s: %w", letter, err)
++	}
++	formulas := make([]string, rowCount)
++	for i, row := range resp.Values {
++		if i >= int(rowCount) {
++			break
++		}
++		if len(row) > 0 {
++			if s, ok := row[0].(string); ok && strings.HasPrefix(s, "=") {
++				formulas[i] = s
++			}
++		}
++	}
++	return formulas, nil
++}
++
++var cellRefRegex = regexp.MustCompile(`\$?([A-Z]+)\$?(\d+)`)
++
++// shiftFormulaColumn rewrites a formula so references to fromLetter point
++// at toLetter instead. Register totals formulas reference only their own
++// column, so this moves a copied formula into its new column wholesale.
++func shiftFormulaColumn(formula, fromLetter, toLetter string) string {
++	return cellRefRegex.ReplaceAllStringFunc(formula, func(ref string) string {
++		sub := cellRefRegex.FindStringSubmatch(ref)
++		if sub[1] != fromLetter {
++			return ref
++		}
++		return strings.Replace(ref, sub[1], toLetter, 1)
++	})
++}
++
+ func (ss *SheetsService) UpdateRows(columns []models.Column, transNameToColName map[string]string, transactions []*models.Transaction) error {
+ 	var requests []*sheets.Request
+ 
+diff --git a/api/services/sheets_service/register_service_test.go b/api/services/sheets_service/register_service_test.go
+new file mode 100644
+index 0000000..9b0bf23
+--- /dev/null
++++ b/api/services/sheets_service/register_service_test.go
+@@ -0,0 +1,23 @@
++package sheets_service
++
++import "testing"
++
++func Test_shiftFormulaColumn(t *testing.T) {
++	tests := []struct {
++		formula string
++		from    string
++		to      string
++		want    string
++	}{
++		{"=SUM(K5:K6)", "K", "L", "=SUM(L5:L6)"},
++		{"=SUM(AA10:AA11)", "AA", "AB", "=SUM(AB10:AB11)"},
++		{"=$K$5+K7", "K", "L", "=$L$5+L7"},
++		{"=SUM(K5:K6)+Z2", "K", "L", "=SUM(L5:L6)+Z2"},
++		{"Cash", "K", "L", "Cash"},
++	}
++	for _, tt := range tests {
++		if got := shiftFormulaColumn(tt.formula, tt.from, tt.to); got != tt.want {
++			t.Errorf("shiftFormulaColumn(%q, %q, %q) = %q; want %q", tt.formula, tt.from, tt.to, got, tt.want)
++		}
++	}
++}
+diff --git a/cmd/columns.go b/cmd/columns.go
+new file mode 100644
+index 0000000..8b4d3f8
+--- /dev/null
++++ b/cmd/columns.go
+@@ -0,0 +1,292 @@
++package cmd
++
++import (
++	"fmt"
++	"strings"
++
++	"register/api/providers/sheets_provider"
++	"register/api/services/sheets_service"
++	"register/pkg/driver"
++	"register/pkg/handler"
++	"register/pkg/models"
++
++	"github.com/spf13/cobra"
++)
++
++// firstCategoryIndex is the first column position (1-based) a category may
++// occupy: K. Indexes 1-10 (A-J: Reconciled through Delta) are the fixed
++// register block the code's column constants assume, so add/delete refuse
++// to touch them.
++const firstCategoryIndex = 11
++
++var columnsCmd = &cobra.Command{
++	Use:   "columns",
++	Short: "Manage register category columns in the DB and the sheet",
++	Long: `List, add, rename, and delete register category columns. The columns
++table is the source of truth; add and delete keep the Register tab in step
++(insert/remove the sheet column, fill the running-total formulas).`,
++}
++
++var columnsListCmd = &cobra.Command{
++	Use:   "list",
++	Short: "List register columns from the DB",
++	RunE: func(cmd *cobra.Command, args []string) error {
++		return listColumns()
++	},
++}
++
++var columnsAddCmd = &cobra.Command{
++	Use:   "add <name>",
++	Short: "Add a category column after another column",
++	Args:  cobra.ExactArgs(1),
++	RunE: func(cmd *cobra.Command, args []string) error {
++		return addColumn(args[0])
++	},
++}
++
++var columnsRenameCmd = &cobra.Command{
++	Use:   "rename <old-name> <new-name>",
++	Short: "Rename a register column (DB + sheet header)",
++	Args:  cobra.ExactArgs(2),
++	RunE: func(cmd *cobra.Command, args []string) error {
++		return renameColumn(args[0], args[1])
++	},
++}
++
++var columnsDeleteCmd = &cobra.Command{
++	Use:   "delete <name>",
++	Short: "Delete a register column, its sheet column, and its merchant rules",
++	Args:  cobra.ExactArgs(1),
++	RunE: func(cmd *cobra.Command, args []string) error {
++		return deleteColumn(args[0])
++	},
++}
++
++var (
++	addColor  string
++	addAfter  string
++	deleteYes bool
++)
++
++func init() {
++	rootCmd.AddCommand(columnsCmd)
++	columnsCmd.AddCommand(columnsListCmd)
++	columnsCmd.AddCommand(columnsAddCmd)
++	columnsCmd.AddCommand(columnsRenameCmd)
++	columnsCmd.AddCommand(columnsDeleteCmd)
++
++	columnsAddCmd.Flags().StringVar(&addColor, "color", "", "column color: green, yellow, or blue (required)")
++	columnsAddCmd.Flags().StringVar(&addAfter, "after", "", "insert after this column (default: at the end)")
++	columnsDeleteCmd.Flags().BoolVar(&deleteYes, "yes", false, "skip the confirmation prompt")
++	_ = columnsAddCmd.MarkFlagRequired("color")
++}
++
++func columnsQuery() (*handler.Query, error) {
++	conn, err := driver.ConnectSQL(&driver.ConnectParams{
++		DBType: driver.DBType(config.DB.Type),
++		Host:   config.DB.Host,
++		Port:   config.DB.Port,
++		DBName: config.DB.Name,
++		User:   config.DB.Username,
++		Pass:   config.DB.Password,
++	})
++	if err != nil {
++		return nil, err
++	}
++	return handler.NewQueryHandler(conn), nil
++}
++
++func columnsSheetService(q *handler.Query) (*sheets_service.SheetsService, error) {
++	columns, err := q.GetColumns()
++	if err != nil {
++		return nil, err
++	}
++	provider, err := sheets_provider.New(options.SpreadsheetID, config)
++	if err != nil {
++		return nil, err
++	}
++	ss := sheets_service.New(provider)
++	if err := ss.NewRegisterSheet(config, columns); err != nil {
++		return nil, err
++	}
++	return ss, nil
++}
++
++func listColumns() error {
++	q, err := columnsQuery()
++	if err != nil {
++		return err
++	}
++	columns, err := q.GetColumns()
++	if err != nil {
++		return err
++	}
++	set := models.NewColumnSet(columns)
++	fmt.Printf("%4s  %-4s  %-30s %-8s %-9s %s\n", "IDX", "COL", "NAME", "COLOR", "CATEGORY", "ID")
++	for _, col := range columns {
++		category := "no"
++		if col.IsCategory {
++			category = "yes"
++		}
++		fmt.Printf("%4d  %-4s  %-30s %-8s %-9s %d\n",
++			col.ColumnIndex, set.LetterFor(col.ColumnIndex), col.Name, col.Color, category, col.ID)
++	}
++	return nil
++}
++
++func addColumn(name string) error {
++	switch addColor {
++	case "green", "yellow", "blue":
++	default:
++		return fmt.Errorf("--color must be green, yellow, or blue (black is reserved for the payoff columns)")
++	}
++	if strings.TrimSpace(name) == "" {
++		return fmt.Errorf("column name must not be empty")
++	}
++
++	q, err := columnsQuery()
++	if err != nil {
++		return err
++	}
++	columns, err := q.GetColumns()
++	if err != nil {
++		return err
++	}
++	set := models.NewColumnSet(columns)
++	if _, ok := set.IndexFor(name); ok {
++		return fmt.Errorf("a column named %q already exists", name)
++	}
++
++	newIndex := 0
++	if end, ok := set.End(); ok {
++		newIndex = end.ColumnIndex + 1
++	}
++	if addAfter != "" {
++		afterIndex, ok := set.IndexFor(addAfter)
++		if !ok {
++			return fmt.Errorf("no column named %q", addAfter)
++		}
++		newIndex = afterIndex + 1
++	}
++	if newIndex < firstCategoryIndex {
++		return fmt.Errorf("cannot insert at index %d: indexes 1-%d are the fixed register block",
++			newIndex, firstCategoryIndex-1)
++	}
++
++	col := &models.Column{Name: name, Color: addColor, ColumnIndex: newIndex, IsCategory: true}
++	if err := q.AddColumn(col); err != nil {
++		return err
++	}
++
++	ss, err := columnsSheetService(q)
++	if err != nil {
++		return err
++	}
++	if err := ss.InsertRegisterColumn(newIndex, name); err != nil {
++		return fmt.Errorf("%q is in the DB at %s (%d) but the sheet update failed: %w",
++			name, set.LetterFor(newIndex), newIndex, err)
++	}
++
++	fmt.Printf("Added %q at column %s (index %d)\n", name, set.LetterFor(newIndex), newIndex)
++	return nil
++}
++
++func renameColumn(oldName, newName string) error {
++	if strings.TrimSpace(newName) == "" {
++		return fmt.Errorf("new name must not be empty")
++	}
++
++	q, err := columnsQuery()
++	if err != nil {
++		return err
++	}
++	columns, err := q.GetColumns()
++	if err != nil {
++		return err
++	}
++	set := models.NewColumnSet(columns)
++	index, ok := set.IndexFor(oldName)
++	if !ok {
++		return fmt.Errorf("no column named %q", oldName)
++	}
++	if _, exists := set.IndexFor(newName); exists && newName != oldName {
++		return fmt.Errorf("a column named %q already exists", newName)
++	}
++	col, _ := set.ByIndex(index)
++
++	if err := q.RenameColumn(col.ID, newName); err != nil {
++		return err
++	}
++
++	ss, err := columnsSheetService(q)
++	if err != nil {
++		return err
++	}
++	if err := ss.RenameRegisterColumnHeader(index, newName); err != nil {
++		return fmt.Errorf("%q renamed in the DB but the sheet header update failed: %w", oldName, err)
++	}
++
++	fmt.Printf("Renamed %q to %q (column %s)\n", oldName, newName, set.LetterFor(index))
++	return nil
++}
++
++func deleteColumn(name string) error {
++	q, err := columnsQuery()
++	if err != nil {
++		return err
++	}
++	columns, err := q.GetColumns()
++	if err != nil {
++		return err
++	}
++	set := models.NewColumnSet(columns)
++	index, ok := set.IndexFor(name)
++	if !ok {
++		return fmt.Errorf("no column named %q", name)
++	}
++	if index < firstCategoryIndex {
++		return fmt.Errorf("cannot delete %q: indexes 1-%d are the fixed register block",
++			name, firstCategoryIndex-1)
++	}
++	col, _ := set.ByIndex(index)
++
++	merchants, err := q.GetMerchantsByColumn(col.ID)
++	if err != nil {
++		return err
++	}
++	if len(merchants) > 0 {
++		fmt.Printf("These merchant rules point at %q and will be deleted with it:\n", name)
++		for _, m := range merchants {
++			fmt.Printf("  [%d] %-35s -> %s\n", m.ID, m.BankName, m.Name)
++		}
++		if !confirm(fmt.Sprintf("Delete column %q and %d merchant rule(s)? [y/N] ", name, len(merchants))) {
++			fmt.Println("Cancelled.")
++			return nil
++		}
++	} else if !deleteYes {
++		if !confirm(fmt.Sprintf("Delete column %q (%s, index %d)? Its sheet column and accumulated amounts go too. [y/N] ",
++			name, set.LetterFor(index), index)) {
++			fmt.Println("Cancelled.")
++			return nil
++		}
++	}
++
++	if err := q.DeleteColumn(col.ID); err != nil {
++		return err
++	}
++
++	ss, err := columnsSheetService(q)
++	if err != nil {
++		return err
++	}
++	if err := ss.DeleteRegisterColumn(index); err != nil {
++		return fmt.Errorf("%q is deleted from the DB but the sheet update failed: %w", name, err)
++	}
++
++	fmt.Printf("Deleted %q (column %s, index %d)\n", name, set.LetterFor(index), index)
++	return nil
++}
++
++func confirm(prompt string) bool {
++	return strings.EqualFold(strings.TrimSpace(readString(prompt)), "y")
++}
+diff --git a/pkg/handler/handler.go b/pkg/handler/handler.go
+index db191f2..fdbf8ae 100644
+--- a/pkg/handler/handler.go
++++ b/pkg/handler/handler.go
+@@ -42,6 +42,26 @@ func (q *Query) GetColumns() ([]models.Column, error) {
+ 	return q.repo.GetColumns()
+ }
+ 
++// AddColumn inserts a column at its index, shifting later columns up
++func (q *Query) AddColumn(col *models.Column) error {
++	return q.repo.AddColumn(col)
++}
++
++// RenameColumn changes a column's display name
++func (q *Query) RenameColumn(id int, name string) error {
++	return q.repo.RenameColumn(id, name)
++}
++
++// DeleteColumn removes a column, its merchant rules, and renumbers
++func (q *Query) DeleteColumn(id int) error {
++	return q.repo.DeleteColumn(id)
++}
++
++// GetMerchantsByColumn lists the merchant rules pointing at a column
++func (q *Query) GetMerchantsByColumn(columnID int) ([]models.Merchant, error) {
++	return q.repo.GetMerchantsByColumn(columnID)
++}
++
+ // GetMerchants get all merchants
+ func (q *Query) GetMerchants() ([]models.Merchant, error) {
+ 	return q.repo.GetMerchants()
+diff --git a/pkg/repository/mysql/mysql.go b/pkg/repository/mysql/mysql.go
+index a540be5..8d25d5e 100644
+--- a/pkg/repository/mysql/mysql.go
++++ b/pkg/repository/mysql/mysql.go
+@@ -129,6 +129,74 @@ func (r *mysqlQueryRepo) GetNameMapToColumn() (map[string]string, error) {
+ 	return transNameToColName, nil
+ }
+ 
++// AddColumn inserts col at its ColumnIndex, shifting the columns at or
++// after that index up by one. One transaction: column_index is UNIQUE, and
++// descending per-row updates keep every intermediate state collision-free.
++func (r *mysqlQueryRepo) AddColumn(col *models.Column) error {
++	return r.Conn.Transaction(func(tx *gorm.DB) error {
++		var shifting []models.Column
++		if err := tx.Where("column_index >= ?", col.ColumnIndex).Order("column_index desc").Find(&shifting).Error; err != nil {
++			return fmt.Errorf("unable to shift columns: %w", err)
++		}
++		for i := range shifting {
++			if err := tx.Model(&models.Column{}).Where("id = ?", shifting[i].ID).
++				Update("column_index", shifting[i].ColumnIndex+1).Error; err != nil {
++				return fmt.Errorf("unable to shift column %s: %w", shifting[i].Name, err)
++			}
++		}
++		if err := tx.Create(col).Error; err != nil {
++			return fmt.Errorf("unable to create column %s: %w", col.Name, err)
++		}
++		return nil
++	})
++}
++
++// RenameColumn ...
++func (r *mysqlQueryRepo) RenameColumn(id int, name string) error {
++	if result := r.Conn.Model(&models.Column{}).Where("id = ?", id).Update("name", name); result.Error != nil {
++		return fmt.Errorf("unable to rename column: %w", result.Error)
++	}
++	return nil
++}
++
++// DeleteColumn removes a column and the merchant rules pointing at it, then
++// shifts later columns down by one. Hard deletes throughout: a soft-deleted
++// row would keep occupying its column_index under the UNIQUE constraint.
++func (r *mysqlQueryRepo) DeleteColumn(id int) error {
++	return r.Conn.Transaction(func(tx *gorm.DB) error {
++		var col models.Column
++		if err := tx.First(&col, id).Error; err != nil {
++			return fmt.Errorf("unable to find column %d: %w", id, err)
++		}
++		if err := tx.Unscoped().Where("column_id = ?", id).Delete(&models.Merchant{}).Error; err != nil {
++			return fmt.Errorf("unable to delete merchants for column %s: %w", col.Name, err)
++		}
++		if err := tx.Unscoped().Delete(&models.Column{}, id).Error; err != nil {
++			return fmt.Errorf("unable to delete column %s: %w", col.Name, err)
++		}
++		var shifting []models.Column
++		if err := tx.Where("column_index > ?", col.ColumnIndex).Order("column_index asc").Find(&shifting).Error; err != nil {
++			return fmt.Errorf("unable to shift columns: %w", err)
++		}
++		for i := range shifting {
++			if err := tx.Model(&models.Column{}).Where("id = ?", shifting[i].ID).
++				Update("column_index", shifting[i].ColumnIndex-1).Error; err != nil {
++				return fmt.Errorf("unable to shift column %s: %w", shifting[i].Name, err)
++			}
++		}
++		return nil
++	})
++}
++
++// GetMerchantsByColumn ...
++func (r *mysqlQueryRepo) GetMerchantsByColumn(columnID int) ([]models.Merchant, error) {
++	var merchants []models.Merchant
++	if result := r.Conn.Where("column_id = ?", columnID).Order("name").Find(&merchants); result.Error != nil {
++		return nil, fmt.Errorf("unable to get merchants for column: %w", result.Error)
++	}
++	return merchants, nil
++}
++
+ // PrintData ...
+ func (r *mysqlQueryRepo) PrintData() error {
+ 	var merchants []models.Merchant
+diff --git a/pkg/repository/repository.go b/pkg/repository/repository.go
+index d6034df..5c72cbc 100644
+--- a/pkg/repository/repository.go
++++ b/pkg/repository/repository.go
+@@ -11,6 +11,10 @@ type QueryRepo interface {
+ 	CreateDB(dbName string) (*gorm.DB, error)
+ 
+ 	GetColumns() ([]models.Column, error)
++	AddColumn(col *models.Column) error
++	RenameColumn(id int, name string) error
++	DeleteColumn(id int) error
++	GetMerchantsByColumn(columnID int) ([]models.Merchant, error)
+ 
+ 	GetMerchants() ([]models.Merchant, error)
+ 	CreateMerchant(m *models.Merchant) error

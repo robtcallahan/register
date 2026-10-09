@@ -11,6 +11,10 @@ type QueryRepo interface {
 	CreateDB(dbName string) (*gorm.DB, error)
 
 	GetColumns() ([]models.Column, error)
+	AddColumn(col *models.Column) error
+	RenameColumn(id int, name string) error
+	DeleteColumn(id int) error
+	GetMerchantsByColumn(columnID int) ([]models.Merchant, error)
 
 	GetMerchants() ([]models.Merchant, error)
 	CreateMerchant(m *models.Merchant) error

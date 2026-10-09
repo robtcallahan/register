@@ -129,6 +129,74 @@ func (r *mysqlQueryRepo) GetNameMapToColumn() (map[string]string, error) {
 	return transNameToColName, nil
 }
 
+// AddColumn inserts col at its ColumnIndex, shifting the columns at or
+// after that index up by one. One transaction: column_index is UNIQUE, and
+// descending per-row updates keep every intermediate state collision-free.
+func (r *mysqlQueryRepo) AddColumn(col *models.Column) error {
+	return r.Conn.Transaction(func(tx *gorm.DB) error {
+		var shifting []models.Column
+		if err := tx.Where("column_index >= ?", col.ColumnIndex).Order("column_index desc").Find(&shifting).Error; err != nil {
+			return fmt.Errorf("unable to shift columns: %w", err)
+		}
+		for i := range shifting {
+			if err := tx.Model(&models.Column{}).Where("id = ?", shifting[i].ID).
+				Update("column_index", shifting[i].ColumnIndex+1).Error; err != nil {
+				return fmt.Errorf("unable to shift column %s: %w", shifting[i].Name, err)
+			}
+		}
+		if err := tx.Create(col).Error; err != nil {
+			return fmt.Errorf("unable to create column %s: %w", col.Name, err)
+		}
+		return nil
+	})
+}
+
+// RenameColumn ...
+func (r *mysqlQueryRepo) RenameColumn(id int, name string) error {
+	if result := r.Conn.Model(&models.Column{}).Where("id = ?", id).Update("name", name); result.Error != nil {
+		return fmt.Errorf("unable to rename column: %w", result.Error)
+	}
+	return nil
+}
+
+// DeleteColumn removes a column and the merchant rules pointing at it, then
+// shifts later columns down by one. Hard deletes throughout: a soft-deleted
+// row would keep occupying its column_index under the UNIQUE constraint.
+func (r *mysqlQueryRepo) DeleteColumn(id int) error {
+	return r.Conn.Transaction(func(tx *gorm.DB) error {
+		var col models.Column
+		if err := tx.First(&col, id).Error; err != nil {
+			return fmt.Errorf("unable to find column %d: %w", id, err)
+		}
+		if err := tx.Unscoped().Where("column_id = ?", id).Delete(&models.Merchant{}).Error; err != nil {
+			return fmt.Errorf("unable to delete merchants for column %s: %w", col.Name, err)
+		}
+		if err := tx.Unscoped().Delete(&models.Column{}, id).Error; err != nil {
+			return fmt.Errorf("unable to delete column %s: %w", col.Name, err)
+		}
+		var shifting []models.Column
+		if err := tx.Where("column_index > ?", col.ColumnIndex).Order("column_index asc").Find(&shifting).Error; err != nil {
+			return fmt.Errorf("unable to shift columns: %w", err)
+		}
+		for i := range shifting {
+			if err := tx.Model(&models.Column{}).Where("id = ?", shifting[i].ID).
+				Update("column_index", shifting[i].ColumnIndex-1).Error; err != nil {
+				return fmt.Errorf("unable to shift column %s: %w", shifting[i].Name, err)
+			}
+		}
+		return nil
+	})
+}
+
+// GetMerchantsByColumn ...
+func (r *mysqlQueryRepo) GetMerchantsByColumn(columnID int) ([]models.Merchant, error) {
+	var merchants []models.Merchant
+	if result := r.Conn.Where("column_id = ?", columnID).Order("name").Find(&merchants); result.Error != nil {
+		return nil, fmt.Errorf("unable to get merchants for column: %w", result.Error)
+	}
+	return merchants, nil
+}
+
 // PrintData ...
 func (r *mysqlQueryRepo) PrintData() error {
 	var merchants []models.Merchant
