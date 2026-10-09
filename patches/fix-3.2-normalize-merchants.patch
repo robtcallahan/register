@@ -1,0 +1,46 @@
+diff --git a/cmd/update.go b/cmd/update.go
+index f045cd0..ad1938b 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -125,17 +125,11 @@ func update(cmd *cobra.Command, args []string) error {
+ 		}
+ 	}
+ 
+-	fmt.Println("Updating merchants...")
+-	lookupData, err := qHandler.GetLookupData()
++	transactions, err = normalizeMerchants(client, qHandler, transactions)
+ 	if err != nil {
+ 		return err
+ 	}
+ 
+-	transactions = client.BankClient.FormatMerchantNames(transactions, lookupData)
+-	if options.Debug {
+-		printTransactions(transactions)
+-	}
+-
+ 	fmt.Println("Filtering out register transactions...")
+ 	transactions = client.BankClient.FilterRecordedTransactions(transactions, sheetsService.RegisterSheet.KeysMap)
+ 
+@@ -265,6 +259,22 @@ func fetchTransactions(client *Client) ([]*models.Transaction, error) {
+ 	return append(transactions, newTrans...), nil
+ }
+ 
++// normalizeMerchants assigns each transaction its display name, color, and
++// budget column from the merchant lookup data.
++func normalizeMerchants(client *Client, qHandler *handler.Query, transactions []*models.Transaction) ([]*models.Transaction, error) {
++	fmt.Println("Updating merchants...")
++	lookupData, err := qHandler.GetLookupData()
++	if err != nil {
++		return nil, err
++	}
++
++	transactions = client.BankClient.FormatMerchantNames(transactions, lookupData)
++	if options.Debug {
++		printTransactions(transactions)
++	}
++	return transactions, nil
++}
++
+ func shellout(command string) (string, string, error) {
+ 	var stdout bytes.Buffer
+ 	var stderr bytes.Buffer
