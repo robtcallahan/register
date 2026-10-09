@@ -372,12 +372,8 @@ func (c *Client) PrintTransactionHead() {
 // ColumnIndexForName resolves a sheet column's position from its name, using
 // the columns table contents. Returns 0 when the name is absent.
 func ColumnIndexForName(columns []models.Column, name string) int {
-	for _, col := range columns {
-		if col.Name == name {
-			return col.ColumnIndex
-		}
-	}
-	return 0
+	index, _ := models.NewColumnSet(columns).IndexFor(name)
+	return index
 }
 
 // IncomeMatcher builds the matcher for the income sources configured in

@@ -88,7 +88,11 @@ func update(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	err = sheetsService.NewRegisterSheet(config)
+	columns, err := qHandler.GetColumns()
+	if err != nil {
+		return err
+	}
+	err = sheetsService.NewRegisterSheet(config, columns)
 	if err != nil {
 		return err
 	}

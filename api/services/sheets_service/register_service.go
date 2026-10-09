@@ -49,14 +49,26 @@ type RegisterSheet struct {
 
 // Public methods
 
-func (ss *SheetsService) NewRegisterSheet(cfg *config.Config) error {
+func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.Column) error {
+	// The register's last column comes from the columns table (its
+	// highest-indexed column). The config values remain as a fallback for
+	// callers that don't read the DB (register copy) until 6.6 retires them.
+	endColumnName := cfg.RegisterCategoryEndColumn
+	endColumnIndex := cfg.ColumnIndexes[cfg.RegisterCategoryEndColumn]
+	if len(columns) > 0 {
+		set := models.NewColumnSet(columns)
+		if end, ok := set.End(); ok {
+			endColumnName = set.LetterFor(end.ColumnIndex)
+			endColumnIndex = int64(set.SliceOffset(end.ColumnIndex))
+		}
+	}
 	ss.RegisterSheet = &RegisterSheet{
 		TabName: "Register",
 		SheetCoords: SheetCoords{
 			StartRow:       cfg.RegisterStartRow,
 			EndRow:         cfg.RegisterEndRow,
-			EndColumnName:  cfg.RegisterCategoryEndColumn,
-			EndColumnIndex: cfg.ColumnIndexes[cfg.RegisterCategoryEndColumn],
+			EndColumnName:  endColumnName,
+			EndColumnIndex: endColumnIndex,
 		},
 	}
 
@@ -319,12 +331,19 @@ func allocationFor(entry *BudgetEntry, frequency string) float64 {
 }
 
 func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []models.Column, totalsFormulas []string, frequency string) []*sheets.CellData {
-	// colOffset is because we've already taken care of cols A-G (0-6)
-	colOffset := BankRegister
-
-	// allocate out budgeted amounts and set background color appropriately
-	for i := 0; i < len(columns)-colOffset; i++ {
-		col := columns[colOffset+i]
+	// Same placement rule as addCategoryCells: cells are positioned by each
+	// column's own ColumnIndex, so a gap in the columns table leaves an empty
+	// cell instead of shifting the amounts after it.
+	nextIndex := BankRegister + 1 // 1-based index of the next cell to fill (8 = H)
+	for _, col := range columns {
+		if col.ColumnIndex < nextIndex {
+			continue // part of the fixed A-G block, already appended
+		}
+		for ; nextIndex < col.ColumnIndex; nextIndex++ {
+			cells = append(cells, mkCellDataDollars(0.00, "left", "", true))
+		}
+		// i is this column's offset within the category block (0 = H)
+		i := col.ColumnIndex - BankRegister - 1
 		entry := ss.BudgetSheet.CategoriesMap[col.Name]
 
 		if isRegisterClearedOrDeltaColumn(i) {
@@ -337,6 +356,7 @@ func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []mode
 			// this cell doesn't apply. Just create an empty (opaque) cell.
 			cells = append(cells, mkCellDataDollars(0.00, "left", col.Color, true))
 		}
+		nextIndex++
 	}
 	return cells
 }

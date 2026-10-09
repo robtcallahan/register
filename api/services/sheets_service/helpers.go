@@ -474,17 +474,27 @@ func addAmountCell(cells []*sheets.CellData, trans *models.Transaction, bgColor 
 }
 
 func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, columns []models.Column, transNameToColName map[string]string, totalsFormulas []string) []*sheets.CellData {
-	// colOffset is because we've already taken care of cols A-G (0-6)
-	colOffset := BankRegister
-	for i := 0; i < len(columns)-colOffset; i++ {
-		col := columns[colOffset+i]
+	// Cells for cols A-G (DB indexes 1-7) are already appended. Category cells
+	// are placed by each column's own ColumnIndex, not by slice position, so a
+	// gap in the columns table leaves an empty cell instead of shifting every
+	// amount after it one column left.
+	nextIndex := BankRegister + 1 // 1-based index of the next cell to fill (8 = H)
+	for _, col := range columns {
+		if col.ColumnIndex < nextIndex {
+			continue // part of the fixed A-G block, already appended
+		}
+		for ; nextIndex < col.ColumnIndex; nextIndex++ {
+			cells = append(cells, mkCellDataEmpty("left", "", true))
+		}
+		// i is this column's offset within the category block (0 = H)
+		i := col.ColumnIndex - BankRegister - 1
 		if isRegisterClearedOrDeltaColumn(i) {
 			// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here
 			cells = append(cells, mkCellDataFormula(totalsFormulas[i], "right", col.Color, false))
 		} else if isCreditCardTransaction(trans.Source, col.Name) {
 			// enter a positive value in the credit card column
 			cells = append(cells, mkCellDataDollars(trans.CreditCard, "left", "yellow", true))
-		} else if trans.ColumnIndex != 0 && trans.ColumnIndex == colOffset+i+1 {
+		} else if trans.ColumnIndex != 0 && trans.ColumnIndex == col.ColumnIndex {
 			cells = append(cells, mkCellDataDollars(trans.Budget, "left", col.Color, true))
 		} else if isCorrectBudgetColumn(trans.Name, col.Name, transNameToColName) {
 			// enter the value in the budget category column
@@ -493,6 +503,7 @@ func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, colum
 			// this cell doesn't apply. Just create an empty cell.
 			cells = append(cells, mkCellDataEmpty("left", col.Color, true))
 		}
+		nextIndex++
 	}
 	return cells
 }

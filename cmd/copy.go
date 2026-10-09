@@ -61,7 +61,9 @@ func copyRows() error {
 	if err != nil {
 		return err
 	}
-	err = sheetsService.NewRegisterSheet(config)
+	// copy doesn't read the DB; nil columns keeps the config-derived sheet
+	// extent until 6.6 gives this command its own source.
+	err = sheetsService.NewRegisterSheet(config, nil)
 	if err != nil {
 		return err
 	}

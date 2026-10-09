@@ -70,18 +70,17 @@ func monthly() error {
 	if err != nil {
 		return err
 	}
-	err = sheetsService.NewRegisterSheet(config)
+	cols, err := qHandler.GetColumns()
+	if err != nil {
+		return err
+	}
+	err = sheetsService.NewRegisterSheet(config, cols)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Reading Register...\n")
 	_, err = sheetsService.ReadRegisterSheet()
-	if err != nil {
-		return err
-	}
-
-	cols, err := qHandler.GetColumns()
 	if err != nil {
 		return err
 	}

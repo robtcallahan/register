@@ -1,0 +1,338 @@
+diff --git a/api/services/sheets_service/helpers.go b/api/services/sheets_service/helpers.go
+index b666a58..fe95102 100644
+--- a/api/services/sheets_service/helpers.go
++++ b/api/services/sheets_service/helpers.go
+@@ -474,17 +474,27 @@ func addAmountCell(cells []*sheets.CellData, trans *models.Transaction, bgColor
+ }
+ 
+ func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, columns []models.Column, transNameToColName map[string]string, totalsFormulas []string) []*sheets.CellData {
+-	// colOffset is because we've already taken care of cols A-G (0-6)
+-	colOffset := BankRegister
+-	for i := 0; i < len(columns)-colOffset; i++ {
+-		col := columns[colOffset+i]
++	// Cells for cols A-G (DB indexes 1-7) are already appended. Category cells
++	// are placed by each column's own ColumnIndex, not by slice position, so a
++	// gap in the columns table leaves an empty cell instead of shifting every
++	// amount after it one column left.
++	nextIndex := BankRegister + 1 // 1-based index of the next cell to fill (8 = H)
++	for _, col := range columns {
++		if col.ColumnIndex < nextIndex {
++			continue // part of the fixed A-G block, already appended
++		}
++		for ; nextIndex < col.ColumnIndex; nextIndex++ {
++			cells = append(cells, mkCellDataEmpty("left", "", true))
++		}
++		// i is this column's offset within the category block (0 = H)
++		i := col.ColumnIndex - BankRegister - 1
+ 		if isRegisterClearedOrDeltaColumn(i) {
+ 			// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here
+ 			cells = append(cells, mkCellDataFormula(totalsFormulas[i], "right", col.Color, false))
+ 		} else if isCreditCardTransaction(trans.Source, col.Name) {
+ 			// enter a positive value in the credit card column
+ 			cells = append(cells, mkCellDataDollars(trans.CreditCard, "left", "yellow", true))
+-		} else if trans.ColumnIndex != 0 && trans.ColumnIndex == colOffset+i+1 {
++		} else if trans.ColumnIndex != 0 && trans.ColumnIndex == col.ColumnIndex {
+ 			cells = append(cells, mkCellDataDollars(trans.Budget, "left", col.Color, true))
+ 		} else if isCorrectBudgetColumn(trans.Name, col.Name, transNameToColName) {
+ 			// enter the value in the budget category column
+@@ -493,6 +503,7 @@ func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, colum
+ 			// this cell doesn't apply. Just create an empty cell.
+ 			cells = append(cells, mkCellDataEmpty("left", col.Color, true))
+ 		}
++		nextIndex++
+ 	}
+ 	return cells
+ }
+diff --git a/api/services/sheets_service/register_service.go b/api/services/sheets_service/register_service.go
+index 825f4bb..33f55ee 100644
+--- a/api/services/sheets_service/register_service.go
++++ b/api/services/sheets_service/register_service.go
+@@ -49,14 +49,26 @@ type RegisterSheet struct {
+ 
+ // Public methods
+ 
+-func (ss *SheetsService) NewRegisterSheet(cfg *config.Config) error {
++func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.Column) error {
++	// The register's last column comes from the columns table (its
++	// highest-indexed column). The config values remain as a fallback for
++	// callers that don't read the DB (register copy) until 6.6 retires them.
++	endColumnName := cfg.RegisterCategoryEndColumn
++	endColumnIndex := cfg.ColumnIndexes[cfg.RegisterCategoryEndColumn]
++	if len(columns) > 0 {
++		set := models.NewColumnSet(columns)
++		if end, ok := set.End(); ok {
++			endColumnName = set.LetterFor(end.ColumnIndex)
++			endColumnIndex = int64(set.SliceOffset(end.ColumnIndex))
++		}
++	}
+ 	ss.RegisterSheet = &RegisterSheet{
+ 		TabName: "Register",
+ 		SheetCoords: SheetCoords{
+ 			StartRow:       cfg.RegisterStartRow,
+ 			EndRow:         cfg.RegisterEndRow,
+-			EndColumnName:  cfg.RegisterCategoryEndColumn,
+-			EndColumnIndex: cfg.ColumnIndexes[cfg.RegisterCategoryEndColumn],
++			EndColumnName:  endColumnName,
++			EndColumnIndex: endColumnIndex,
+ 		},
+ 	}
+ 
+@@ -319,12 +331,19 @@ func allocationFor(entry *BudgetEntry, frequency string) float64 {
+ }
+ 
+ func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []models.Column, totalsFormulas []string, frequency string) []*sheets.CellData {
+-	// colOffset is because we've already taken care of cols A-G (0-6)
+-	colOffset := BankRegister
+-
+-	// allocate out budgeted amounts and set background color appropriately
+-	for i := 0; i < len(columns)-colOffset; i++ {
+-		col := columns[colOffset+i]
++	// Same placement rule as addCategoryCells: cells are positioned by each
++	// column's own ColumnIndex, so a gap in the columns table leaves an empty
++	// cell instead of shifting the amounts after it.
++	nextIndex := BankRegister + 1 // 1-based index of the next cell to fill (8 = H)
++	for _, col := range columns {
++		if col.ColumnIndex < nextIndex {
++			continue // part of the fixed A-G block, already appended
++		}
++		for ; nextIndex < col.ColumnIndex; nextIndex++ {
++			cells = append(cells, mkCellDataDollars(0.00, "left", "", true))
++		}
++		// i is this column's offset within the category block (0 = H)
++		i := col.ColumnIndex - BankRegister - 1
+ 		entry := ss.BudgetSheet.CategoriesMap[col.Name]
+ 
+ 		if isRegisterClearedOrDeltaColumn(i) {
+@@ -337,6 +356,7 @@ func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []mode
+ 			// this cell doesn't apply. Just create an empty (opaque) cell.
+ 			cells = append(cells, mkCellDataDollars(0.00, "left", col.Color, true))
+ 		}
++		nextIndex++
+ 	}
+ 	return cells
+ }
+diff --git a/cmd/copy.go b/cmd/copy.go
+index 36708ca..188057a 100644
+--- a/cmd/copy.go
++++ b/cmd/copy.go
+@@ -61,7 +61,9 @@ func copyRows() error {
+ 	if err != nil {
+ 		return err
+ 	}
+-	err = sheetsService.NewRegisterSheet(config)
++	// copy doesn't read the DB; nil columns keeps the config-derived sheet
++	// extent until 6.6 gives this command its own source.
++	err = sheetsService.NewRegisterSheet(config, nil)
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/cmd/monthly.go b/cmd/monthly.go
+index a668cdc..571d864 100644
+--- a/cmd/monthly.go
++++ b/cmd/monthly.go
+@@ -70,18 +70,17 @@ func monthly() error {
+ 	if err != nil {
+ 		return err
+ 	}
+-	err = sheetsService.NewRegisterSheet(config)
++	cols, err := qHandler.GetColumns()
+ 	if err != nil {
+ 		return err
+ 	}
+-
+-	fmt.Printf("Reading Register...\n")
+-	_, err = sheetsService.ReadRegisterSheet()
++	err = sheetsService.NewRegisterSheet(config, cols)
+ 	if err != nil {
+ 		return err
+ 	}
+ 
+-	cols, err := qHandler.GetColumns()
++	fmt.Printf("Reading Register...\n")
++	_, err = sheetsService.ReadRegisterSheet()
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/cmd/update.go b/cmd/update.go
+index 71364f3..8a875d4 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -88,7 +88,11 @@ func update(cmd *cobra.Command, args []string) error {
+ 	if err != nil {
+ 		return err
+ 	}
+-	err = sheetsService.NewRegisterSheet(config)
++	columns, err := qHandler.GetColumns()
++	if err != nil {
++		return err
++	}
++	err = sheetsService.NewRegisterSheet(config, columns)
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/pkg/banking/banking.go b/pkg/banking/banking.go
+index a85b3ff..08efeb5 100644
+--- a/pkg/banking/banking.go
++++ b/pkg/banking/banking.go
+@@ -372,12 +372,8 @@ func (c *Client) PrintTransactionHead() {
+ // ColumnIndexForName resolves a sheet column's position from its name, using
+ // the columns table contents. Returns 0 when the name is absent.
+ func ColumnIndexForName(columns []models.Column, name string) int {
+-	for _, col := range columns {
+-		if col.Name == name {
+-			return col.ColumnIndex
+-		}
+-	}
+-	return 0
++	index, _ := models.NewColumnSet(columns).IndexFor(name)
++	return index
+ }
+ 
+ // IncomeMatcher builds the matcher for the income sources configured in
+diff --git a/pkg/models/column_set.go b/pkg/models/column_set.go
+new file mode 100644
+index 0000000..c9b99db
+--- /dev/null
++++ b/pkg/models/column_set.go
+@@ -0,0 +1,95 @@
++package models
++
++// ColumnSet wraps the columns-table rows fetched for a run and is the single
++// place that knows how DB column indexes map to spreadsheet positions.
++//
++// The DB stores ColumnIndex 1-based (A=1). Conversions out of that base —
++// 0-based slice offsets and A1 column letters — happen here and nowhere else,
++// so the rest of the code never has to remember which base it is holding.
++type ColumnSet struct {
++	columns []Column
++	byIndex map[int]*Column
++	byName  map[string]*Column
++	byID    map[int]*Column
++}
++
++// NewColumnSet builds a ColumnSet from rows as returned by GetColumns
++// (ordered by ColumnIndex).
++func NewColumnSet(columns []Column) *ColumnSet {
++	s := &ColumnSet{
++		columns: columns,
++		byIndex: make(map[int]*Column, len(columns)),
++		byName:  make(map[string]*Column, len(columns)),
++		byID:    make(map[int]*Column, len(columns)),
++	}
++	for i := range s.columns {
++		col := &s.columns[i]
++		s.byIndex[col.ColumnIndex] = col
++		s.byName[col.Name] = col
++		s.byID[col.ID] = col
++	}
++	return s
++}
++
++// Columns returns the wrapped rows in their original order.
++func (s *ColumnSet) Columns() []Column { return s.columns }
++
++// ByIndex returns the column at a 1-based DB index.
++func (s *ColumnSet) ByIndex(index int) (*Column, bool) {
++	col, ok := s.byIndex[index]
++	return col, ok
++}
++
++// IndexFor returns the 1-based DB index of the named column.
++func (s *ColumnSet) IndexFor(name string) (int, bool) {
++	col, ok := s.byName[name]
++	if !ok {
++		return 0, false
++	}
++	return col.ColumnIndex, true
++}
++
++// IndexForID returns the 1-based DB index of the column with the given ID.
++func (s *ColumnSet) IndexForID(id int) (int, bool) {
++	col, ok := s.byID[id]
++	if !ok {
++		return 0, false
++	}
++	return col.ColumnIndex, true
++}
++
++// End returns the column with the highest index — the register's last column.
++func (s *ColumnSet) End() (*Column, bool) {
++	if len(s.columns) == 0 {
++		return nil, false
++	}
++	end := &s.columns[0]
++	for i := range s.columns {
++		if s.columns[i].ColumnIndex > end.ColumnIndex {
++			end = &s.columns[i]
++		}
++	}
++	return end, true
++}
++
++// LetterFor converts a 1-based column index to its A1 letter (1=A, 27=AA).
++func (s *ColumnSet) LetterFor(index int) string {
++	return ColumnLetter(index)
++}
++
++// SliceOffset converts a 1-based column index to a 0-based slice offset.
++// This is the one place the 1-based DB index becomes a 0-based position.
++func (s *ColumnSet) SliceOffset(index int) int {
++	return index - 1
++}
++
++// ColumnLetter converts a 1-based column index to its A1 letter (1=A, 27=AA).
++func ColumnLetter(index int) string {
++	letter := ""
++	for index > 0 {
++		index--
++		letter = string(rune('A'+index%26)) + letter
++		index /= 26
++	}
++	return letter
++}
+diff --git a/pkg/models/column_set_test.go b/pkg/models/column_set_test.go
+new file mode 100644
+index 0000000..41ca617
+--- /dev/null
++++ b/pkg/models/column_set_test.go
+@@ -0,0 +1,40 @@
++package models
++
++import "testing"
++
++func TestColumnSet(t *testing.T) {
++	columns := []Column{
++		{ID: 1, Name: "Recon", ColumnIndex: 1},
++		{ID: 10, Name: "Delta", ColumnIndex: 10},
++		{ID: 58, Name: "Emergency Fund", ColumnIndex: 42},
++		{ID: 61, Name: "Last", ColumnIndex: 46},
++	}
++	set := NewColumnSet(columns)
++
++	if idx, ok := set.IndexFor("Emergency Fund"); !ok || idx != 42 {
++		t.Errorf("IndexFor(Emergency Fund) = %d, %v; want 42, true", idx, ok)
++	}
++	if _, ok := set.IndexFor("Nope"); ok {
++		t.Error("IndexFor(Nope) ok = true; want false")
++	}
++	if idx, ok := set.IndexForID(58); !ok || idx != 42 {
++		t.Errorf("IndexForID(58) = %d, %v; want 42, true", idx, ok)
++	}
++	if col, ok := set.ByIndex(10); !ok || col.Name != "Delta" {
++		t.Errorf("ByIndex(10) = %v, %v; want Delta, true", col, ok)
++	}
++	if end, ok := set.End(); !ok || end.ColumnIndex != 46 {
++		t.Errorf("End() = %v, %v; want index 46, true", end, ok)
++	}
++	if _, ok := NewColumnSet(nil).End(); ok {
++		t.Error("End() on empty set ok = true; want false")
++	}
++	for index, want := range map[int]string{1: "A", 26: "Z", 27: "AA", 42: "AP", 46: "AT"} {
++		if got := set.LetterFor(index); got != want {
++			t.Errorf("LetterFor(%d) = %q; want %q", index, got, want)
++		}
++	}
++	if got := set.SliceOffset(42); got != 41 {
++		t.Errorf("SliceOffset(42) = %d; want 41", got)
++	}
++}
