@@ -1,0 +1,13 @@
+diff --git a/pkg/models/models.go b/pkg/models/models.go
+index 9f6a80c..08095bd 100644
+--- a/pkg/models/models.go
++++ b/pkg/models/models.go
+@@ -35,6 +35,8 @@ type Merchant struct {
+ 	ColumnID      int
+ 	Column        Column
+ 	TaxDeductible bool
++	Priority      int    // when several rules match, the highest priority wins
++	MatchType     string // "exact", "substring", or "regex"; "" is treated as "substring" (pre-Phase-4 rows)
+ }
+ 
+ // Column ...

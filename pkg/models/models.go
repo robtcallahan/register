@@ -35,6 +35,8 @@ type Merchant struct {
 	ColumnID      int
 	Column        Column
 	TaxDeductible bool
+	Priority      int    // when several rules match, the highest priority wins
+	MatchType     string // "exact", "substring", or "regex"; "" is treated as "substring" (pre-Phase-4 rows)
 }
 
 // Column ...
