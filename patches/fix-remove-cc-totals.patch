@@ -1,0 +1,34 @@
+diff --git a/cmd/update.go b/cmd/update.go
+index f397697..9acc059 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -359,7 +359,7 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
+ 
+ 	if !options.UseCSVFiles {
+ 		fmt.Println("Getting accounts balances...")
+-		balances := client.BankClient.GetBalances(options.BankIDs)
++		balances := client.BankClient.GetBalances([]string{banking.WellsFargoID})
+ 		printBalances(balances)
+ 		fmt.Println("Updating balances...")
+ 		if err := updateBalances(sheetsService, balances); err != nil {
+@@ -375,11 +375,6 @@ func updateBalances(sheetsService *sheets_service.SheetsService, balances map[st
+ 			return err
+ 		}
+ 	}
+-	if balances[banking.ChaseID].Error == nil {
+-		if _, err := sheetsService.WriteCell("AB2", balances[banking.ChaseID].Amount); err != nil {
+-			return err
+-		}
+-	}
+ 	return nil
+ }
+ 
+@@ -389,8 +384,6 @@ func dashes(count int) string {
+ 
+ func printBalances(balances map[string]banking.Balance) {
+ 	fmt.Printf("    Wells Fargo: $%8.2f\n", balances[banking.WellsFargoID].Amount)
+-	fmt.Printf("    Fidelity:    $%8.2f\n", balances[banking.FidelityID].Amount)
+-	fmt.Printf("    Chase:       $%8.2f\n", balances[banking.ChaseID].Amount)
+ }
+ 
+ func getTransactions(client *Client, bankIDs []string) ([]*models.Transaction, error) {

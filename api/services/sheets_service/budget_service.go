@@ -86,11 +86,11 @@ func (ss *SheetsService) getBudgetCategory(values []interface{}) string {
 }
 
 func (ss *SheetsService) populateBudgetEntry(values []interface{}) (*BudgetEntry, error) {
-	weekly, err := readDollarsValue(values[3])
+	weekly, err := readDollarsValue(values[2])
 	if err != nil {
 		return nil, err
 	}
-	monthly, err := readDollarsValue(values[4])
+	monthly, err := readDollarsValue(values[3])
 	if err != nil {
 		return nil, err
 	}

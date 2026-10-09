@@ -1,0 +1,18 @@
+diff --git a/api/services/sheets_service/budget_service.go b/api/services/sheets_service/budget_service.go
+index 6b32aeb..ccf4b81 100644
+--- a/api/services/sheets_service/budget_service.go
++++ b/api/services/sheets_service/budget_service.go
+@@ -86,11 +86,11 @@ func (ss *SheetsService) getBudgetCategory(values []interface{}) string {
+ }
+ 
+ func (ss *SheetsService) populateBudgetEntry(values []interface{}) (*BudgetEntry, error) {
+-	weekly, err := readDollarsValue(values[3])
++	weekly, err := readDollarsValue(values[2])
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	monthly, err := readDollarsValue(values[4])
++	monthly, err := readDollarsValue(values[3])
+ 	if err != nil {
+ 		return nil, err
+ 	}
