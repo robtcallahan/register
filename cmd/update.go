@@ -130,8 +130,7 @@ func update(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Println("Filtering out register transactions...")
-	transactions = client.BankClient.FilterRecordedTransactions(transactions, sheetsService.RegisterSheet.KeysMap)
+	transactions = dedupeAgainstSheet(client, transactions, sheetsService.RegisterSheet.KeysMap)
 
 	fmt.Println("Correcting transaction names that are non-generic...")
 	transactions = client.BankClient.FormatUniqueTransactionNames(transactions)
@@ -273,6 +272,38 @@ func normalizeMerchants(client *Client, qHandler *handler.Query, transactions []
 		printTransactions(transactions)
 	}
 	return transactions, nil
+}
+
+// dedupeAgainstSheet drops transactions already recorded in the register
+// sheet. Matching tolerates a ±1-day date shift, because some sources (notably
+// Amazon) report the same transaction on a different day from one pull to the
+// next, which changes its dedupe key.
+func dedupeAgainstSheet(client *Client, transactions []*models.Transaction, keysMap map[string]bool) []*models.Transaction {
+	fmt.Println("Filtering out register transactions...")
+	return client.BankClient.FilterRecordedTransactions(transactions, fuzzyKeySet(keysMap))
+}
+
+// fuzzyKeySet returns a copy of keys with each key's date also shifted by -1
+// and +1 days. Keys that don't parse as source:date:amount are kept as-is.
+func fuzzyKeySet(keys map[string]bool) map[string]bool {
+	fuzzy := make(map[string]bool, len(keys)*3)
+	for k := range keys {
+		parts := strings.SplitN(k, ":", 3)
+		if len(parts) != 3 {
+			fuzzy[k] = true
+			continue
+		}
+		d, err := time.Parse("01/02/06", parts[1])
+		if err != nil {
+			fuzzy[k] = true
+			continue
+		}
+		for _, shift := range []int{-1, 0, 1} {
+			variant := fmt.Sprintf("%s:%s:%s", parts[0], d.AddDate(0, 0, shift).Format("01/02/06"), parts[2])
+			fuzzy[variant] = true
+		}
+	}
+	return fuzzy
 }
 
 func shellout(command string) (string, string, error) {
