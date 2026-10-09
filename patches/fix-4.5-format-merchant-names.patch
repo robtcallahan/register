@@ -1,0 +1,173 @@
+diff --git a/cmd/update.go b/cmd/update.go
+index 26c7731..29a2648 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -121,8 +121,8 @@ func update(cmd *cobra.Command, args []string) error {
+ 
+ 	transactions = dedupeAgainstSheet(client, transactions, sheetsService.RegisterSheet.KeysMap)
+ 
+-	fmt.Println("Correcting transaction names that are non-generic...")
+-	transactions = client.BankClient.FormatUniqueTransactionNames(transactions)
++	fmt.Println("Filtering out credit card payments...")
++	transactions = client.BankClient.FilterCreditCardPayments(transactions)
+ 
+ 	fmt.Println("Sorting...")
+ 	transactions = client.BankClient.SortTransactions(transactions)
+@@ -212,7 +212,12 @@ func normalizeMerchants(client *Client, qHandler *handler.Query, transactions []
+ 		return nil, err
+ 	}
+ 
+-	transactions = client.BankClient.FormatMerchantNames(transactions, lookupData)
++	matcher, err := banking.NewMerchantMatcher(lookupData)
++	if err != nil {
++		return nil, err
++	}
++
++	transactions = client.BankClient.FormatMerchantNames(transactions, matcher)
+ 	if options.Debug {
+ 		printTransactions(transactions)
+ 	}
+@@ -499,7 +504,11 @@ func getBankNameToName(bankClient *banking.Client, db *handler.Query, trans []*m
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		trans = bankClient.FormatMerchantNames(trans, lookupData)
++		matcher, err := banking.NewMerchantMatcher(lookupData)
++		if err != nil {
++			return nil, err
++		}
++		trans = bankClient.FormatMerchantNames(trans, matcher)
+ 	}
+ 	return trans, nil
+ }
+diff --git a/pkg/banking/banking.go b/pkg/banking/banking.go
+index 699f96e..ad45c79 100644
+--- a/pkg/banking/banking.go
++++ b/pkg/banking/banking.go
+@@ -357,9 +357,11 @@ func (c *Client) PrintTransactionHead() {
+ 		"Key", "Name", "Bank Name", "Merchant Name", "Withdrawal", "Deposit", "Credit Card", "Amount", "ColIndx", "Color")
+ }
+ 
+-// TODO: add substring check
+-
+-func (c *Client) FormatMerchantNames(trans []*models.Transaction, lookup []*models.DataRow) []*models.Transaction {
++// FormatMerchantNames applies merchant rules to each transaction: a match
++// sets the display name, color, and budget column. Rules come from the
++// matcher (first-match-wins by priority); the CHECK and paycheck specials
++// stay until 4.6 replaces their hardcoded column indexes.
++func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher) []*models.Transaction {
+ 	for i, t := range trans {
+ 		if t.Name == "CHECK" {
+ 			trans[i].Color = "white"
+@@ -372,16 +374,12 @@ func (c *Client) FormatMerchantNames(trans []*models.Transaction, lookup []*mode
+ 			trans[i].ColumnIndex = 42
+ 			trans[i].IsCategory = false
+ 			trans[i].TaxDeductible = false
+-		} else {
+-			for _, l := range lookup {
+-				if strings.Contains(strings.ToUpper(t.BankName), strings.ToUpper(l.BankName)) {
+-					trans[i].Name = l.Name
+-					trans[i].Color = l.Color
+-					trans[i].ColumnIndex = l.ColumnIndex
+-					trans[i].IsCategory = l.IsCategory
+-					trans[i].TaxDeductible = l.TaxDeductible
+-				}
+-			}
++		} else if l, ok := matcher.Match(t.BankName); ok {
++			trans[i].Name = l.Name
++			trans[i].Color = l.Color
++			trans[i].ColumnIndex = l.ColumnIndex
++			trans[i].IsCategory = l.IsCategory
++			trans[i].TaxDeductible = l.TaxDeductible
+ 		}
+ 		if c.Debug {
+ 			fmt.Printf("key: %s, name: %s, bankName: %s, amt: %.2f \n", trans[i].Key, trans[i].Name, trans[i].BankName, trans[i].Amount)
+@@ -406,31 +404,30 @@ func (c *Client) FilterRecordedTransactions(trans []*models.Transaction, regLook
+ 	return filtered
+ }
+ 
+-// FormatUniqueTransactionNames drops credit card payment transactions: those
+-// payments also appear as Wells Fargo transactions, so keeping both would
+-// double-count them. (The merchant-name overrides that used to run here moved
+-// to the merchants table in 4.3; until the 4.4 matcher lands, name formatting
+-// is FormatMerchantNames' job alone.)
+-func (c *Client) FormatUniqueTransactionNames(trans []*models.Transaction) []*models.Transaction {
++// creditCardPaymentPatterns identify card-payment transactions. Those
++// payments also appear as checking-account transactions, so keeping both
++// would double-count them.
++var creditCardPaymentPatterns = []*regexp.Regexp{
++	regexp.MustCompile(`PAYMENT MADE BY ACCOUNT ENDING IN:5409`),
++	regexp.MustCompile(`Payment Thank You - Bill`),
++	regexp.MustCompile(`Payment Thank You Bill`),
++}
++
++// FilterCreditCardPayments drops credit card payment transactions.
++func (c *Client) FilterCreditCardPayments(trans []*models.Transaction) []*models.Transaction {
+ 	var newTrans []*models.Transaction
+ 
+ 	for _, t := range trans {
+-		// check if this is a credit card transaction showing a payment. If so, skip as it will show up as a Wells Fargo transaction,
+-		// and we don't need it in both places
+-		re := regexp.MustCompile(`PAYMENT MADE BY ACCOUNT ENDING IN:5409`)
+-		if re.MatchString(t.BankName) {
+-			continue
++		drop := false
++		for _, re := range creditCardPaymentPatterns {
++			if re.MatchString(t.BankName) {
++				drop = true
++				break
++			}
+ 		}
+-		re = regexp.MustCompile(`Payment Thank You - Bill`)
+-		if re.MatchString(t.BankName) {
+-			continue
++		if !drop {
++			newTrans = append(newTrans, t)
+ 		}
+-		re = regexp.MustCompile(`Payment Thank You Bill`)
+-		if re.MatchString(t.BankName) {
+-			continue
+-		}
+-
+-		newTrans = append(newTrans, t)
+ 	}
+ 	return newTrans
+ }
+diff --git a/pkg/banking/merchant_matcher_test.go b/pkg/banking/merchant_matcher_test.go
+index c89df9a..c99a437 100644
+--- a/pkg/banking/merchant_matcher_test.go
++++ b/pkg/banking/merchant_matcher_test.go
+@@ -87,3 +87,33 @@ func TestNewMerchantMatcher_BadRegex(t *testing.T) {
+ 		t.Error("expected an error for a bad regex pattern")
+ 	}
+ }
++
++func TestFormatMerchantNames_AppliesRules(t *testing.T) {
++	matcher, err := NewMerchantMatcher([]*models.DataRow{
++		{ID: 1, BankName: "AMAZON", Name: "Amazon", ColumnIndex: 11, Color: "black", IsCategory: true, TaxDeductible: true},
++	})
++	if err != nil {
++		t.Fatal(err)
++	}
++
++	trans := []*models.Transaction{
++		{BankName: "AMAZON.COM*AMZN MKTP"},
++		{Name: "CHECK", BankName: "CHECK #1042"},
++		{BankName: "NOVA BEER LLC PAYROLL"},
++		{BankName: "LOCAL BAKERY"},
++	}
++	got := (&Client{}).FormatMerchantNames(trans, matcher)
++
++	if got[0].Name != "Amazon" || got[0].ColumnIndex != 11 || !got[0].IsCategory || !got[0].TaxDeductible {
++		t.Errorf("matcher rule not applied: %+v", got[0])
++	}
++	if got[1].ColumnIndex != 10 || got[1].Color != "white" {
++		t.Errorf("CHECK special not applied: %+v", got[1])
++	}
++	if got[2].Name != PayCheckName || got[2].ColumnIndex != 42 {
++		t.Errorf("paycheck special not applied: %+v", got[2])
++	}
++	if got[3].Name != "" {
++		t.Errorf("unmatched transaction renamed: %+v", got[3])
++	}
++}

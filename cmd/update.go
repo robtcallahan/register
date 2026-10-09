@@ -121,8 +121,8 @@ func update(cmd *cobra.Command, args []string) error {
 
 	transactions = dedupeAgainstSheet(client, transactions, sheetsService.RegisterSheet.KeysMap)
 
-	fmt.Println("Correcting transaction names that are non-generic...")
-	transactions = client.BankClient.FormatUniqueTransactionNames(transactions)
+	fmt.Println("Filtering out credit card payments...")
+	transactions = client.BankClient.FilterCreditCardPayments(transactions)
 
 	fmt.Println("Sorting...")
 	transactions = client.BankClient.SortTransactions(transactions)
@@ -212,7 +212,12 @@ func normalizeMerchants(client *Client, qHandler *handler.Query, transactions []
 		return nil, err
 	}
 
-	transactions = client.BankClient.FormatMerchantNames(transactions, lookupData)
+	matcher, err := banking.NewMerchantMatcher(lookupData)
+	if err != nil {
+		return nil, err
+	}
+
+	transactions = client.BankClient.FormatMerchantNames(transactions, matcher)
 	if options.Debug {
 		printTransactions(transactions)
 	}
@@ -499,7 +504,11 @@ func getBankNameToName(bankClient *banking.Client, db *handler.Query, trans []*m
 		if err != nil {
 			return nil, err
 		}
-		trans = bankClient.FormatMerchantNames(trans, lookupData)
+		matcher, err := banking.NewMerchantMatcher(lookupData)
+		if err != nil {
+			return nil, err
+		}
+		trans = bankClient.FormatMerchantNames(trans, matcher)
 	}
 	return trans, nil
 }

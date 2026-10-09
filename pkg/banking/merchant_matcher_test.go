@@ -87,3 +87,33 @@ func TestNewMerchantMatcher_BadRegex(t *testing.T) {
 		t.Error("expected an error for a bad regex pattern")
 	}
 }
+
+func TestFormatMerchantNames_AppliesRules(t *testing.T) {
+	matcher, err := NewMerchantMatcher([]*models.DataRow{
+		{ID: 1, BankName: "AMAZON", Name: "Amazon", ColumnIndex: 11, Color: "black", IsCategory: true, TaxDeductible: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	trans := []*models.Transaction{
+		{BankName: "AMAZON.COM*AMZN MKTP"},
+		{Name: "CHECK", BankName: "CHECK #1042"},
+		{BankName: "NOVA BEER LLC PAYROLL"},
+		{BankName: "LOCAL BAKERY"},
+	}
+	got := (&Client{}).FormatMerchantNames(trans, matcher)
+
+	if got[0].Name != "Amazon" || got[0].ColumnIndex != 11 || !got[0].IsCategory || !got[0].TaxDeductible {
+		t.Errorf("matcher rule not applied: %+v", got[0])
+	}
+	if got[1].ColumnIndex != 10 || got[1].Color != "white" {
+		t.Errorf("CHECK special not applied: %+v", got[1])
+	}
+	if got[2].Name != PayCheckName || got[2].ColumnIndex != 42 {
+		t.Errorf("paycheck special not applied: %+v", got[2])
+	}
+	if got[3].Name != "" {
+		t.Errorf("unmatched transaction renamed: %+v", got[3])
+	}
+}

@@ -357,9 +357,11 @@ func (c *Client) PrintTransactionHead() {
 		"Key", "Name", "Bank Name", "Merchant Name", "Withdrawal", "Deposit", "Credit Card", "Amount", "ColIndx", "Color")
 }
 
-// TODO: add substring check
-
-func (c *Client) FormatMerchantNames(trans []*models.Transaction, lookup []*models.DataRow) []*models.Transaction {
+// FormatMerchantNames applies merchant rules to each transaction: a match
+// sets the display name, color, and budget column. Rules come from the
+// matcher (first-match-wins by priority); the CHECK and paycheck specials
+// stay until 4.6 replaces their hardcoded column indexes.
+func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher) []*models.Transaction {
 	for i, t := range trans {
 		if t.Name == "CHECK" {
 			trans[i].Color = "white"
@@ -372,16 +374,12 @@ func (c *Client) FormatMerchantNames(trans []*models.Transaction, lookup []*mode
 			trans[i].ColumnIndex = 42
 			trans[i].IsCategory = false
 			trans[i].TaxDeductible = false
-		} else {
-			for _, l := range lookup {
-				if strings.Contains(strings.ToUpper(t.BankName), strings.ToUpper(l.BankName)) {
-					trans[i].Name = l.Name
-					trans[i].Color = l.Color
-					trans[i].ColumnIndex = l.ColumnIndex
-					trans[i].IsCategory = l.IsCategory
-					trans[i].TaxDeductible = l.TaxDeductible
-				}
-			}
+		} else if l, ok := matcher.Match(t.BankName); ok {
+			trans[i].Name = l.Name
+			trans[i].Color = l.Color
+			trans[i].ColumnIndex = l.ColumnIndex
+			trans[i].IsCategory = l.IsCategory
+			trans[i].TaxDeductible = l.TaxDeductible
 		}
 		if c.Debug {
 			fmt.Printf("key: %s, name: %s, bankName: %s, amt: %.2f \n", trans[i].Key, trans[i].Name, trans[i].BankName, trans[i].Amount)
@@ -406,31 +404,30 @@ func (c *Client) FilterRecordedTransactions(trans []*models.Transaction, regLook
 	return filtered
 }
 
-// FormatUniqueTransactionNames drops credit card payment transactions: those
-// payments also appear as Wells Fargo transactions, so keeping both would
-// double-count them. (The merchant-name overrides that used to run here moved
-// to the merchants table in 4.3; until the 4.4 matcher lands, name formatting
-// is FormatMerchantNames' job alone.)
-func (c *Client) FormatUniqueTransactionNames(trans []*models.Transaction) []*models.Transaction {
+// creditCardPaymentPatterns identify card-payment transactions. Those
+// payments also appear as checking-account transactions, so keeping both
+// would double-count them.
+var creditCardPaymentPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`PAYMENT MADE BY ACCOUNT ENDING IN:5409`),
+	regexp.MustCompile(`Payment Thank You - Bill`),
+	regexp.MustCompile(`Payment Thank You Bill`),
+}
+
+// FilterCreditCardPayments drops credit card payment transactions.
+func (c *Client) FilterCreditCardPayments(trans []*models.Transaction) []*models.Transaction {
 	var newTrans []*models.Transaction
 
 	for _, t := range trans {
-		// check if this is a credit card transaction showing a payment. If so, skip as it will show up as a Wells Fargo transaction,
-		// and we don't need it in both places
-		re := regexp.MustCompile(`PAYMENT MADE BY ACCOUNT ENDING IN:5409`)
-		if re.MatchString(t.BankName) {
-			continue
+		drop := false
+		for _, re := range creditCardPaymentPatterns {
+			if re.MatchString(t.BankName) {
+				drop = true
+				break
+			}
 		}
-		re = regexp.MustCompile(`Payment Thank You - Bill`)
-		if re.MatchString(t.BankName) {
-			continue
+		if !drop {
+			newTrans = append(newTrans, t)
 		}
-		re = regexp.MustCompile(`Payment Thank You Bill`)
-		if re.MatchString(t.BankName) {
-			continue
-		}
-
-		newTrans = append(newTrans, t)
 	}
 	return newTrans
 }
