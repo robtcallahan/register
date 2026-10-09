@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"bufio"
+	stdcsv "encoding/csv"
 	"fmt"
 	"math"
 	"os"
@@ -109,18 +110,8 @@ func update(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Println("Writing CSV file...")
-	file, err := os.Create(config.FinanceDir + "/transactions.csv")
-	if err != nil {
-		return fmt.Errorf("error creating file %s: %v", config.FinanceDir+"/transactions.csv", err)
-	}
-	defer file.Close() // Important: always close the file
-	for _, t := range transactions {
-		_, err = file.WriteString(fmt.Sprintf("%s,%s,%s,%0.2f,%0.2f,%0.2f,%0.2f\n",
-			t.Source, t.Date, t.BankName, t.Amount, t.Deposit, t.Withdrawal, t.CreditCard))
-		if err != nil {
-			return fmt.Errorf("error writing to file: %v", err)
-		}
+	if err := writeRawTransactionsCSV(transactions); err != nil {
+		return err
 	}
 
 	transactions, err = normalizeMerchants(client, qHandler, transactions)
@@ -177,6 +168,39 @@ func fetchTransactions(client *Client) ([]*models.Transaction, error) {
 		return nil, err
 	}
 	return append(transactions, newTrans...), nil
+}
+
+// writeRawTransactionsCSV dumps the fetched transactions to transactions.csv
+// in the finance directory. It runs before merchant normalization and sheet
+// dedupe, so the file holds every transaction pulled from the banks,
+// including ones already recorded in the register. encoding/csv quotes the
+// fields, so bank names containing commas can't shift the columns.
+func writeRawTransactionsCSV(transactions []*models.Transaction) error {
+	fmt.Println("Writing CSV file...")
+	file, err := os.Create(config.FinanceDir + "/transactions.csv")
+	if err != nil {
+		return fmt.Errorf("error creating file %s: %v", config.FinanceDir+"/transactions.csv", err)
+	}
+	defer file.Close()
+
+	w := stdcsv.NewWriter(file)
+	for _, t := range transactions {
+		record := []string{
+			t.Source, t.Date, t.BankName,
+			strconv.FormatFloat(t.Amount, 'f', 2, 64),
+			strconv.FormatFloat(t.Deposit, 'f', 2, 64),
+			strconv.FormatFloat(t.Withdrawal, 'f', 2, 64),
+			strconv.FormatFloat(t.CreditCard, 'f', 2, 64),
+		}
+		if err := w.Write(record); err != nil {
+			return fmt.Errorf("error writing to file: %v", err)
+		}
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return fmt.Errorf("error writing to file: %v", err)
+	}
+	return nil
 }
 
 // normalizeMerchants assigns each transaction its display name, color, and
