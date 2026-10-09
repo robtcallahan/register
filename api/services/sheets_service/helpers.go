@@ -7,7 +7,6 @@ import (
 	"math"
 	"os"
 	"regexp"
-	"register/pkg/banking"
 	"register/pkg/models"
 	"sort"
 	"strconv"
@@ -67,19 +66,12 @@ func hasNote(trans *models.Transaction) bool {
 	return false
 }
 
-func isPaycheck(name string) bool {
-	if strings.Contains(name, banking.PayCheckName) {
-		return true
-	}
-	return false
-}
-
 func getRegisterToDeltaReadRange(i int64) string {
 	return fmt.Sprintf("%s!%s%d:%s%d", "Register", RegisterColumn, i+1, DeltaColumn, i+1)
 }
 
-func getBackgroundColor(trans *models.Transaction) string {
-	if isPaycheck(trans.Name) {
+func getBackgroundColor(trans *models.Transaction, income bool) string {
+	if income {
 		return "green"
 	} else if trans.TaxDeductible {
 		return "yellow"

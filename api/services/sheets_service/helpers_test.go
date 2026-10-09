@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"register/pkg/config"
 	"register/pkg/models"
 	"testing"
 
@@ -39,7 +40,11 @@ func Test_hasNote(t *testing.T) {
 	}
 }
 
-func Test_isPaycheck(t *testing.T) {
+func Test_isIncomeName(t *testing.T) {
+	ss := &SheetsService{IncomeSources: []config.IncomeSource{
+		{Name: "Taylor House Paycheck"},
+		{Name: "Social Security"},
+	}}
 	type args struct {
 		name string
 	}
@@ -49,20 +54,20 @@ func Test_isPaycheck(t *testing.T) {
 		want bool
 	}{
 		{
-			name: "Test isPaycheck is true",
-			args: args{name: PayCheckName},
+			name: "Test isIncomeName is true",
+			args: args{name: "Taylor House Paycheck"},
 			want: true,
 		},
 		{
-			name: "Test isPaycheck is false",
+			name: "Test isIncomeName is false",
 			args: args{name: "Amazon"},
 			want: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isPaycheck(tt.args.name); got != tt.want {
-				t.Errorf("isPaycheck() = %+v, want %+v", got, tt.want)
+			if got := ss.isIncomeName(tt.args.name); got != tt.want {
+				t.Errorf("isIncomeName() = %+v, want %+v", got, tt.want)
 			}
 		})
 	}
@@ -94,7 +99,8 @@ func Test_getRegisterToDeltaReadRange(t *testing.T) {
 
 func Test_getBackgroundColor(t *testing.T) {
 	type args struct {
-		trans *models.Transaction
+		trans  *models.Transaction
+		income bool
 	}
 	tests := []struct {
 		name string
@@ -103,7 +109,7 @@ func Test_getBackgroundColor(t *testing.T) {
 	}{
 		{
 			name: "Test getBackgroundColor for paycheck",
-			args: args{trans: &models.Transaction{Name: PayCheckName}},
+			args: args{trans: &models.Transaction{Name: "Taylor House Paycheck"}, income: true},
 			want: "green",
 		},
 		{
@@ -114,7 +120,7 @@ func Test_getBackgroundColor(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getBackgroundColor(tt.args.trans); got != tt.want {
+			if got := getBackgroundColor(tt.args.trans, tt.args.income); got != tt.want {
 				t.Errorf("getBackgroundColor() = %+v, want %+v", got, tt.want)
 			}
 		})

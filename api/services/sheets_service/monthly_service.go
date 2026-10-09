@@ -3,7 +3,6 @@ package sheets_service
 import (
 	"fmt"
 	"regexp"
-	"register/pkg/banking"
 	"register/pkg/models"
 	repo "register/pkg/repository"
 
@@ -20,7 +19,11 @@ func (ss *SheetsService) UpdateMonthlyCategories(tabName string, catAgg map[stri
 }
 
 func (ss *SheetsService) UpdateMonthlyPayees(tabName string, catAgg map[string]map[string]float64) error {
-	rows := populateMonthlyPayees(catAgg)
+	incomeNames := make([]string, len(ss.IncomeSources))
+	for i, s := range ss.IncomeSources {
+		incomeNames[i] = s.Name
+	}
+	rows := populateMonthlyPayees(catAgg, incomeNames)
 	props, err := ss.getSheetProperties(tabName)
 	if err != nil {
 		return fmt.Errorf("error: %s\n", err.Error())
@@ -81,8 +84,8 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 				catAgg[k] = make(map[string]float64)
 			}
 
-			if r.Name == banking.PayCheckName {
-				catAgg[k][banking.PayCheckName] += r.Deposit
+			if ss.isIncomeName(r.Name) {
+				catAgg[k][r.Name] += r.Deposit
 				continue
 			}
 
@@ -114,12 +117,12 @@ func populateMonthlyCategories(catAgg map[string]map[string]float64, cats []mode
 	cNames := repo.ColumnNames(cats)
 
 	// now all the category rows
-	rows = addSummaryRows(rows, catAgg, months, cNames)
+	rows = addSummaryRows(rows, catAgg, months, cNames, nil)
 
 	return rows
 }
 
-func populateMonthlyPayees(payeeAgg map[string]map[string]float64) []*sheets.RowData {
+func populateMonthlyPayees(payeeAgg map[string]map[string]float64, incomeNames []string) []*sheets.RowData {
 	var rows []*sheets.RowData
 
 	// sort the months
@@ -133,12 +136,12 @@ func populateMonthlyPayees(payeeAgg map[string]map[string]float64) []*sheets.Row
 	payees := sortAggregateMapKeys(&payeeAgg)
 
 	// now all the payee rows
-	rows = addSummaryRows(rows, payeeAgg, months, payees)
+	rows = addSummaryRows(rows, payeeAgg, months, payees, incomeNames)
 
 	return rows
 }
 
-func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float64, months, cats *[]string) []*sheets.RowData {
+func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float64, months, cats *[]string, incomeNames []string) []*sheets.RowData {
 	r := 2
 	d := 10
 	numCats := len(*cats) - d
@@ -174,9 +177,23 @@ func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float6
 		row := &sheets.RowData{Values: cells}
 		rows = append(rows, row)
 	}
-	row := addSummarySalaryRow(r, months, aggData)
-	rows = append(rows, row)
+	for _, name := range incomeNames {
+		if aggDataHasName(aggData, name) {
+			rows = append(rows, addSummarySalaryRow(name, r, months, aggData))
+			r++
+		}
+	}
 	return rows
+}
+
+// aggDataHasName reports whether any month has an entry for the name.
+func aggDataHasName(aggData map[string]map[string]float64, name string) bool {
+	for _, m := range aggData {
+		if _, ok := m[name]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func addSummaryTopRow(months *[]string) *sheets.RowData {
@@ -201,17 +218,17 @@ func addSummaryTopRow(months *[]string) *sheets.RowData {
 	return &sheets.RowData{Values: cells}
 }
 
-func addSummarySalaryRow(rNum int, months *[]string, aggData map[string]map[string]float64) *sheets.RowData {
+func addSummarySalaryRow(name string, rNum int, months *[]string, aggData map[string]map[string]float64) *sheets.RowData {
 	bgColor := "grey"
 	var cells []*sheets.CellData
 
 	// 1st column: category name
-	cells = append(cells, mkBoldFormat(banking.PayCheckName, "left", bgColor, false))
+	cells = append(cells, mkBoldFormat(name, "left", bgColor, false))
 
 	// remaining columns: $value for each month
 	for i := 0; i < len(*months); i++ {
 		m := (*months)[i]
-		cells = append(cells, mkCellDataDollars(aggData[m][banking.PayCheckName], "right", bgColor, false))
+		cells = append(cells, mkCellDataDollars(aggData[m][name], "right", bgColor, false))
 	}
 
 	// add the totals and average in last 2 columns

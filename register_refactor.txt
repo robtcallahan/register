@@ -43,8 +43,8 @@ Phase 4 — Unify merchant matching in DB
 - [X] 4.6 Reference columns by name, kill magic indexes (10, 42)
 -----------------------------------------------------------------------------------------
 Phase 5 — Paycheck redesign
-- [ ] 5.1 Define IncomeSource in config (name, match rule, frequency, allocations)
-- [ ] 5.2 Add weekly paycheck + monthly Social Security as two income sources
+- [X] 5.1 Define IncomeSource in config (name, match rule, frequency, allocations)
+- [X] 5.2 Add weekly paycheck + monthly Social Security as two income sources
 - [ ] 5.3 Remove hardcoded PayCheckBankName/PayCheckName from banking.go
 - [ ] 5.4 Replace addSalaryCells hack with income-source allocation logic
 - [ ] 5.5 Remove ColumnIndex=42 magic number

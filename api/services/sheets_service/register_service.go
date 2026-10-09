@@ -258,7 +258,7 @@ func (ss *SheetsService) populateCells(columns []models.Column, transNameToColNa
 	for _, trans := range transactions {
 		var cells []*sheets.CellData
 
-		bgColor := getBackgroundColor(trans)
+		bgColor := getBackgroundColor(trans, ss.isIncomeName(trans.Name))
 		cells, err := addSourceDateNameCells(cells, trans, bgColor)
 		if err != nil {
 			return nil, err
@@ -269,7 +269,7 @@ func (ss *SheetsService) populateCells(columns []models.Column, transNameToColNa
 		if err != nil {
 			return nil, err
 		}
-		if isPaycheck(trans.Name) {
+		if ss.isIncomeName(trans.Name) {
 			cells = ss.addSalaryCells(cells, columns, totalsFormulas)
 		} else {
 			cells = addCategoryCells(cells, trans, columns, transNameToColName, totalsFormulas)

@@ -2,6 +2,7 @@ package sheets_service
 
 import (
 	"register/api/providers/sheets_provider"
+	"register/pkg/config"
 
 	"google.golang.org/api/sheets/v4"
 )
@@ -36,6 +37,9 @@ type SheetsService struct {
 	SpreadsheetID string
 	BudgetSheet   *BudgetSheet
 	RegisterSheet *RegisterSheet
+	// IncomeSources are the configured income sources (config.json). Their
+	// display names mark register rows as income deposits.
+	IncomeSources []config.IncomeSource
 	Debug         bool
 	Verbose       bool
 }
@@ -44,4 +48,15 @@ func New(provider sheets_provider.SheetsProviderInterface) *SheetsService {
 	return &SheetsService{
 		Provider: provider,
 	}
+}
+
+// isIncomeName reports whether a register row's display name is one of the
+// configured income sources.
+func (ss *SheetsService) isIncomeName(name string) bool {
+	for _, src := range ss.IncomeSources {
+		if src.Name == name {
+			return true
+		}
+	}
+	return false
 }

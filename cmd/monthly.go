@@ -66,6 +66,7 @@ func monthly() error {
 		return err
 	}
 	sheetsService := sheets_service.New(sheetsProvider)
+	sheetsService.IncomeSources = config.IncomeSources
 	if err != nil {
 		return err
 	}

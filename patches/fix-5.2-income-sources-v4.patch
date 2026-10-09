@@ -1,0 +1,507 @@
+diff --git a/api/services/sheets_service/helpers.go b/api/services/sheets_service/helpers.go
+index a2ce0eb..b666a58 100644
+--- a/api/services/sheets_service/helpers.go
++++ b/api/services/sheets_service/helpers.go
+@@ -7,7 +7,6 @@ import (
+ 	"math"
+ 	"os"
+ 	"regexp"
+-	"register/pkg/banking"
+ 	"register/pkg/models"
+ 	"sort"
+ 	"strconv"
+@@ -67,19 +66,12 @@ func hasNote(trans *models.Transaction) bool {
+ 	return false
+ }
+ 
+-func isPaycheck(name string) bool {
+-	if strings.Contains(name, banking.PayCheckName) {
+-		return true
+-	}
+-	return false
+-}
+-
+ func getRegisterToDeltaReadRange(i int64) string {
+ 	return fmt.Sprintf("%s!%s%d:%s%d", "Register", RegisterColumn, i+1, DeltaColumn, i+1)
+ }
+ 
+-func getBackgroundColor(trans *models.Transaction) string {
+-	if isPaycheck(trans.Name) {
++func getBackgroundColor(trans *models.Transaction, income bool) string {
++	if income {
+ 		return "green"
+ 	} else if trans.TaxDeductible {
+ 		return "yellow"
+diff --git a/api/services/sheets_service/helpers_test.go b/api/services/sheets_service/helpers_test.go
+index 4e5fda9..f9f2f4e 100644
+--- a/api/services/sheets_service/helpers_test.go
++++ b/api/services/sheets_service/helpers_test.go
+@@ -4,6 +4,7 @@ import (
+ 	"encoding/json"
+ 	"os"
+ 	"reflect"
++	"register/pkg/config"
+ 	"register/pkg/models"
+ 	"testing"
+ 
+@@ -39,7 +40,11 @@ func Test_hasNote(t *testing.T) {
+ 	}
+ }
+ 
+-func Test_isPaycheck(t *testing.T) {
++func Test_isIncomeName(t *testing.T) {
++	ss := &SheetsService{IncomeSources: []config.IncomeSource{
++		{Name: "Taylor House Paycheck"},
++		{Name: "Social Security"},
++	}}
+ 	type args struct {
+ 		name string
+ 	}
+@@ -49,20 +54,20 @@ func Test_isPaycheck(t *testing.T) {
+ 		want bool
+ 	}{
+ 		{
+-			name: "Test isPaycheck is true",
+-			args: args{name: PayCheckName},
++			name: "Test isIncomeName is true",
++			args: args{name: "Taylor House Paycheck"},
+ 			want: true,
+ 		},
+ 		{
+-			name: "Test isPaycheck is false",
++			name: "Test isIncomeName is false",
+ 			args: args{name: "Amazon"},
+ 			want: false,
+ 		},
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+-			if got := isPaycheck(tt.args.name); got != tt.want {
+-				t.Errorf("isPaycheck() = %+v, want %+v", got, tt.want)
++			if got := ss.isIncomeName(tt.args.name); got != tt.want {
++				t.Errorf("isIncomeName() = %+v, want %+v", got, tt.want)
+ 			}
+ 		})
+ 	}
+@@ -94,7 +99,8 @@ func Test_getRegisterToDeltaReadRange(t *testing.T) {
+ 
+ func Test_getBackgroundColor(t *testing.T) {
+ 	type args struct {
+-		trans *models.Transaction
++		trans  *models.Transaction
++		income bool
+ 	}
+ 	tests := []struct {
+ 		name string
+@@ -103,7 +109,7 @@ func Test_getBackgroundColor(t *testing.T) {
+ 	}{
+ 		{
+ 			name: "Test getBackgroundColor for paycheck",
+-			args: args{trans: &models.Transaction{Name: PayCheckName}},
++			args: args{trans: &models.Transaction{Name: "Taylor House Paycheck"}, income: true},
+ 			want: "green",
+ 		},
+ 		{
+@@ -114,7 +120,7 @@ func Test_getBackgroundColor(t *testing.T) {
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+-			if got := getBackgroundColor(tt.args.trans); got != tt.want {
++			if got := getBackgroundColor(tt.args.trans, tt.args.income); got != tt.want {
+ 				t.Errorf("getBackgroundColor() = %+v, want %+v", got, tt.want)
+ 			}
+ 		})
+diff --git a/api/services/sheets_service/monthly_service.go b/api/services/sheets_service/monthly_service.go
+index 38c6769..7eef4f9 100644
+--- a/api/services/sheets_service/monthly_service.go
++++ b/api/services/sheets_service/monthly_service.go
+@@ -3,7 +3,6 @@ package sheets_service
+ import (
+ 	"fmt"
+ 	"regexp"
+-	"register/pkg/banking"
+ 	"register/pkg/models"
+ 	repo "register/pkg/repository"
+ 
+@@ -20,7 +19,11 @@ func (ss *SheetsService) UpdateMonthlyCategories(tabName string, catAgg map[stri
+ }
+ 
+ func (ss *SheetsService) UpdateMonthlyPayees(tabName string, catAgg map[string]map[string]float64) error {
+-	rows := populateMonthlyPayees(catAgg)
++	incomeNames := make([]string, len(ss.IncomeSources))
++	for i, s := range ss.IncomeSources {
++		incomeNames[i] = s.Name
++	}
++	rows := populateMonthlyPayees(catAgg, incomeNames)
+ 	props, err := ss.getSheetProperties(tabName)
+ 	if err != nil {
+ 		return fmt.Errorf("error: %s\n", err.Error())
+@@ -81,8 +84,8 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
+ 				catAgg[k] = make(map[string]float64)
+ 			}
+ 
+-			if r.Name == banking.PayCheckName {
+-				catAgg[k][banking.PayCheckName] += r.Deposit
++			if ss.isIncomeName(r.Name) {
++				catAgg[k][r.Name] += r.Deposit
+ 				continue
+ 			}
+ 
+@@ -114,12 +117,12 @@ func populateMonthlyCategories(catAgg map[string]map[string]float64, cats []mode
+ 	cNames := repo.ColumnNames(cats)
+ 
+ 	// now all the category rows
+-	rows = addSummaryRows(rows, catAgg, months, cNames)
++	rows = addSummaryRows(rows, catAgg, months, cNames, nil)
+ 
+ 	return rows
+ }
+ 
+-func populateMonthlyPayees(payeeAgg map[string]map[string]float64) []*sheets.RowData {
++func populateMonthlyPayees(payeeAgg map[string]map[string]float64, incomeNames []string) []*sheets.RowData {
+ 	var rows []*sheets.RowData
+ 
+ 	// sort the months
+@@ -133,12 +136,12 @@ func populateMonthlyPayees(payeeAgg map[string]map[string]float64) []*sheets.Row
+ 	payees := sortAggregateMapKeys(&payeeAgg)
+ 
+ 	// now all the payee rows
+-	rows = addSummaryRows(rows, payeeAgg, months, payees)
++	rows = addSummaryRows(rows, payeeAgg, months, payees, incomeNames)
+ 
+ 	return rows
+ }
+ 
+-func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float64, months, cats *[]string) []*sheets.RowData {
++func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float64, months, cats *[]string, incomeNames []string) []*sheets.RowData {
+ 	r := 2
+ 	d := 10
+ 	numCats := len(*cats) - d
+@@ -174,11 +177,25 @@ func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float6
+ 		row := &sheets.RowData{Values: cells}
+ 		rows = append(rows, row)
+ 	}
+-	row := addSummarySalaryRow(r, months, aggData)
+-	rows = append(rows, row)
++	for _, name := range incomeNames {
++		if aggDataHasName(aggData, name) {
++			rows = append(rows, addSummarySalaryRow(name, r, months, aggData))
++			r++
++		}
++	}
+ 	return rows
+ }
+ 
++// aggDataHasName reports whether any month has an entry for the name.
++func aggDataHasName(aggData map[string]map[string]float64, name string) bool {
++	for _, m := range aggData {
++		if _, ok := m[name]; ok {
++			return true
++		}
++	}
++	return false
++}
++
+ func addSummaryTopRow(months *[]string) *sheets.RowData {
+ 	bgColor := "grey"
+ 
+@@ -201,17 +218,17 @@ func addSummaryTopRow(months *[]string) *sheets.RowData {
+ 	return &sheets.RowData{Values: cells}
+ }
+ 
+-func addSummarySalaryRow(rNum int, months *[]string, aggData map[string]map[string]float64) *sheets.RowData {
++func addSummarySalaryRow(name string, rNum int, months *[]string, aggData map[string]map[string]float64) *sheets.RowData {
+ 	bgColor := "grey"
+ 	var cells []*sheets.CellData
+ 
+ 	// 1st column: category name
+-	cells = append(cells, mkBoldFormat(banking.PayCheckName, "left", bgColor, false))
++	cells = append(cells, mkBoldFormat(name, "left", bgColor, false))
+ 
+ 	// remaining columns: $value for each month
+ 	for i := 0; i < len(*months); i++ {
+ 		m := (*months)[i]
+-		cells = append(cells, mkCellDataDollars(aggData[m][banking.PayCheckName], "right", bgColor, false))
++		cells = append(cells, mkCellDataDollars(aggData[m][name], "right", bgColor, false))
+ 	}
+ 
+ 	// add the totals and average in last 2 columns
+diff --git a/api/services/sheets_service/register_service.go b/api/services/sheets_service/register_service.go
+index 743f442..e4ebd22 100644
+--- a/api/services/sheets_service/register_service.go
++++ b/api/services/sheets_service/register_service.go
+@@ -258,7 +258,7 @@ func (ss *SheetsService) populateCells(columns []models.Column, transNameToColNa
+ 	for _, trans := range transactions {
+ 		var cells []*sheets.CellData
+ 
+-		bgColor := getBackgroundColor(trans)
++		bgColor := getBackgroundColor(trans, ss.isIncomeName(trans.Name))
+ 		cells, err := addSourceDateNameCells(cells, trans, bgColor)
+ 		if err != nil {
+ 			return nil, err
+@@ -269,7 +269,7 @@ func (ss *SheetsService) populateCells(columns []models.Column, transNameToColNa
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		if isPaycheck(trans.Name) {
++		if ss.isIncomeName(trans.Name) {
+ 			cells = ss.addSalaryCells(cells, columns, totalsFormulas)
+ 		} else {
+ 			cells = addCategoryCells(cells, trans, columns, transNameToColName, totalsFormulas)
+diff --git a/api/services/sheets_service/sheets_service.go b/api/services/sheets_service/sheets_service.go
+index 6df2445..8471c0a 100644
+--- a/api/services/sheets_service/sheets_service.go
++++ b/api/services/sheets_service/sheets_service.go
+@@ -2,6 +2,7 @@ package sheets_service
+ 
+ import (
+ 	"register/api/providers/sheets_provider"
++	"register/pkg/config"
+ 
+ 	"google.golang.org/api/sheets/v4"
+ )
+@@ -36,6 +37,9 @@ type SheetsService struct {
+ 	SpreadsheetID string
+ 	BudgetSheet   *BudgetSheet
+ 	RegisterSheet *RegisterSheet
++	// IncomeSources are the configured income sources (config.json). Their
++	// display names mark register rows as income deposits.
++	IncomeSources []config.IncomeSource
+ 	Debug         bool
+ 	Verbose       bool
+ }
+@@ -45,3 +49,14 @@ func New(provider sheets_provider.SheetsProviderInterface) *SheetsService {
+ 		Provider: provider,
+ 	}
+ }
++
++// isIncomeName reports whether a register row's display name is one of the
++// configured income sources.
++func (ss *SheetsService) isIncomeName(name string) bool {
++	for _, src := range ss.IncomeSources {
++		if src.Name == name {
++			return true
++		}
++	}
++	return false
++}
+diff --git a/cmd/monthly.go b/cmd/monthly.go
+index 6c43eca..a668cdc 100644
+--- a/cmd/monthly.go
++++ b/cmd/monthly.go
+@@ -66,6 +66,7 @@ func monthly() error {
+ 		return err
+ 	}
+ 	sheetsService := sheets_service.New(sheetsProvider)
++	sheetsService.IncomeSources = config.IncomeSources
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/cmd/root.go b/cmd/root.go
+index bb3901b..65ee980 100644
+--- a/cmd/root.go
++++ b/cmd/root.go
+@@ -122,6 +122,7 @@ func getBankingClient() *Client {
+ 	client.BankClient = banking.NewClient(&banking.ClientOptions{
+ 		UserID:           config.UserID,
+ 		Banks:            config.Banks,
++		IncomeSources:    config.IncomeSources,
+ 		Debug:            options.Debug,
+ 		PlaidClientID:    config.PlaidClientID,
+ 		PlaidSecret:      config.PlaidEnvSecrets[config.PlaidEnvironment],
+diff --git a/cmd/update.go b/cmd/update.go
+index d180455..71364f3 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -84,6 +84,7 @@ func update(cmd *cobra.Command, args []string) error {
+ 		return err
+ 	}
+ 	sheetsService := sheets_service.New(sheetsProvider)
++	sheetsService.IncomeSources = config.IncomeSources
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -217,12 +218,17 @@ func normalizeMerchants(client *Client, qHandler *handler.Query, transactions []
+ 		return nil, err
+ 	}
+ 
++	income, err := client.BankClient.IncomeMatcher()
++	if err != nil {
++		return nil, err
++	}
++
+ 	columns, err := qHandler.GetColumns()
+ 	if err != nil {
+ 		return nil, err
+ 	}
+ 
+-	transactions = client.BankClient.FormatMerchantNames(transactions, matcher, columns)
++	transactions = client.BankClient.FormatMerchantNames(transactions, matcher, income, columns)
+ 	if options.Debug {
+ 		printTransactions(transactions)
+ 	}
+@@ -513,11 +519,15 @@ func getBankNameToName(bankClient *banking.Client, db *handler.Query, trans []*m
+ 		if err != nil {
+ 			return nil, err
+ 		}
++		income, err := bankClient.IncomeMatcher()
++		if err != nil {
++			return nil, err
++		}
+ 		columns, err := db.GetColumns()
+ 		if err != nil {
+ 			return nil, err
+ 		}
+-		trans = bankClient.FormatMerchantNames(trans, matcher, columns)
++		trans = bankClient.FormatMerchantNames(trans, matcher, income, columns)
+ 	}
+ 	return trans, nil
+ }
+diff --git a/pkg/banking/banking.go b/pkg/banking/banking.go
+index f40c1b0..a85b3ff 100644
+--- a/pkg/banking/banking.go
++++ b/pkg/banking/banking.go
+@@ -32,19 +32,16 @@ import (
+ )
+ 
+ const (
+-	PayCheckBankName = "NOVA BEER LLC"
+-	PayCheckName     = "50/50 Taphouse Paycheck"
+-
+ 	// Specials in FormatMerchantNames, expressed as lookup values instead of
+ 	// hardcoded positions: checks (ingested with the name "CHECK") are
+ 	// categorized by the merchant rule whose bank pattern is CheckBankPattern
+ 	// — adding such a rule to the DB is how their position changes now.
+-	// Paychecks get the income column's index, resolved from the categories
+-	// list by the column's name. Phase 5 replaces this whole paycheck path;
+-	// paychecks become configured income sources.
++	// Income deposits get the income column's index, resolved from the
++	// categories list by the column's name (Phase 5: deposits themselves are
++	// recognized via configured income sources, see Client.IncomeMatcher).
+ 	CheckTransactionName = "CHECK"
+ 	CheckBankPattern     = "CHECK"
+-	PayCheckColumnName   = "Salary"
++	IncomeColumnName     = "Emergency Fund" // column_index 42 in his tables today
+ 
+ 	WellsFargoID     = "wellsfargo"
+ 	FidelityID       = "fidelity"
+@@ -73,6 +70,7 @@ type ClientOptions struct {
+ 	PlaidTokensDir   string
+ 	UserID           string
+ 	Banks            map[string]config.Bank
++	IncomeSources    []config.IncomeSource
+ 	Debug            bool
+ 	Verbose          bool
+ }
+@@ -85,6 +83,7 @@ type Client struct {
+ 	TokensDir   string
+ 	UserID      string
+ 	Banks       map[string]config.Bank
++	IncomeSources []config.IncomeSource
+ 	Debug       bool
+ 	Verbose     bool
+ }
+@@ -102,7 +101,8 @@ func NewClient(o *ClientOptions) *Client {
+ 		Environment: o.PlaidEnvironment,
+ 		TokensDir:   o.PlaidTokensDir,
+ 		UserID:      o.UserID,
+-		Banks:       o.Banks,
++		Banks:         o.Banks,
++		IncomeSources: o.IncomeSources,
+ 		Debug:       o.Debug,
+ 		Verbose:     o.Debug,
+ 	}
+@@ -380,13 +380,26 @@ func ColumnIndexForName(columns []models.Column, name string) int {
+ 	return 0
+ }
+ 
++// IncomeMatcher builds the matcher for the income sources configured in
++// config.json (see config.IncomeSource). Source order in the config is the
++// match order.
++func (c *Client) IncomeMatcher() (*MerchantMatcher, error) {
++	rows := make([]*models.DataRow, len(c.IncomeSources))
++	for i, src := range c.IncomeSources {
++		rows[i] = &models.DataRow{BankName: src.Match, Name: src.Name, MatchType: src.MatchType}
++	}
++	return NewMerchantMatcher(rows)
++}
++
+ // FormatMerchantNames applies merchant rules to each transaction: a match
+ // sets the display name, color, and budget column. Rules come from the
+-// matcher (first-match-wins by priority). The CHECK and paycheck specials
++// matcher (first-match-wins by priority). The CHECK and income specials
+ // resolve their column by lookup, not by hardcoded index: checks take the
+-// position of the "CHECK" merchant rule, paychecks the position of the
+-// "Salary" column.
+-func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher, columns []models.Column) []*models.Transaction {
++// position of the "CHECK" merchant rule, income deposits the position of
++// the "Emergency Fund" column. The income fan-out at sheet-write time is
++// keyed by the configured display names, so this index only records where
++// the deposit conceptually lands.
++func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher, income *MerchantMatcher, columns []models.Column) []*models.Transaction {
+ 	for i, t := range trans {
+ 		if t.Name == CheckTransactionName {
+ 			trans[i].Color = "white"
+@@ -395,10 +408,10 @@ func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *Merch
+ 			}
+ 			trans[i].IsCategory = false
+ 			trans[i].TaxDeductible = false
+-		} else if strings.Contains(t.BankName, PayCheckBankName) {
+-			trans[i].Name = PayCheckName
++		} else if src, ok := income.Match(t.BankName); ok {
++			trans[i].Name = src.Name
+ 			trans[i].Color = "green"
+-			trans[i].ColumnIndex = ColumnIndexForName(columns, PayCheckColumnName)
++			trans[i].ColumnIndex = ColumnIndexForName(columns, IncomeColumnName)
+ 			trans[i].IsCategory = false
+ 			trans[i].TaxDeductible = false
+ 		} else if l, ok := matcher.Match(t.BankName); ok {
+diff --git a/pkg/banking/merchant_matcher_test.go b/pkg/banking/merchant_matcher_test.go
+index 98b2c73..80cf545 100644
+--- a/pkg/banking/merchant_matcher_test.go
++++ b/pkg/banking/merchant_matcher_test.go
+@@ -3,6 +3,7 @@ package banking
+ import (
+ 	"testing"
+ 
++	"register/pkg/config"
+ 	"register/pkg/models"
+ )
+ 
+@@ -96,7 +97,15 @@ func TestFormatMerchantNames_AppliesRules(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	columns := []models.Column{{Name: "Salary", ColumnIndex: 42}}
++	columns := []models.Column{{Name: "Emergency Fund", ColumnIndex: 42}}
++
++	c := &Client{IncomeSources: []config.IncomeSource{
++		{Name: "50/50 Taphouse Paycheck", Match: "NOVA BEER LLC", MatchType: "substring", Frequency: "weekly"},
++	}}
++	income, err := c.IncomeMatcher()
++	if err != nil {
++		t.Fatal(err)
++	}
+ 
+ 	trans := []*models.Transaction{
+ 		{BankName: "AMAZON.COM*AMZN MKTP"},
+@@ -104,7 +113,7 @@ func TestFormatMerchantNames_AppliesRules(t *testing.T) {
+ 		{BankName: "NOVA BEER LLC PAYROLL"},
+ 		{BankName: "LOCAL BAKERY"},
+ 	}
+-	got := (&Client{}).FormatMerchantNames(trans, matcher, columns)
++	got := c.FormatMerchantNames(trans, matcher, income, columns)
+ 
+ 	if got[0].Name != "Amazon" || got[0].ColumnIndex != 11 || !got[0].IsCategory || !got[0].TaxDeductible {
+ 		t.Errorf("matcher rule not applied: %+v", got[0])
+@@ -112,8 +121,8 @@ func TestFormatMerchantNames_AppliesRules(t *testing.T) {
+ 	if got[1].ColumnIndex != 10 || got[1].Color != "white" {
+ 		t.Errorf("CHECK special not applied: %+v", got[1])
+ 	}
+-	if got[2].Name != PayCheckName || got[2].ColumnIndex != 42 {
+-		t.Errorf("paycheck special not applied: %+v", got[2])
++	if got[2].Name != "50/50 Taphouse Paycheck" || got[2].ColumnIndex != 42 {
++		t.Errorf("income source not applied: %+v", got[2])
+ 	}
+ 	if got[3].Name != "" {
+ 		t.Errorf("unmatched transaction renamed: %+v", got[3])

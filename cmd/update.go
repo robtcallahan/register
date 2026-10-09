@@ -84,6 +84,7 @@ func update(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	sheetsService := sheets_service.New(sheetsProvider)
+	sheetsService.IncomeSources = config.IncomeSources
 	if err != nil {
 		return err
 	}
@@ -217,12 +218,17 @@ func normalizeMerchants(client *Client, qHandler *handler.Query, transactions []
 		return nil, err
 	}
 
+	income, err := client.BankClient.IncomeMatcher()
+	if err != nil {
+		return nil, err
+	}
+
 	columns, err := qHandler.GetColumns()
 	if err != nil {
 		return nil, err
 	}
 
-	transactions = client.BankClient.FormatMerchantNames(transactions, matcher, columns)
+	transactions = client.BankClient.FormatMerchantNames(transactions, matcher, income, columns)
 	if options.Debug {
 		printTransactions(transactions)
 	}
@@ -513,11 +519,15 @@ func getBankNameToName(bankClient *banking.Client, db *handler.Query, trans []*m
 		if err != nil {
 			return nil, err
 		}
+		income, err := bankClient.IncomeMatcher()
+		if err != nil {
+			return nil, err
+		}
 		columns, err := db.GetColumns()
 		if err != nil {
 			return nil, err
 		}
-		trans = bankClient.FormatMerchantNames(trans, matcher, columns)
+		trans = bankClient.FormatMerchantNames(trans, matcher, income, columns)
 	}
 	return trans, nil
 }

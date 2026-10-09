@@ -3,6 +3,7 @@ package banking
 import (
 	"testing"
 
+	"register/pkg/config"
 	"register/pkg/models"
 )
 
@@ -96,7 +97,15 @@ func TestFormatMerchantNames_AppliesRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	columns := []models.Column{{Name: "Salary", ColumnIndex: 42}}
+	columns := []models.Column{{Name: "Emergency Fund", ColumnIndex: 42}}
+
+	c := &Client{IncomeSources: []config.IncomeSource{
+		{Name: "50/50 Taphouse Paycheck", Match: "NOVA BEER LLC", MatchType: "substring", Frequency: "weekly"},
+	}}
+	income, err := c.IncomeMatcher()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	trans := []*models.Transaction{
 		{BankName: "AMAZON.COM*AMZN MKTP"},
@@ -104,7 +113,7 @@ func TestFormatMerchantNames_AppliesRules(t *testing.T) {
 		{BankName: "NOVA BEER LLC PAYROLL"},
 		{BankName: "LOCAL BAKERY"},
 	}
-	got := (&Client{}).FormatMerchantNames(trans, matcher, columns)
+	got := c.FormatMerchantNames(trans, matcher, income, columns)
 
 	if got[0].Name != "Amazon" || got[0].ColumnIndex != 11 || !got[0].IsCategory || !got[0].TaxDeductible {
 		t.Errorf("matcher rule not applied: %+v", got[0])
@@ -112,8 +121,8 @@ func TestFormatMerchantNames_AppliesRules(t *testing.T) {
 	if got[1].ColumnIndex != 10 || got[1].Color != "white" {
 		t.Errorf("CHECK special not applied: %+v", got[1])
 	}
-	if got[2].Name != PayCheckName || got[2].ColumnIndex != 42 {
-		t.Errorf("paycheck special not applied: %+v", got[2])
+	if got[2].Name != "50/50 Taphouse Paycheck" || got[2].ColumnIndex != 42 {
+		t.Errorf("income source not applied: %+v", got[2])
 	}
 	if got[3].Name != "" {
 		t.Errorf("unmatched transaction renamed: %+v", got[3])

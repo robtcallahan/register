@@ -32,19 +32,16 @@ import (
 )
 
 const (
-	PayCheckBankName = "NOVA BEER LLC"
-	PayCheckName     = "50/50 Taphouse Paycheck"
-
 	// Specials in FormatMerchantNames, expressed as lookup values instead of
 	// hardcoded positions: checks (ingested with the name "CHECK") are
 	// categorized by the merchant rule whose bank pattern is CheckBankPattern
 	// — adding such a rule to the DB is how their position changes now.
-	// Paychecks get the income column's index, resolved from the categories
-	// list by the column's name. Phase 5 replaces this whole paycheck path;
-	// paychecks become configured income sources.
+	// Income deposits get the income column's index, resolved from the
+	// categories list by the column's name (Phase 5: deposits themselves are
+	// recognized via configured income sources, see Client.IncomeMatcher).
 	CheckTransactionName = "CHECK"
 	CheckBankPattern     = "CHECK"
-	PayCheckColumnName   = "Salary"
+	IncomeColumnName     = "Emergency Fund" // column_index 42 in his tables today
 
 	WellsFargoID     = "wellsfargo"
 	FidelityID       = "fidelity"
@@ -73,6 +70,7 @@ type ClientOptions struct {
 	PlaidTokensDir   string
 	UserID           string
 	Banks            map[string]config.Bank
+	IncomeSources    []config.IncomeSource
 	Debug            bool
 	Verbose          bool
 }
@@ -85,6 +83,7 @@ type Client struct {
 	TokensDir   string
 	UserID      string
 	Banks       map[string]config.Bank
+	IncomeSources []config.IncomeSource
 	Debug       bool
 	Verbose     bool
 }
@@ -102,7 +101,8 @@ func NewClient(o *ClientOptions) *Client {
 		Environment: o.PlaidEnvironment,
 		TokensDir:   o.PlaidTokensDir,
 		UserID:      o.UserID,
-		Banks:       o.Banks,
+		Banks:         o.Banks,
+		IncomeSources: o.IncomeSources,
 		Debug:       o.Debug,
 		Verbose:     o.Debug,
 	}
@@ -380,13 +380,26 @@ func ColumnIndexForName(columns []models.Column, name string) int {
 	return 0
 }
 
+// IncomeMatcher builds the matcher for the income sources configured in
+// config.json (see config.IncomeSource). Source order in the config is the
+// match order.
+func (c *Client) IncomeMatcher() (*MerchantMatcher, error) {
+	rows := make([]*models.DataRow, len(c.IncomeSources))
+	for i, src := range c.IncomeSources {
+		rows[i] = &models.DataRow{BankName: src.Match, Name: src.Name, MatchType: src.MatchType}
+	}
+	return NewMerchantMatcher(rows)
+}
+
 // FormatMerchantNames applies merchant rules to each transaction: a match
 // sets the display name, color, and budget column. Rules come from the
-// matcher (first-match-wins by priority). The CHECK and paycheck specials
+// matcher (first-match-wins by priority). The CHECK and income specials
 // resolve their column by lookup, not by hardcoded index: checks take the
-// position of the "CHECK" merchant rule, paychecks the position of the
-// "Salary" column.
-func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher, columns []models.Column) []*models.Transaction {
+// position of the "CHECK" merchant rule, income deposits the position of
+// the "Emergency Fund" column. The income fan-out at sheet-write time is
+// keyed by the configured display names, so this index only records where
+// the deposit conceptually lands.
+func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher, income *MerchantMatcher, columns []models.Column) []*models.Transaction {
 	for i, t := range trans {
 		if t.Name == CheckTransactionName {
 			trans[i].Color = "white"
@@ -395,10 +408,10 @@ func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *Merch
 			}
 			trans[i].IsCategory = false
 			trans[i].TaxDeductible = false
-		} else if strings.Contains(t.BankName, PayCheckBankName) {
-			trans[i].Name = PayCheckName
+		} else if src, ok := income.Match(t.BankName); ok {
+			trans[i].Name = src.Name
 			trans[i].Color = "green"
-			trans[i].ColumnIndex = ColumnIndexForName(columns, PayCheckColumnName)
+			trans[i].ColumnIndex = ColumnIndexForName(columns, IncomeColumnName)
 			trans[i].IsCategory = false
 			trans[i].TaxDeductible = false
 		} else if l, ok := matcher.Match(t.BankName); ok {
