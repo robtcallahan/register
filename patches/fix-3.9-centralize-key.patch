@@ -1,0 +1,157 @@
+diff --git a/api/services/sheets_service/helpers.go b/api/services/sheets_service/helpers.go
+index d6949c1..a2ce0eb 100644
+--- a/api/services/sheets_service/helpers.go
++++ b/api/services/sheets_service/helpers.go
+@@ -453,7 +453,11 @@ func getAmountString(values []interface{}) string {
+ }
+ 
+ func getTransactionKey(values []interface{}) string {
+-	return fmt.Sprintf("%s:%s:%s", getSourceField(values), getDateField(values), getAmountString(values))
++	amtStr := getAmountString(values)
++	if amt, err := strconv.ParseFloat(amtStr, 64); err == nil {
++		return models.TransactionKey(getSourceField(values), getDateField(values), amt)
++	}
++	return fmt.Sprintf("%s:%s:%s", getSourceField(values), getDateField(values), amtStr)
+ }
+ 
+ func addSourceDateNameCells(cells []*sheets.CellData, trans *models.Transaction, bgColor string) ([]*sheets.CellData, error) {
+diff --git a/cmd/update.go b/cmd/update.go
+index d87dce7..8aaac39 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -219,9 +219,14 @@ func fuzzyKeySet(keys map[string]bool) map[string]bool {
+ 			fuzzy[k] = true
+ 			continue
+ 		}
++		amt, err := strconv.ParseFloat(parts[2], 64)
++		if err != nil {
++			fuzzy[k] = true
++			continue
++		}
+ 		for _, shift := range []int{-1, 0, 1} {
+-			variant := fmt.Sprintf("%s:%s:%s", parts[0], d.AddDate(0, 0, shift).Format("01/02/06"), parts[2])
+-			fuzzy[variant] = true
++			date := d.AddDate(0, 0, shift).Format("01/02/06")
++			fuzzy[models.TransactionKey(parts[0], date, amt)] = true
+ 		}
+ 	}
+ 	return fuzzy
+diff --git a/cmd/update_test.go b/cmd/update_test.go
+index 783138f..0486983 100644
+--- a/cmd/update_test.go
++++ b/cmd/update_test.go
+@@ -35,7 +35,7 @@ func TestFuzzyKeySet(t *testing.T) {
+ 	keys := map[string]bool{
+ 		"amazon:12/31/25:25.00": true,
+ 		"badkey":                true,
+-		"chase:01/01/26:xyz":    true, // amount is opaque; date still shifts
++		"chase:01/01/26:10.00":  true,
+ 	}
+ 	fuzzy := fuzzyKeySet(keys)
+ 
+@@ -44,8 +44,8 @@ func TestFuzzyKeySet(t *testing.T) {
+ 		"amazon:12/31/25:25.00",
+ 		"amazon:01/01/26:25.00", // year boundary
+ 		"badkey",
+-		"chase:12/31/25:xyz",
+-		"chase:01/02/26:xyz",
++		"chase:12/31/25:10.00",
++		"chase:01/02/26:10.00",
+ 	} {
+ 		if !fuzzy[want] {
+ 			t.Errorf("missing variant %q", want)
+diff --git a/pkg/banking/banking.go b/pkg/banking/banking.go
+index d8734d9..2a31769 100644
+--- a/pkg/banking/banking.go
++++ b/pkg/banking/banking.go
+@@ -313,10 +313,10 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Tr
+ 		tran.Amount = p.Amount
+ 		if p.Amount < 0 {
+ 			tran.Deposit = -1 * p.Amount // covert to positive
+-			tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), readDateValue(p.Date), tran.Deposit)
++			tran.Key = models.TransactionKey(tran.Source, readDateValue(p.Date), tran.Deposit)
+ 		} else {
+ 			tran.Withdrawal = p.Amount
+-			tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), readDateValue(p.Date), tran.Withdrawal)
++			tran.Key = models.TransactionKey(tran.Source, readDateValue(p.Date), tran.Withdrawal)
+ 		}
+ 		tran.Budget = -1 * p.Amount
+ 	case FidelityID:
+@@ -326,7 +326,7 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Tr
+ 		tran.CreditPurchase = p.Amount // keep positive
+ 		tran.CreditCard = p.Amount     // keep positive
+ 		tran.Budget = -1 * p.Amount    // budget category column negative
+-		tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), tran.Date, cc)
++		tran.Key = models.TransactionKey(tran.Source, tran.Date, cc)
+ 		if tran.Name == "" {
+ 			tran.Name = tran.BankName
+ 		}
+@@ -337,7 +337,7 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Tr
+ 		tran.CreditPurchase = p.Amount // keep positive
+ 		tran.CreditCard = p.Amount     // keep positive
+ 		tran.Budget = -1 * p.Amount    // budget category column negative
+-		tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), tran.Date, cc)
++		tran.Key = models.TransactionKey(tran.Source, tran.Date, cc)
+ 		if tran.Name == "" {
+ 			tran.Name = tran.BankName
+ 		}
+diff --git a/pkg/csv/csv.go b/pkg/csv/csv.go
+index 6154c07..df1f63d 100644
+--- a/pkg/csv/csv.go
++++ b/pkg/csv/csv.go
+@@ -185,7 +185,7 @@ func processWellsFargoData(wellsFargo []*WellsFargo, bankId string) []*models.Tr
+ 	var trans []*models.Transaction
+ 	for _, wf := range wellsFargo {
+ 		t := &models.Transaction{
+-			Key:      fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(wf.Date), wf.Amount),
++			Key:      models.TransactionKey(bankId, readDateValue(wf.Date), wf.Amount),
+ 			Source:   "WellsFargo",
+ 			Date:     readDateValue(wf.Date),
+ 			Amount:   wf.Amount,
+@@ -264,7 +264,7 @@ func processFidelityData(fidelity []*FidelityVisa, bankId string) []*models.Tran
+ 			CreditCard:     -1 * f.Amount, // convert to positive
+ 			Budget:         f.Amount,      // already negative
+ 		}
+-		t.Key = fmt.Sprintf("%s:%s:%.2f", bankId, t.Date, t.CreditCard)
++		t.Key = models.TransactionKey(bankId, t.Date, t.CreditCard)
+ 		trans = append(trans, t)
+ 	}
+ 	return trans
+@@ -294,7 +294,7 @@ func processChaseData(chase []*ChaseVisa, bankId string) []*models.Transaction {
+ 		}
+ 
+ 		t := &models.Transaction{
+-			Key:            fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(c.TransactionDate), -1*c.Amount),
++			Key:            models.TransactionKey(bankId, readDateValue(c.TransactionDate), -1*c.Amount),
+ 			Source:         "Chase",
+ 			Date:           readDateValue(c.TransactionDate),
+ 			Amount:         c.Amount, // amount stays as is
+@@ -334,7 +334,7 @@ func processBankOfAmericaData(boa []*BankOfAmerica, bankId string) []*models.Tra
+ 		}
+ 
+ 		t := &models.Transaction{
+-			Key:        fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(b.PostedDate), b.Amount),
++			Key:        models.TransactionKey(bankId, readDateValue(b.PostedDate), b.Amount),
+ 			Source:     bankId,
+ 			Date:       readDateValue(b.PostedDate),
+ 			Amount:     -b.Amount,
+diff --git a/pkg/models/key.go b/pkg/models/key.go
+new file mode 100644
+index 0000000..c646573
+--- /dev/null
++++ b/pkg/models/key.go
+@@ -0,0 +1,14 @@
++package models
++
++import (
++	"fmt"
++	"strings"
++)
++
++// TransactionKey builds the register dedupe key (source:date:amount) for a
++// transaction. The date must already be in MM/DD/YY form. Every producer and
++// consumer of dedupe keys — Plaid, CSV import, and the register sheet itself —
++// builds them here so the formats can't drift apart.
++func TransactionKey(source, date string, amount float64) string {
++	return fmt.Sprintf("%s:%s:%.2f", strings.ToLower(source), date, amount)
++}

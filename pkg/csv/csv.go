@@ -185,7 +185,7 @@ func processWellsFargoData(wellsFargo []*WellsFargo, bankId string) []*models.Tr
 	var trans []*models.Transaction
 	for _, wf := range wellsFargo {
 		t := &models.Transaction{
-			Key:      fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(wf.Date), wf.Amount),
+			Key:      models.TransactionKey(bankId, readDateValue(wf.Date), wf.Amount),
 			Source:   "WellsFargo",
 			Date:     readDateValue(wf.Date),
 			Amount:   wf.Amount,
@@ -264,7 +264,7 @@ func processFidelityData(fidelity []*FidelityVisa, bankId string) []*models.Tran
 			CreditCard:     -1 * f.Amount, // convert to positive
 			Budget:         f.Amount,      // already negative
 		}
-		t.Key = fmt.Sprintf("%s:%s:%.2f", bankId, t.Date, t.CreditCard)
+		t.Key = models.TransactionKey(bankId, t.Date, t.CreditCard)
 		trans = append(trans, t)
 	}
 	return trans
@@ -294,7 +294,7 @@ func processChaseData(chase []*ChaseVisa, bankId string) []*models.Transaction {
 		}
 
 		t := &models.Transaction{
-			Key:            fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(c.TransactionDate), -1*c.Amount),
+			Key:            models.TransactionKey(bankId, readDateValue(c.TransactionDate), -1*c.Amount),
 			Source:         "Chase",
 			Date:           readDateValue(c.TransactionDate),
 			Amount:         c.Amount, // amount stays as is
@@ -334,7 +334,7 @@ func processBankOfAmericaData(boa []*BankOfAmerica, bankId string) []*models.Tra
 		}
 
 		t := &models.Transaction{
-			Key:        fmt.Sprintf("%s:%s:%.2f", bankId, readDateValue(b.PostedDate), b.Amount),
+			Key:        models.TransactionKey(bankId, readDateValue(b.PostedDate), b.Amount),
 			Source:     bankId,
 			Date:       readDateValue(b.PostedDate),
 			Amount:     -b.Amount,

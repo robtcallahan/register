@@ -453,7 +453,11 @@ func getAmountString(values []interface{}) string {
 }
 
 func getTransactionKey(values []interface{}) string {
-	return fmt.Sprintf("%s:%s:%s", getSourceField(values), getDateField(values), getAmountString(values))
+	amtStr := getAmountString(values)
+	if amt, err := strconv.ParseFloat(amtStr, 64); err == nil {
+		return models.TransactionKey(getSourceField(values), getDateField(values), amt)
+	}
+	return fmt.Sprintf("%s:%s:%s", getSourceField(values), getDateField(values), amtStr)
 }
 
 func addSourceDateNameCells(cells []*sheets.CellData, trans *models.Transaction, bgColor string) ([]*sheets.CellData, error) {

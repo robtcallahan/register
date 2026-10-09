@@ -30,8 +30,8 @@ Phase 3 — De-god update()
 - [X] 3.5 Extract updateSpreadsheet stage (CopyRows + UpdateRows + balances)
 - [X] 3.6 Replace shellout("./register copy") with direct sheetsService.CopyRows call
 - [X] 3.7 Rename --no-updates flag to --dry-run (fix double negative)
-- [ ] 3.8 Move interactive prompts before long silent work
-- [ ] 3.9 Centralize dedup key construction into one function
+- [X] 3.8 Move interactive prompts before long silent work
+- [X] 3.9 Centralize dedup key construction into one function
 -----------------------------------------------------------------------------------------
 Phase 4 — Unify merchant matching in DB
 - [ ] 4.1 Add priority and match_type columns to merchants table

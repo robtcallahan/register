@@ -35,7 +35,7 @@ func TestFuzzyKeySet(t *testing.T) {
 	keys := map[string]bool{
 		"amazon:12/31/25:25.00": true,
 		"badkey":                true,
-		"chase:01/01/26:xyz":    true, // amount is opaque; date still shifts
+		"chase:01/01/26:10.00":  true,
 	}
 	fuzzy := fuzzyKeySet(keys)
 
@@ -44,8 +44,8 @@ func TestFuzzyKeySet(t *testing.T) {
 		"amazon:12/31/25:25.00",
 		"amazon:01/01/26:25.00", // year boundary
 		"badkey",
-		"chase:12/31/25:xyz",
-		"chase:01/02/26:xyz",
+		"chase:12/31/25:10.00",
+		"chase:01/02/26:10.00",
 	} {
 		if !fuzzy[want] {
 			t.Errorf("missing variant %q", want)

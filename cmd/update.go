@@ -219,9 +219,14 @@ func fuzzyKeySet(keys map[string]bool) map[string]bool {
 			fuzzy[k] = true
 			continue
 		}
+		amt, err := strconv.ParseFloat(parts[2], 64)
+		if err != nil {
+			fuzzy[k] = true
+			continue
+		}
 		for _, shift := range []int{-1, 0, 1} {
-			variant := fmt.Sprintf("%s:%s:%s", parts[0], d.AddDate(0, 0, shift).Format("01/02/06"), parts[2])
-			fuzzy[variant] = true
+			date := d.AddDate(0, 0, shift).Format("01/02/06")
+			fuzzy[models.TransactionKey(parts[0], date, amt)] = true
 		}
 	}
 	return fuzzy

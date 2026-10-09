@@ -313,10 +313,10 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Tr
 		tran.Amount = p.Amount
 		if p.Amount < 0 {
 			tran.Deposit = -1 * p.Amount // covert to positive
-			tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), readDateValue(p.Date), tran.Deposit)
+			tran.Key = models.TransactionKey(tran.Source, readDateValue(p.Date), tran.Deposit)
 		} else {
 			tran.Withdrawal = p.Amount
-			tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), readDateValue(p.Date), tran.Withdrawal)
+			tran.Key = models.TransactionKey(tran.Source, readDateValue(p.Date), tran.Withdrawal)
 		}
 		tran.Budget = -1 * p.Amount
 	case FidelityID:
@@ -326,7 +326,7 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Tr
 		tran.CreditPurchase = p.Amount // keep positive
 		tran.CreditCard = p.Amount     // keep positive
 		tran.Budget = -1 * p.Amount    // budget category column negative
-		tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), tran.Date, cc)
+		tran.Key = models.TransactionKey(tran.Source, tran.Date, cc)
 		if tran.Name == "" {
 			tran.Name = tran.BankName
 		}
@@ -337,7 +337,7 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Tr
 		tran.CreditPurchase = p.Amount // keep positive
 		tran.CreditCard = p.Amount     // keep positive
 		tran.Budget = -1 * p.Amount    // budget category column negative
-		tran.Key = fmt.Sprintf("%s:%s:%.2f", strings.ToLower(tran.Source), tran.Date, cc)
+		tran.Key = models.TransactionKey(tran.Source, tran.Date, cc)
 		if tran.Name == "" {
 			tran.Name = tran.BankName
 		}
