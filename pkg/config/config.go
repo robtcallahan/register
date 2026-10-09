@@ -22,12 +22,6 @@ import (
 	"os"
 )
 
-// BudgetCategory ...
-type BudgetCategory struct {
-	Name  string `json:"name"`
-	Color string `json:"color"`
-}
-
 type Bank struct {
 	ID          string `json:"id"`
 	Firm        string `json:"firm"`
@@ -65,8 +59,6 @@ type Config struct {
 	GoogleCredentialsFile       string                   `json:"google_credentials_file"`
 	Banks                       map[string]Bank          `json:"banks"`
 	SpreadsheetID               string                   `json:"spreadsheet_id"`
-	SpreadsheetTestID           string                   `json:"spreadsheet_test_id"`
-	CreditCardColumnName        string                   `json:"credit_card_column_name"`
 	RegisterSheetID             string                   `json:"register_sheet_id"`
 	BudgetSheetID               string                   `json:"budget_sheet_id"`
 	FinanceDir                  string                   `json:"finance_dir"`
@@ -76,10 +68,7 @@ type Config struct {
 	RegisterEndRow              int64                    `json:"register_end_row"`
 	MonthlyStartRow             int64                    `json:"monthly_start_row"`
 	MonthlyEndRow               int64                    `json:"monthly_end_row"`
-	TabNames                    map[string]string        `json:"tab_names"`
-	RegisterCategoryStartColumn string                   `json:"register_category_start_column"`
 	RegisterCategoryEndColumn   string                   `json:"register_category_end_column"`
-	RegisterIndexes             map[string]int           `json:"register_indexes"`
 	ColumnIndexes               map[string]int64         `json:"column_indexes"`
 	IncomeSources               []IncomeSource           `json:"income_sources"`
 }

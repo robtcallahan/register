@@ -46,7 +46,6 @@ type Column struct {
 	Name        string
 	Color       string
 	ColumnIndex int
-	Letter      string
 	IsCategory  bool
 }
 

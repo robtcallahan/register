@@ -50,12 +50,14 @@ Phase 5 — Paycheck redesign
 - [X] 5.5 Remove ColumnIndex=42 magic number
 -----------------------------------------------------------------------------------------
 Phase 6 — Column management CLI
-- [X] 6.1 Make DB columns table the single source of truth
-- [ ] 6.2 Add register columns list|add|rename|delete commands
-- [ ] 6.3 Add register columns check for sheet-vs-DB drift
-- [ ] 6.4 Derive spreadsheet positions from ordered column list
-- [ ] 6.5 Derive budget category names from same source as register columns
-- [ ] 6.6 Remove ColumnIndexes/RegisterIndexes from config.json
+[X] 6.1 ColumnSet + identity write path — done
+[X] finding #5 prompt fix — done
+[X] finding #6 cleanup — done
+[ ] 6.2 columns CLI (list/add/rename/delete — first thing that ever writes the columns table)
+[ ] 6.3 columns check (report-only)
+[ ] 6.4 positions derived everywhere
+[ ] 6.5 budget category names from the same source
+[ ] 6.6 config index cleanup
 -----------------------------------------------------------------------------------------
 Phase 7 — Constants + readability
 - [ ] 7.1 Move cell addresses, colors, magic values to constants.go or config
@@ -79,3 +81,4 @@ Phase 8 — Monthly summary correction
 Phase 9 — Miscellaneous fixes
 - [ ] 9.1 Add unique index on transactions.key so UpdateTransactionTables upserts instead of duplicating (empty the table once first; OnConflict UpdateAll already in place)
 - [ ] 9.2 Amazon ±1-day date drift can still mint a second key — handled by Phase 3 fuzzy matching (cross-reference, not a separate fix)
+- [ ] 9.3 Review all code tests to insure coverage

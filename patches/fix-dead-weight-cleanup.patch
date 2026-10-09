@@ -1,0 +1,939 @@
+diff --git a/cmd/update.go b/cmd/update.go
+index 1fcc81d..f397697 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -375,10 +375,6 @@ func updateBalances(sheetsService *sheets_service.SheetsService, balances map[st
+ 			return err
+ 		}
+ 	}
+-	//if balances[banking.FidelityID].Error == nil {
+-	//	_, err := sheetsService.WriteCell("AA2", balances[banking.FidelityID].Amount)
+-	//	checkError(err)
+-	//}
+ 	if balances[banking.ChaseID].Error == nil {
+ 		if _, err := sheetsService.WriteCell("AB2", balances[banking.ChaseID].Amount); err != nil {
+ 			return err
+diff --git a/pkg/banking/models.go b/pkg/banking/models.go
+deleted file mode 100644
+index df1b04d..0000000
+--- a/pkg/banking/models.go
++++ /dev/null
+@@ -1,57 +0,0 @@
+-package banking
+-
+-import "gorm.io/gorm"
+-
+-// Transaction ...
+-type Transaction struct {
+-	gorm.Model
+-	Key           string
+-	Source        string
+-	Date          string
+-	Name          string
+-	BankName      string
+-	Note          string
+-	Amount        float64
+-	Withdrawal    float64
+-	Deposit       float64
+-	CreditCard    float64
+-	ColumnIndex   int
+-	Color         string
+-	IsCategory    bool
+-	TaxDeductible bool
+-	IsCheck       bool
+-}
+-
+-// Merchant ...
+-type Merchant struct {
+-	gorm.Model
+-	ID            int
+-	BankName      string
+-	Name          string
+-	ColumnID      int
+-	Column        Column
+-	TaxDeductible bool
+-}
+-
+-// Column ...
+-type Column struct {
+-	gorm.Model
+-	ID          int
+-	Name        string
+-	Color       string
+-	ColumnIndex int
+-	Letter      string
+-	IsCategory  bool
+-}
+-
+-// DataRow ...
+-type DataRow struct {
+-	ID            int
+-	Name          string
+-	BankName      string
+-	ColumnName    string
+-	ColumnIndex   int
+-	Color         string
+-	IsCategory    bool
+-	TaxDeductible bool
+-}
+diff --git a/pkg/config/config.go b/pkg/config/config.go
+index 438a5aa..12a55ad 100644
+--- a/pkg/config/config.go
++++ b/pkg/config/config.go
+@@ -22,12 +22,6 @@ import (
+ 	"os"
+ )
+ 
+-// BudgetCategory ...
+-type BudgetCategory struct {
+-	Name  string `json:"name"`
+-	Color string `json:"color"`
+-}
+-
+ type Bank struct {
+ 	ID          string `json:"id"`
+ 	Firm        string `json:"firm"`
+@@ -65,8 +59,6 @@ type Config struct {
+ 	GoogleCredentialsFile       string                   `json:"google_credentials_file"`
+ 	Banks                       map[string]Bank          `json:"banks"`
+ 	SpreadsheetID               string                   `json:"spreadsheet_id"`
+-	SpreadsheetTestID           string                   `json:"spreadsheet_test_id"`
+-	CreditCardColumnName        string                   `json:"credit_card_column_name"`
+ 	RegisterSheetID             string                   `json:"register_sheet_id"`
+ 	BudgetSheetID               string                   `json:"budget_sheet_id"`
+ 	FinanceDir                  string                   `json:"finance_dir"`
+@@ -76,10 +68,7 @@ type Config struct {
+ 	RegisterEndRow              int64                    `json:"register_end_row"`
+ 	MonthlyStartRow             int64                    `json:"monthly_start_row"`
+ 	MonthlyEndRow               int64                    `json:"monthly_end_row"`
+-	TabNames                    map[string]string        `json:"tab_names"`
+-	RegisterCategoryStartColumn string                   `json:"register_category_start_column"`
+ 	RegisterCategoryEndColumn   string                   `json:"register_category_end_column"`
+-	RegisterIndexes             map[string]int           `json:"register_indexes"`
+ 	ColumnIndexes               map[string]int64         `json:"column_indexes"`
+ 	IncomeSources               []IncomeSource           `json:"income_sources"`
+ }
+diff --git a/pkg/models/models.go b/pkg/models/models.go
+index e068f9f..8114358 100644
+--- a/pkg/models/models.go
++++ b/pkg/models/models.go
+@@ -46,7 +46,6 @@ type Column struct {
+ 	Name        string
+ 	Color       string
+ 	ColumnIndex int
+-	Letter      string
+ 	IsCategory  bool
+ }
+ 
+diff --git a/sql/columns.sql b/sql/columns.sql
+deleted file mode 100644
+index 9032793..0000000
+--- a/sql/columns.sql
++++ /dev/null
+@@ -1,46 +0,0 @@
+-INSERT INTO `register`.`columns` VALUES (1,'Reconciled','white',0,'A',0,'2020-11-24 12:30:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (2,'Check','white',1,'B',0,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (3,'Date','white',2,'C',0,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (4,'Description','white',3,'D',0,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (5,'Withdrawals','white',4,'E',0,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (6,'Deposits','white',5,'F',0,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (7,'Credit Purchases','white',6,'G',0,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (8,'Register','white',7,'H',0,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (9,'Cleared','white',8,'I',0,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (10,'Delta','white',9,'J',0,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (11,'Cash','green',10,'K',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (12,'Dining Out','green',11,'L',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (13,'Uber','green',12,'M',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (14,'Grocery','green',13,'N',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (15,'Misc','green',14,'O',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (16,'Vape Supplies','green',15,'P',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (17,'AT&T','yellow',16,'Q',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (18,'Content Subscriptions','yellow',17,'R',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (19,'ISP','yellow',18,'S',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (22,'Shenandoah Electric','yellow',19,'T',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (23,'Hair Cut','yellow',20,'U',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (25,'Massage','yellow',22,'W',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (28,'Rent','yellow',23,'X',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (29,'Renters Insurance','yellow',24,'Y',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (30,'Storage Rental','yellow',26,'AA',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (31,'Credit Cards','yellow',28,'AC',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (34,'Car Loan','yellow',29,'AD',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (35,'IRS','yellow',30,'AE',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (36,'Smart Tag','yellow',31,'AF',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (38,'Car Expenses','blue',32,'AG',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (39,'Car Property Tax','blue',33,'AH',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (40,'Clothing & Household','blue',34,'AI',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (41,'Extra','blue',35,'AJ',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (42,'General Savings','blue',36,'AK',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (46,'Gifts','blue',37,'AL',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (47,'Medical','blue',38,'AM',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (48,'Mental Health','blue',39,'AN',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (54,'Vision','blue',40,'AO',1,'2020-11-24 00:00:00','2020-11-24 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (58,'Emergency Fund','blue',41,'AP',1,'2021-01-15 00:00:00','2021-01-15 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (59,'Taxes','blue',42,'AQ',1,'2021-01-15 00:00:00','2021-01-15 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (61,'SoberLink','yellow',25,'Z',1,'2023-06-22 00:00:00','2023-06-22 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (67,'Water, Sewer, Trash','yellow',21,'V',1,'2023-06-22 00:00:00','2023-06-22 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (68,'Alcohol','blue',43,'AR',1,'2023-06-22 00:00:00','2023-06-22 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (69,'Hotel','blue',44,'AS',1,'2023-06-22 00:00:00','2023-06-22 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (70,'Court Fines','blue',45,'AT',1,'2023-06-22 00:00:00','2023-06-22 00:00:00',null);
+-INSERT INTO `register`.`columns` VALUES (71,'Storage Rental Insurance','yellow',27,'AB',1,'2023-10-28 12:16:00','2023-10-28 12:16:00',null);
+diff --git a/sql/merchants.sql b/sql/merchants.sql
+deleted file mode 100644
+index 53c3491..0000000
+--- a/sql/merchants.sql
++++ /dev/null
+@@ -1,754 +0,0 @@
+-INSERT INTO `register`.`merchants` VALUES (1,'Alteon Health','AMAZON.COM',40,'2020-11-24 15:11:30.217','2023-09-02 00:57:53.408',null,null);
+-INSERT INTO `register`.`merchants` VALUES (2,'Amazon','Amazon.com',40,'2020-11-24 15:11:30.218','2023-09-02 00:36:13.854',null,null);
+-INSERT INTO `register`.`merchants` VALUES (3,'Amazon','Amazon.com',40,'2020-11-24 15:11:30.220','2023-08-30 14:22:44.792',null,null);
+-INSERT INTO `register`.`merchants` VALUES (4,'Amazon Web Services','Amazon web services',15,'2020-11-24 15:11:30.222','2020-11-24 15:11:30.222',null,null);
+-INSERT INTO `register`.`merchants` VALUES (5,'Apple iTunes','APPLE.COM/BILL',18,'2020-11-24 15:11:30.223','2020-11-24 15:11:30.223',null,null);
+-INSERT INTO `register`.`merchants` VALUES (6,'AT&T iPhone','BILL PAY AT&T',17,'2020-11-24 15:11:30.225','2020-11-24 15:11:30.225',null,null);
+-INSERT INTO `register`.`merchants` VALUES (7,'Comcast/Xfinity','BILL PAY COMCAST',19,'2020-11-24 15:11:30.226','2020-11-24 15:11:30.226',null,null);
+-INSERT INTO `register`.`merchants` VALUES (9,'Blue Mount Nursery','BLUE MOUNT NURSERY',40,'2020-11-24 15:11:30.228','2020-11-24 15:11:30.228',null,null);
+-INSERT INTO `register`.`merchants` VALUES (10,'','CASCADES CNTR FOR DENT',41,'2020-11-24 15:11:30.229','2023-08-29 12:56:14.170','2023-08-31 00:39:14.959',null);
+-INSERT INTO `register`.`merchants` VALUES (12,'City of Vape','CITY OF VAPE',16,'2020-11-24 15:11:30.231','2020-11-24 15:11:30.231',null,null);
+-INSERT INTO `register`.`merchants` VALUES (13,'Costco','COSTCO WHSE',14,'2020-11-24 15:11:30.232','2020-11-24 15:11:30.232',null,null);
+-INSERT INTO `register`.`merchants` VALUES (14,'CubeSmart','CUBESMART',30,'2020-11-24 15:11:30.233','2020-11-24 15:11:30.233',null,null);
+-INSERT INTO `register`.`merchants` VALUES (15,'Dominion Power','DOMINION POWER',22,'2020-11-24 15:11:30.235','2020-11-24 15:11:30.235',null,null);
+-INSERT INTO `register`.`merchants` VALUES (17,'EZ Pass','E Z PASS',36,'2020-11-24 15:11:30.238','2020-11-24 15:11:30.238',null,null);
+-INSERT INTO `register`.`merchants` VALUES (18,'Fidelity Visa','Fidelity Visa',31,'2020-11-24 15:11:30.239','2020-11-24 15:11:30.239',null,null);
+-INSERT INTO `register`.`merchants` VALUES (19,'Fracture','FRACTURE',40,'2020-11-24 15:11:30.240','2020-11-24 15:11:30.240',null,null);
+-INSERT INTO `register`.`merchants` VALUES (20,'Harmony Hill Farms','HARMONY HILL',14,'2020-11-24 15:11:30.241','2020-11-24 15:11:30.241',null,null);
+-INSERT INTO `register`.`merchants` VALUES (21,'Harris Teeter','HARRIS TEETER',14,'2020-11-24 15:11:30.242','2020-11-24 15:11:30.242',null,null);
+-INSERT INTO `register`.`merchants` VALUES (22,'Homesite Renter''s Insurance','HOMESITE INS PREM',29,'2020-11-24 15:11:30.243','2020-11-24 15:11:30.243',null,null);
+-INSERT INTO `register`.`merchants` VALUES (23,'Hulu','HULU',18,'2020-11-24 15:11:30.245','2020-11-24 15:11:30.245',null,null);
+-INSERT INTO `register`.`merchants` VALUES (24,'HP Instant Ink','INSTANT INK',15,'2020-11-24 15:11:30.246','2020-11-24 15:11:30.246',null,null);
+-INSERT INTO `register`.`merchants` VALUES (25,'IRS Tax Payment','IRS USATAXPYMT',35,'2020-11-24 15:11:30.247','2020-11-24 15:11:30.247',null,null);
+-INSERT INTO `register`.`merchants` VALUES (26,'Chase Subaru Car Payment','JPMorgan Chase Ext Trnsfr',34,'2020-11-24 15:11:30.248','2020-11-24 15:11:30.248',null,null);
+-INSERT INTO `register`.`merchants` VALUES (27,'Light In The Box','LIGHTINTHEBOX',40,'2020-11-24 15:11:30.250','2020-11-24 15:11:30.250',null,null);
+-INSERT INTO `register`.`merchants` VALUES (28,'Loudoun County District Court','LOUDOUN COUNTY GENERAL',54,'2020-11-24 15:11:30.251','2020-11-24 15:11:30.251',null,null);
+-INSERT INTO `register`.`merchants` VALUES (29,'Loudoun Club 12 - PayPal','LOUDOUNCLUB',54,'2020-11-24 15:11:30.253','2020-11-24 15:11:30.253','2023-08-31 02:59:03.490',1);
+-INSERT INTO `register`.`merchants` VALUES (30,'Loudoun Heights Rent','Loudoun Heights',28,'2020-11-24 15:11:30.254','2020-11-24 15:11:30.254',null,null);
+-INSERT INTO `register`.`merchants` VALUES (31,'Deposit Check','MOBILE DEPOSIT',59,'2020-11-24 15:11:30.255','2020-11-24 15:11:30.255',null,null);
+-INSERT INTO `register`.`merchants` VALUES (32,'Netflix','NETFLIX',18,'2020-11-24 15:11:30.257','2020-11-24 15:11:30.257',null,null);
+-INSERT INTO `register`.`merchants` VALUES (33,'Plex Pass','PLEXINCPASS',18,'2020-11-24 15:11:30.260','2020-11-24 15:11:30.260',null,null);
+-INSERT INTO `register`.`merchants` VALUES (34,'Progressive Auto Insurance','PROG ADVANCED INS PREM',25,'2020-11-24 15:11:30.261','2020-11-24 15:11:30.261',null,null);
+-INSERT INTO `register`.`merchants` VALUES (35,'RedBox','REDBOX',15,'2020-11-24 15:11:30.262','2020-11-24 15:11:30.262',null,null);
+-INSERT INTO `register`.`merchants` VALUES (36,'SlingTV','SLING.COM',18,'2020-11-24 15:11:30.264','2020-11-24 15:11:30.264',null,null);
+-INSERT INTO `register`.`merchants` VALUES (37,'SnapSure Storage Rental Ins','SNAPNSURE INSURANCE',30,'2020-11-24 15:11:30.265','2020-11-24 15:11:30.265',null,null);
+-INSERT INTO `register`.`merchants` VALUES (39,'Spotify','Spotify',18,'2020-11-24 15:11:30.267','2020-11-24 15:11:30.267',null,null);
+-INSERT INTO `register`.`merchants` VALUES (40,'The Fermented Pig','THE FERMENTED PIG',14,'2020-11-24 15:11:30.269','2020-11-24 15:11:30.269',null,null);
+-INSERT INTO `register`.`merchants` VALUES (41,'The UPS Store','THE UPS STORE',15,'2020-11-24 15:11:30.270','2020-11-24 15:11:30.270',null,null);
+-INSERT INTO `register`.`merchants` VALUES (42,'Valencia - Farmers Market','VALENCIA',14,'2020-11-24 15:11:30.271','2020-11-24 15:11:30.271',null,null);
+-INSERT INTO `register`.`merchants` VALUES (44,'VueMastery.com','VUEMASTERY',41,'2020-11-24 15:11:30.275','2020-11-24 15:11:30.275',null,null);
+-INSERT INTO `register`.`merchants` VALUES (45,'Walmart.com','WALMART.COM',40,'2020-11-24 15:11:30.276','2020-11-24 15:11:30.276',null,null);
+-INSERT INTO `register`.`merchants` VALUES (46,'Cash','WITHDRAWAL MADE IN A BRANCH/STORE',11,'2020-11-24 15:11:30.278','2020-11-24 15:11:30.278',null,null);
+-INSERT INTO `register`.`merchants` VALUES (47,'Sierra Club','SIERRA CLUB',42,'2021-05-10 17:07:57.571','2021-05-10 17:07:57.571',null,null);
+-INSERT INTO `register`.`merchants` VALUES (50,'Amazon','Amazon',40,'2020-11-25 13:13:28.888','2020-11-25 13:13:28.888',null,null);
+-INSERT INTO `register`.`merchants` VALUES (51,'Calzedonia','FRGN TRANS FEE-CALZEDONIA SPA',40,'2020-11-25 13:13:43.249','2020-11-25 13:13:43.249',null,null);
+-INSERT INTO `register`.`merchants` VALUES (52,'Calzedonia','CALZEDONIA SPA MALCESINE',40,'2020-11-25 13:13:56.423','2020-11-25 13:13:56.423',null,null);
+-INSERT INTO `register`.`merchants` VALUES (53,'Harris Teeter','Harris Teeter Supermarkets, Inc.',14,'2020-11-25 13:14:03.911','2020-11-25 13:14:03.911',null,null);
+-INSERT INTO `register`.`merchants` VALUES (56,'Loudoun Club 12 - PayPal','LOUDOUN CLUB',42,'2020-11-28 11:26:28.649','2020-11-28 11:26:28.649',null,1);
+-INSERT INTO `register`.`merchants` VALUES (57,'Costco Citi Visa','Costco',14,'2020-11-28 11:26:40.106','2020-11-28 11:26:40.106',null,null);
+-INSERT INTO `register`.`merchants` VALUES (60,'CrowdStrike Salary','CROWDSTRIKE INC',11,'2021-12-21 22:27:16.475','2021-12-21 22:27:16.475',null,null);
+-INSERT INTO `register`.`merchants` VALUES (61,'Vape Juice','VJUICETOBACCOPRODUCT',16,'2021-05-10 17:07:57.571','2021-05-10 17:07:57.571',null,null);
+-INSERT INTO `register`.`merchants` VALUES (63,'Credit Card Payment (delete)','Payment Thank You - Bill',11,'2021-12-21 22:27:16.475','2021-12-21 22:27:16.475',null,null);
+-INSERT INTO `register`.`merchants` VALUES (65,'AA Meeting (Venmo)','Venmo',42,'2021-05-10 17:07:57.571','2021-05-10 17:07:57.571',null,null);
+-INSERT INTO `register`.`merchants` VALUES (66,'Wikipedia','Donation to the Wikime 877-60094',42,'2020-12-04 18:26:05.990','2020-12-04 18:26:05.990',null,null);
+-INSERT INTO `register`.`merchants` VALUES (67,'Amazon Web Services','AWS',15,'2020-12-05 08:30:24.450','2020-12-05 08:30:24.450',null,null);
+-INSERT INTO `register`.`merchants` VALUES (68,'Netflix','Netflix',18,'2020-12-05 08:30:35.892','2020-12-05 08:30:35.892',null,null);
+-INSERT INTO `register`.`merchants` VALUES (73,'Liberty Vapors','LIBERTY VAPORS STERLING',16,'2020-12-09 17:39:07.822','2020-12-09 17:39:07.822',null,null);
+-INSERT INTO `register`.`merchants` VALUES (74,'Target','TARGET 00010090 STERLING',40,'2020-12-09 17:39:42.427','2020-12-09 17:39:42.427',null,null);
+-INSERT INTO `register`.`merchants` VALUES (75,'USPS','USPS.COM POSTAL STORE',14,'2020-12-09 17:40:00.409','2020-12-09 17:40:00.409',null,null);
+-INSERT INTO `register`.`merchants` VALUES (77,'Lansdown Animal Hospital','LANSDOWNE ANIMAL HOSPI LEESBURG',46,'2020-12-18 01:49:12.743','2020-12-18 01:49:12.743',null,0);
+-INSERT INTO `register`.`merchants` VALUES (78,'Comcast','Comcast',19,'2020-12-24 18:09:04.842','2020-12-24 18:09:04.842',null,0);
+-INSERT INTO `register`.`merchants` VALUES (79,'Chase Visa','BILL PAY CHASE CARD SERVICES',31,'2020-12-31 00:11:13.845','2020-12-31 00:11:13.845',null,0);
+-INSERT INTO `register`.`merchants` VALUES (80,'Exxon','ExxonMobil',13,'2021-01-10 23:32:37.862','2021-01-10 23:32:37.862',null,0);
+-INSERT INTO `register`.`merchants` VALUES (82,'Amazon Marketplace','AMAZON MARKETPLACE',40,'2021-01-10 23:32:58.350','2023-09-01 20:46:52.266',null,null);
+-INSERT INTO `register`.`merchants` VALUES (87,'Nirvana','OPENPAY*BP WALLET CLEA SANTIAGO',11,'2021-02-19 20:58:54.521','2021-02-19 20:58:54.521',null,null);
+-INSERT INTO `register`.`merchants` VALUES (88,'Foreign Transaction Fee','FRGN TRANS FEE-OPENPAY*BP WALLET',11,'2021-02-19 20:59:00.647','2021-02-19 20:59:00.647',null,null);
+-INSERT INTO `register`.`merchants` VALUES (89,'Feeding America','FEEDING AMERICA WWW.FEEDIN',42,'2021-02-19 20:59:11.790','2021-02-19 20:59:11.790',null,0);
+-INSERT INTO `register`.`merchants` VALUES (91,'DopeBoo','DOPEBOO 413-68799',40,'2021-02-19 21:00:17.571','2021-02-19 21:00:17.571',null,0);
+-INSERT INTO `register`.`merchants` VALUES (92,'A N'' D Tobacco','A N'' D TOBACCO LEESBURG',16,'2021-02-19 21:00:32.817','2021-02-19 21:00:32.817',null,0);
+-INSERT INTO `register`.`merchants` VALUES (93,'SOUNDIIZ PREMIUM COUERON FR','SOUNDIIZ PREMIUM COUERON',11,'2021-02-19 21:00:49.630','2021-02-19 21:00:49.630',null,null);
+-INSERT INTO `register`.`merchants` VALUES (96,'7-Eleven','7-Eleven',13,'2021-02-19 21:01:53.988','2023-08-28 23:14:20.324',null,0);
+-INSERT INTO `register`.`merchants` VALUES (97,'Fidelity Credit','STATEMENT CREDIT OFFER',11,'2021-02-19 21:02:04.542','2021-02-19 21:02:04.542',null,null);
+-INSERT INTO `register`.`merchants` VALUES (98,'Feeding America','FEEDING AMERICA WWW.FEEDI',42,'2021-02-19 21:02:17.452','2021-02-19 21:02:17.452',null,0);
+-INSERT INTO `register`.`merchants` VALUES (100,'Houston Food Bank','HOUSTON FOOD BANK',42,'2021-02-25 21:52:24.242','2021-02-25 21:52:24.242',null,0);
+-INSERT INTO `register`.`merchants` VALUES (101,'Manhattan Pizza','MANHATTAN PIZZA ASHBUR 703-85813',12,'2021-03-05 01:13:52.956','2021-03-05 01:13:52.956',null,0);
+-INSERT INTO `register`.`merchants` VALUES (103,'Tobacco Hut','TOBACCO HUT AND VAPE ASBURN',16,'2021-03-15 22:32:11.615','2021-03-15 22:32:11.615',null,0);
+-INSERT INTO `register`.`merchants` VALUES (104,'Cash Equivalent Fee','CASH EQUIVALENT FEE',15,'2021-03-16 20:13:24.758','2021-03-16 20:13:24.758',null,0);
+-INSERT INTO `register`.`merchants` VALUES (105,'CVS','CVS',14,'2021-03-16 20:13:35.391','2021-03-16 20:13:35.391',null,0);
+-INSERT INTO `register`.`merchants` VALUES (107,'Loudoun Medical Group','BILL PAY LOUDOUN MEDICAL GROUP',41,'2021-03-16 20:14:52.613','2021-03-16 20:14:52.613',null,0);
+-INSERT INTO `register`.`merchants` VALUES (108,'Audible','Audible',18,'2021-03-22 01:05:14.813','2021-03-22 01:05:14.813',null,0);
+-INSERT INTO `register`.`merchants` VALUES (109,'Commando','SP * COMMANDO HTTPSWWW.',40,'2021-03-22 01:05:30.940','2021-03-22 01:05:30.940',null,0);
+-INSERT INTO `register`.`merchants` VALUES (110,'DisneyPlus','MEMBERSHIP FEE ',18,'2021-03-22 01:06:03.795','2021-03-22 01:06:03.795',null,null);
+-INSERT INTO `register`.`merchants` VALUES (111,'DisneyPlus','Roku for Disney Electr 816-27281',18,'2021-03-22 01:06:17.190','2021-03-22 01:06:17.190',null,null);
+-INSERT INTO `register`.`merchants` VALUES (112,'Navia Benefits FSA','NAVIA BENEFIT SO FLEXIBLE B 210318 29647607 CALLAHAN ,ROBERT',59,'2021-03-22 01:06:41.681','2021-03-22 01:06:41.681',null,0);
+-INSERT INTO `register`.`merchants` VALUES (113,'Sensate, Inc','SENSATE INC',41,'2021-03-28 14:36:23.358','2021-03-28 14:36:23.358',null,null);
+-INSERT INTO `register`.`merchants` VALUES (114,'Dell Computer','DMI* DELL SALES & SERV',41,'2021-03-30 22:12:04.646','2021-03-30 22:12:04.646',null,0);
+-INSERT INTO `register`.`merchants` VALUES (115,'Steam Powered','Steam Purchase 425-95229',41,'2021-04-04 01:00:41.744','2021-04-04 01:00:41.744',null,0);
+-INSERT INTO `register`.`merchants` VALUES (116,'DEN*VNDSTC.COM','DEN*VNDSTC.COM',41,'2021-04-04 01:01:00.582','2021-04-04 01:01:00.582',null,0);
+-INSERT INTO `register`.`merchants` VALUES (117,'Steam Games','Steam Games',41,'2021-04-04 01:01:16.267','2021-04-04 01:01:16.267',null,0);
+-INSERT INTO `register`.`merchants` VALUES (118,'Interest Charge','MINIMUM INTEREST CHARGE FEE',41,'2021-04-04 01:01:40.552','2021-04-04 01:01:40.552',null,0);
+-INSERT INTO `register`.`merchants` VALUES (119,'DTWTVT.COM (canceled)','DTWTVT.COM 877-39100',41,'2021-04-11 15:47:06.970','2021-04-11 15:47:06.970',null,null);
+-INSERT INTO `register`.`merchants` VALUES (120,'FFCWTH.COM (canceled)','FFCWTH.COM',41,'2021-04-11 15:47:17.151','2021-04-11 15:47:17.151',null,null);
+-INSERT INTO `register`.`merchants` VALUES (121,'Steam','Steam Purchase',41,'2021-04-11 15:47:28.346','2021-04-11 15:47:28.346',null,0);
+-INSERT INTO `register`.`merchants` VALUES (122,'XSinsVR','X. GENESIXSRO 353143690',41,'2021-04-11 15:47:38.532','2021-04-11 15:47:38.532',null,null);
+-INSERT INTO `register`.`merchants` VALUES (123,'Foreign Transaction Fee','FRGN TRANS FEE-PAYPAL *X. GENESI',41,'2021-04-11 15:47:51.781','2021-04-11 15:47:51.781',null,0);
+-INSERT INTO `register`.`merchants` VALUES (124,'Cheap Cheap Boxes','CHEAP CHEAP',41,'2021-04-11 15:48:02.670','2021-04-11 15:48:02.670',null,null);
+-INSERT INTO `register`.`merchants` VALUES (125,'Arduino Store','ARDUINO STORE HTTPSSTOR',41,'2021-04-15 17:04:45.228','2021-04-15 17:04:45.228',null,0);
+-INSERT INTO `register`.`merchants` VALUES (128,'E*Trade Bank Transfer','E*TRADE BANK TRANSFER 000002025601',59,'2021-04-15 17:05:53.833','2021-04-15 17:05:53.833',null,0);
+-INSERT INTO `register`.`merchants` VALUES (129,'E*Trade Bank Transfer','E*TRADE BANK TRANSFER 000002025601',59,'2021-04-15 17:06:11.430','2021-04-15 17:06:11.430',null,0);
+-INSERT INTO `register`.`merchants` VALUES (130,'Charge Off','CHARGE OFF',41,'2021-04-19 15:19:39.765','2021-04-19 15:19:39.765',null,0);
+-INSERT INTO `register`.`merchants` VALUES (132,'Avid Technology (fraud)','DRI*AVID TECHNOLOGY avid.com',41,'2021-04-19 15:20:56.787','2021-04-19 15:20:56.787',null,0);
+-INSERT INTO `register`.`merchants` VALUES (134,'Transfer to Brendan Gannon - Rent','TRANSFER TO GANNON BRENNDAN ON 04/17 REF #PP0B9',28,'2021-04-19 15:21:55.276','2021-04-19 15:21:55.276',null,0);
+-INSERT INTO `register`.`merchants` VALUES (135,'Brooklinen','SP * BROOKLINEN WWW.BROOK',40,'2021-04-27 20:01:45.460','2021-04-27 20:01:45.460',null,0);
+-INSERT INTO `register`.`merchants` VALUES (136,'Lowes','Lowe''s Home Improvement',40,'2021-04-27 20:01:55.965','2021-04-27 20:01:55.965',null,0);
+-INSERT INTO `register`.`merchants` VALUES (137,'Canon','CANON DIRECT',41,'2021-04-27 20:02:06.757','2021-04-27 20:02:06.757',null,0);
+-INSERT INTO `register`.`merchants` VALUES (138,'Stohlman Subaru','STOHLMAN SUBARU OF STE 000-00000',38,'2021-04-27 20:02:18.180','2021-04-27 20:02:18.180',null,0);
+-INSERT INTO `register`.`merchants` VALUES (139,'Firefly','FIREFLY 720-72665',16,'2021-04-27 20:02:48.241','2021-04-27 20:02:48.241',null,0);
+-INSERT INTO `register`.`merchants` VALUES (140,'McAfee','MFE*www.McAfee.com 866-62239',41,'2021-05-10 17:07:01.610','2021-05-10 17:07:01.610',null,0);
+-INSERT INTO `register`.`merchants` VALUES (141,'Gobble.com Meals','GOBBLE.COM MEALS HTTPSGOBB',12,'2021-05-10 17:07:18.596','2021-05-10 17:07:18.596',null,0);
+-INSERT INTO `register`.`merchants` VALUES (142,'McAfee','PROV FR CR MFE*www.McAfee.com #',41,'2021-05-10 17:07:32.970','2021-05-10 17:07:32.970',null,0);
+-INSERT INTO `register`.`merchants` VALUES (143,'USPS','USPS CHANGE OF ADDRESS',13,'2021-05-10 17:07:44.619','2021-05-10 17:07:44.619',null,0);
+-INSERT INTO `register`.`merchants` VALUES (144,'AliExpress','aliexpress 114-08785',40,'2021-05-10 17:07:57.571','2021-05-10 17:07:57.571',null,0);
+-INSERT INTO `register`.`merchants` VALUES (145,'Gobble.com','PROV FR CR GOBBLE.COM MEALS #',12,'2021-05-10 17:08:13.458','2021-05-10 17:08:13.458',null,0);
+-INSERT INTO `register`.`merchants` VALUES (146,'RMD Holdings','RMD HOLDINGS LLC DBA E 888-55736',41,'2021-05-10 17:08:25.350','2021-05-10 17:08:25.350',null,0);
+-INSERT INTO `register`.`merchants` VALUES (147,'Vaporizer Chief','VAPORIZER CHIEF 866-31226',41,'2021-05-10 17:08:36.947','2021-05-10 17:08:36.947',null,0);
+-INSERT INTO `register`.`merchants` VALUES (148,'Calzedonia','LZEDONIA ONLINE',40,'2021-05-10 17:08:53.330','2021-05-10 17:08:53.330',null,0);
+-INSERT INTO `register`.`merchants` VALUES (149,'HRBlock','HRB ONLINE TAX PRODUCT',35,'2021-05-10 17:09:26.638','2021-05-10 17:09:26.638',null,0);
+-INSERT INTO `register`.`merchants` VALUES (150,'Walmart','Walmart',40,'2021-05-10 17:09:41.330','2021-05-10 17:09:41.330',null,0);
+-INSERT INTO `register`.`merchants` VALUES (151,'GrubHub','GrubHub',12,'2021-05-12 00:58:44.422','2021-05-12 00:58:44.422',null,0);
+-INSERT INTO `register`.`merchants` VALUES (152,'Taco Bell','Taco Bell',12,'2021-05-19 22:33:34.810','2021-05-19 22:33:34.810',null,0);
+-INSERT INTO `register`.`merchants` VALUES (153,'VA Dept of Taxation','VA DEPT TAXATION WITHDRAWAL 210505 XXXXX2314 ROBERT CALLAH',59,'2021-05-19 22:34:13.888','2021-05-19 22:34:13.888',null,0);
+-INSERT INTO `register`.`merchants` VALUES (154,'Etsy','Etsy.com 718-85579',40,'2021-05-19 22:34:29.287','2021-05-19 22:34:29.287',null,0);
+-INSERT INTO `register`.`merchants` VALUES (155,'Home Depot','Home Depot',40,'2021-05-19 22:34:37.796','2021-05-19 22:34:37.796',null,0);
+-INSERT INTO `register`.`merchants` VALUES (156,'Uber','Uber',41,'2021-05-19 22:34:46.010','2021-05-19 22:34:46.010',null,0);
+-INSERT INTO `register`.`merchants` VALUES (157,'Etsy','Etsy.com - Multiple Sh 718-85579',40,'2021-05-19 22:34:50.954','2021-05-19 22:34:50.954',null,0);
+-INSERT INTO `register`.`merchants` VALUES (158,'Etsy','BCF Etsy Uplift 718-48075',40,'2021-05-19 22:35:01.568','2021-05-19 22:35:01.568',null,0);
+-INSERT INTO `register`.`merchants` VALUES (159,'Domino''s','Domino''s',12,'2021-06-07 17:05:18.350','2021-06-07 17:05:18.350',null,0);
+-INSERT INTO `register`.`merchants` VALUES (160,'Italia New York Pizza, Adamstown','ITALIA NEW YORK PIZZA ADAMSTOWN',12,'2021-06-07 17:05:37.760','2021-06-07 17:05:37.760',null,0);
+-INSERT INTO `register`.`merchants` VALUES (161,'Chipotle Mexican Grill','Chipotle Mexican Grill',12,'2021-06-07 17:05:50.450','2021-06-07 17:05:50.450',null,0);
+-INSERT INTO `register`.`merchants` VALUES (162,'Sweetwater','SWEETWATER LTC STERLING',12,'2021-06-07 17:06:01.986','2021-06-07 17:06:01.986',null,0);
+-INSERT INTO `register`.`merchants` VALUES (164,'MasterCard','BILL PAY MasterCard ON-LINE xxxxxxxxxxx47471 ON 06-09',31,'2021-06-19 22:29:24.107','2021-06-19 22:29:24.107',null,0);
+-INSERT INTO `register`.`merchants` VALUES (165,'Rent','TRANSFER TO GANNON BRENNDAN ON 06/12 REF #PP0BPH9KG4 XXXXXX7479',28,'2021-06-19 22:29:39.189','2021-06-19 22:29:39.189',null,0);
+-INSERT INTO `register`.`merchants` VALUES (167,'Breathe Green Directions','BREATHEGREENDIRECTIONS 888-32501',40,'2021-06-24 18:17:56.397','2021-06-24 18:17:56.397',null,0);
+-INSERT INTO `register`.`merchants` VALUES (169,'Andys Pizza & Subs','ANDYS PIZZA & SUBS LOVETTSVI',12,'2021-07-10 17:23:47.103','2021-07-10 17:23:47.103',null,0);
+-INSERT INTO `register`.`merchants` VALUES (171,'Rent Payment','TRANSFER TO GANNON BRENNDAN ON 07/10 REF #PP0BW',19,'2021-07-12 02:19:15.198','2021-07-12 02:19:15.198',null,null);
+-INSERT INTO `register`.`merchants` VALUES (172,'Weis Markets','Weis Markets',14,'2021-07-18 12:53:35.594','2021-07-18 12:53:35.594',null,0);
+-INSERT INTO `register`.`merchants` VALUES (173,'Transfer to Ally Bank','ALLY BANK $TRANSFER 210713 3579306595 ROBERT T CALLAHAN',59,'2021-07-18 12:53:59.218','2021-07-18 12:53:59.218',null,0);
+-INSERT INTO `register`.`merchants` VALUES (174,'Cash','ATM WITHDRAWAL AUTHORIZED ON 07/13 121 GATEWAY DR WINCHESTER VA 0002432 ATM ID 0642U CARD 9014',11,'2021-07-18 12:54:11.417','2021-07-18 12:54:11.417',null,0);
+-INSERT INTO `register`.`merchants` VALUES (175,'Novec','NOVEC/EZ-PAY UTILITYPMT 210712 4201306 ROBERT CALLAHAN',22,'2021-07-18 12:54:24.842','2021-07-18 12:54:24.842',null,0);
+-INSERT INTO `register`.`merchants` VALUES (177,'NOVA Junk','IN *NOVA JUNK 571-43281',41,'2021-07-18 12:54:51.217','2021-07-18 12:54:51.217',null,0);
+-INSERT INTO `register`.`merchants` VALUES (178,'TotalAV','WWW.TOTALAV.COM 03333706569 GB',18,'2021-07-25 13:07:16.975','2021-07-25 13:07:16.975',null,0);
+-INSERT INTO `register`.`merchants` VALUES (179,'Evernote','Evernote Corp 650-25708',18,'2021-07-27 21:32:27.530','2021-07-27 21:32:27.530',null,0);
+-INSERT INTO `register`.`merchants` VALUES (180,'Cash','ATM WITHDRAWAL AUTHORIZED ON 07/27 121 GATEWAY DR WINCHESTER VA 0006818 ATM ID 6704C CARD 9014',11,'2021-08-02 22:40:48.177','2021-08-02 22:40:48.177',null,0);
+-INSERT INTO `register`.`merchants` VALUES (181,'Giant','GIANT 0799 LEESBURG',14,'2021-08-09 22:22:35.480','2021-08-09 22:22:35.480',null,0);
+-INSERT INTO `register`.`merchants` VALUES (182,'Tobacco Hut','TOBACCO HUT & VAPE SHO LEESBURG',16,'2021-08-09 22:22:45.414','2021-08-09 22:22:45.414',null,0);
+-INSERT INTO `register`.`merchants` VALUES (184,'Giant','GIANT 0799 LEESBURG',14,'2021-08-09 22:23:28.766','2021-08-09 22:23:28.766',null,0);
+-INSERT INTO `register`.`merchants` VALUES (185,'Rent','TRANSFER TO GANNON BRENNDAN ON 08/09 REF #PP0C4',28,'2021-08-09 22:23:42.314','2021-08-09 22:23:42.314',null,0);
+-INSERT INTO `register`.`merchants` VALUES (188,'RMD Holdings','RMD HOLDINGS LLC DBA E JU888-5573625',16,'2021-09-08 23:58:39.904','2021-09-08 23:58:39.904',null,0);
+-INSERT INTO `register`.`merchants` VALUES (189,'Novec','NOVEC/EZ-PAY UTILITYPMT 210810 0644216 ROBERT CALLAHAN',22,'2021-09-08 23:58:59.353','2021-09-08 23:58:59.353',null,0);
+-INSERT INTO `register`.`merchants` VALUES (191,'Cash','ATM WITHDRAWAL AUTHORIZED ON 08/15 611 E MAIN ST PURCELLVILLE VA 0003835 ATM ID 0275M CARD 9014',11,'2021-09-08 23:59:27.869','2021-09-08 23:59:27.869',null,0);
+-INSERT INTO `register`.`merchants` VALUES (192,'Cash','NON-WF ATM WITHDRAWAL AUTHORIZED ON 08/15 N VALLEY-BERRYVILLE BERRYVILLE VA 00381227761631619 ATM ID AB08 CARD 9014',11,'2021-09-09 00:01:12.570','2021-09-09 00:01:12.570',null,0);
+-INSERT INTO `register`.`merchants` VALUES (193,'Cash','NON-WELLS FARGO ATM TRANSACTION FEE',11,'2021-09-09 00:01:19.553','2021-09-09 00:01:19.553',null,0);
+-INSERT INTO `register`.`merchants` VALUES (194,'Novec','BILL PAY NOVEC MOBILE xxxxxx2-001 ON 08-30',22,'2021-09-09 00:01:29.450','2021-09-09 00:01:29.450',null,0);
+-INSERT INTO `register`.`merchants` VALUES (196,'Rent','TRANSFER TO GANNON BRENNDAN ON 09/08 REF #PP0CC',28,'2021-09-09 00:02:08.609','2021-09-09 00:02:08.609',null,0);
+-INSERT INTO `register`.`merchants` VALUES (198,'NOVEC','NOVEC/EZ-PAY UTILITYPMT 210907 3658276 ROBERT CALLAHAN',22,'2021-09-26 12:29:06.555','2021-09-26 12:29:06.555',null,0);
+-INSERT INTO `register`.`merchants` VALUES (199,'Element Vape','ELEMENT VAPE',16,'2021-09-26 12:29:15.777','2021-09-26 12:29:15.777',null,0);
+-INSERT INTO `register`.`merchants` VALUES (200,'Dashlane','CKO*Dashlane 212-59675',41,'2021-09-26 12:29:39.586','2021-09-26 12:29:39.586',null,0);
+-INSERT INTO `register`.`merchants` VALUES (201,'Sheetz','Sheetz',13,'2021-09-30 03:20:51.980','2021-09-30 03:20:51.980',null,0);
+-INSERT INTO `register`.`merchants` VALUES (202,'Wood','Cash eWithdrawal in Branch/Store 09/28/2021 06:08 AM 701 E MARKET ST LEESBURG VA 8063',59,'2021-09-30 03:21:26.169','2021-09-30 03:21:26.169',null,0);
+-INSERT INTO `register`.`merchants` VALUES (203,'IFixIt','SP * IFIXIT STORE.IFI',41,'2021-09-30 03:21:36.755','2021-09-30 03:21:36.755',null,0);
+-INSERT INTO `register`.`merchants` VALUES (204,'AutoZone','AutoZone',15,'2021-09-30 03:21:50.286','2021-09-30 03:21:50.286',null,0);
+-INSERT INTO `register`.`merchants` VALUES (205,'Transfer to Ally Bank','ALLY BANK $TRANSFER 211001 3917167843 ROBERT T CALLAHAN',59,'2021-10-02 16:58:58.328','2021-10-02 16:58:58.328',null,0);
+-INSERT INTO `register`.`merchants` VALUES (206,'Carbon2Cobalt','CARBON2COBAL',40,'2021-10-02 16:59:06.216','2021-10-02 16:59:06.216',null,0);
+-INSERT INTO `register`.`merchants` VALUES (207,'Carbon2Cobalt','CARBON2COBAL',40,'2021-10-02 16:59:16.471','2021-10-02 16:59:16.471',null,0);
+-INSERT INTO `register`.`merchants` VALUES (208,'Food Lion','Food Lion',14,'2021-10-06 21:31:16.500','2021-10-06 21:31:16.500',null,0);
+-INSERT INTO `register`.`merchants` VALUES (209,'Transfer from Fidelity','FID BKG SVC LLC MONEYLINE 211004 X15716928 VN3A4 ROBERT T CALLAHAN',54,'2021-10-06 21:31:37.992','2021-10-06 21:31:37.992',null,0);
+-INSERT INTO `register`.`merchants` VALUES (212,'Fidelity late fee','LATE FEE',31,'2021-10-09 14:42:48.367','2021-10-09 14:42:48.367',null,0);
+-INSERT INTO `register`.`merchants` VALUES (213,'Interest charge','PURCHASE INTEREST CHARGE',31,'2021-10-09 14:43:13.425','2021-10-09 14:43:13.425',null,0);
+-INSERT INTO `register`.`merchants` VALUES (214,'Transfer to Brendan Gannon - Oct Rent','TRANSFER TO GANNON BRENNDAN ON 10/08 REF #PP0CL89Z3M OCTOBER 2021 RENT',28,'2021-10-09 14:43:32.652','2021-10-09 14:43:32.652',null,0);
+-INSERT INTO `register`.`merchants` VALUES (215,'Novec','BILL PAY NOVEC ON-LINE xxxxxx2-001 ON 10-08',22,'2021-10-09 14:43:39.457','2021-10-09 14:43:39.457',null,0);
+-INSERT INTO `register`.`merchants` VALUES (216,'NOVEC','NOVEC/EZ-PAY UTILITYPMT 211011 4252413 ROBERT CALLAHAN',22,'2021-10-17 18:38:40.735','2021-10-17 18:38:40.735',null,0);
+-INSERT INTO `register`.`merchants` VALUES (217,'Farmer John''s','FARMER JOHN''S MARK Leesburg',14,'2021-10-17 18:38:54.184','2021-10-17 18:38:54.184',null,0);
+-INSERT INTO `register`.`merchants` VALUES (218,'GeekVape','GEEKVAPE.COM',16,'2021-11-01 16:59:38.544','2021-11-01 16:59:38.544',null,0);
+-INSERT INTO `register`.`merchants` VALUES (220,'YouTube Videos (Bizarre Foods)','YouTube Videos g.co/help',41,'2021-11-04 21:39:13.541','2021-11-04 21:39:13.541',null,0);
+-INSERT INTO `register`.`merchants` VALUES (221,'Okada','OKADA JAPANESE RESTAUR ASHBURN',12,'2021-11-04 21:39:20.885','2021-11-04 21:39:20.885',null,0);
+-INSERT INTO `register`.`merchants` VALUES (222,'Foreign Transfer Fee','FRGN TRANS FEE-DVDVIDEOSOFT.COM',15,'2021-11-04 21:39:42.853','2021-11-04 21:39:42.853',null,0);
+-INSERT INTO `register`.`merchants` VALUES (223,'VideoSoft','DVDVIDEOSOFT.COM LONDON',41,'2021-11-04 21:39:57.267','2021-11-04 21:39:57.267',null,0);
+-INSERT INTO `register`.`merchants` VALUES (224,'Novec','BILL PAY NOVEC',22,'2021-11-04 21:40:07.860','2021-11-04 21:40:07.860',null,0);
+-INSERT INTO `register`.`merchants` VALUES (228,'Finn Thai Restaurant','FINN THAI RESTAURANT RESTON',12,'2021-11-11 12:30:16.782','2021-11-11 12:30:16.782',null,0);
+-INSERT INTO `register`.`merchants` VALUES (229,'JetBrains','JetBrains Americas INC 165-05772',41,'2021-11-11 12:30:28.385','2021-11-11 12:30:28.385',null,0);
+-INSERT INTO `register`.`merchants` VALUES (230,'Novec','NOVEC/EZ-PAY UTILITYPMT 211108 3969664 ROBERT CALLAHAN',22,'2021-11-11 12:30:35.205','2021-11-11 12:30:35.205',null,0);
+-INSERT INTO `register`.`merchants` VALUES (231,'AT&T','AT&T K006 9968 ESTOR',17,'2021-11-14 17:03:19.493','2021-11-14 17:03:19.493',null,0);
+-INSERT INTO `register`.`merchants` VALUES (232,'Brendan Gannon - Rent','TRANSFER TO GANNON BRENNDAN ON 11/10 REF #PP0CTLWR4J NOVEMBER RENT PAYMENT',28,'2021-11-14 17:13:20.320','2021-11-14 17:13:20.320',null,0);
+-INSERT INTO `register`.`merchants` VALUES (233,'Leesburg Station Auto Wash','LEESBURG STATION AUTO LEESBURG',38,'2021-11-27 20:18:14.300','2021-11-27 20:18:14.300',null,0);
+-INSERT INTO `register`.`merchants` VALUES (234,'Brunswick Crossing Animal Hospital','BRUNSWICK CROSSING ANI BRUNSWICK',46,'2021-11-27 20:18:30.524','2021-11-27 20:18:30.524',null,0);
+-INSERT INTO `register`.`merchants` VALUES (236,'Sweetwater Sound','SWEETWATER SOUND',40,'2021-11-27 20:19:32.249','2021-11-27 20:19:32.249',null,0);
+-INSERT INTO `register`.`merchants` VALUES (237,'Vape Royalty','VAPE ROYALTY',16,'2021-11-27 20:19:41.470','2021-11-27 20:19:41.470',null,0);
+-INSERT INTO `register`.`merchants` VALUES (239,'Navia','NAVIA BENEFIT SO FLEXIBLE B 211129 30218389 CALLAHAN ,ROBERT',59,'2021-12-04 00:34:08.394','2021-12-04 00:34:08.394',null,0);
+-INSERT INTO `register`.`merchants` VALUES (241,'Aquila Recovery','MED*AQUILA RECOVERY OF',48,'2021-12-12 14:20:52.030','2021-12-12 14:20:52.030',null,0);
+-INSERT INTO `register`.`merchants` VALUES (242,'Istanbul Grill','ISTANBUL GRILL LLC WILKES BA',12,'2021-12-12 14:21:00.927','2021-12-12 14:21:00.927',null,0);
+-INSERT INTO `register`.`merchants` VALUES (243,'PayPal transfer','PAYPAL TRANSFER 211205 4AT22AY3LXTYJ ROB CALLAHAN',59,'2021-12-12 14:21:17.680','2021-12-12 14:21:17.680',null,0);
+-INSERT INTO `register`.`merchants` VALUES (244,'Sunoco','Sunoco',13,'2021-12-12 14:21:26.442','2021-12-12 14:21:26.442',null,0);
+-INSERT INTO `register`.`merchants` VALUES (245,'Robinhood transfer','Robinhood',59,'2021-12-12 14:21:35.142','2021-12-12 14:21:35.142',null,0);
+-INSERT INTO `register`.`merchants` VALUES (246,'Coinbase transfer','Coinbase.com 9PKS6JD2 9PKS6JD201cd ROBERT T CALLAHAN',59,'2021-12-12 14:21:43.890','2021-12-12 14:21:43.890',null,0);
+-INSERT INTO `register`.`merchants` VALUES (247,'Myshroom Grow Kits','MYSHROOMSGROWKITS.COM MYSHROOMS',41,'2021-12-15 21:18:09.343','2021-12-15 21:18:09.343',null,0);
+-INSERT INTO `register`.`merchants` VALUES (248,'Brendan Gannon Rent','TRANSFER TO GANNON BRENNDAN ON 12/12 REF #PP0D3YPGWR XXXXXX7479',28,'2021-12-15 21:18:35.166','2021-12-15 21:18:35.166',null,0);
+-INSERT INTO `register`.`merchants` VALUES (249,'QS Micro','ZELLE TO QS MICRO ON 12/12 REF #RP0D3ZL9DW',41,'2021-12-15 21:18:56.620','2021-12-15 21:18:56.620',null,0);
+-INSERT INTO `register`.`merchants` VALUES (250,'McDonald''s ','McDonald''s',12,'2021-12-15 21:19:09.285','2021-12-15 21:19:09.285',null,0);
+-INSERT INTO `register`.`merchants` VALUES (251,'Rancho Krupa Food Mart - Gas','RANCHO KRUPA FOOD MART TAMAQUA',13,'2021-12-15 21:19:34.938','2021-12-15 21:19:34.938',null,0);
+-INSERT INTO `register`.`merchants` VALUES (252,'McDonald''s','McDonald''s',12,'2021-12-15 21:19:44.231','2021-12-15 21:19:44.231',null,0);
+-INSERT INTO `register`.`merchants` VALUES (253,'Telmate','GTL*TELMATE INMATE SRV',41,'2021-12-17 03:38:24.930','2021-12-17 03:38:24.930',null,0);
+-INSERT INTO `register`.`merchants` VALUES (254,'PayPal','PAYPAL TRANSFER 211216 101743626410',54,'2021-12-17 03:38:42.050','2021-12-17 03:38:42.050',null,0);
+-INSERT INTO `register`.`merchants` VALUES (255,'Transfer to Ally Bank','ALLY BANK $TRANSFER 211216 4260230683 ROBERT T CALLAHAN',59,'2021-12-18 03:01:53.861','2021-12-18 03:01:53.861',null,0);
+-INSERT INTO `register`.`merchants` VALUES (256,'Starlink Internet','Starlink Internet 310-68296',59,'2021-12-18 03:02:24.353','2021-12-18 03:02:24.353',null,0);
+-INSERT INTO `register`.`merchants` VALUES (257,'Bonefish','BONEFISH 0705 ASHBURN',12,'2021-12-21 22:27:02.727','2021-12-21 22:27:02.727',null,0);
+-INSERT INTO `register`.`merchants` VALUES (258,'Alteon Health','PAY* ALTEON HEALTH CEDAR.COM',15,'2021-12-21 22:27:16.475','2021-12-21 22:27:16.475',null,0);
+-INSERT INTO `register`.`merchants` VALUES (259,'Fidelity interest credit','CIT0168332 - INTEREST CREDIT',59,'2021-12-28 22:26:42.958','2021-12-28 22:26:42.958',null,0);
+-INSERT INTO `register`.`merchants` VALUES (260,'Transfer from E*Trade','E*TRADE ACH TRNSFR 211222 42523624906 45469742',59,'2021-12-28 22:27:03.760','2021-12-28 22:27:03.760',null,0);
+-INSERT INTO `register`.`merchants` VALUES (261,'Lovettsville Style','LOVETTSVILLE STYLE Lovettsvi',15,'2021-12-28 22:27:18.930','2021-12-28 22:27:18.930',null,0);
+-INSERT INTO `register`.`merchants` VALUES (262,'Transfer from Coinbase','COINBASE INC. 211225 U6S65C57 ROBERT T CALLAHAN',59,'2021-12-28 22:27:29.329','2021-12-28 22:27:29.329',null,0);
+-INSERT INTO `register`.`merchants` VALUES (267,'Ren','TRANSFER TO GANNON BRENNDAN ON 12/31 REF #PP0D8C3D5K APOLOGIES THAT IM LATE THIS MONTH. SOMEHOW',28,'2022-01-01 17:53:31.202','2022-01-01 17:53:31.202',null,0);
+-INSERT INTO `register`.`merchants` VALUES (272,'SoFi Personal Loan Payoff','SOFI PAYMENTS PL PYMT 211231 T23543900 Robert T Callahan',59,'2022-01-07 05:58:26.674','2022-01-07 05:58:26.674',null,0);
+-INSERT INTO `register`.`merchants` VALUES (273,'January Rent','TRANSFER TO GANNON BRENNDAN ON 01/03 REF #PP0D95Q3DG REMAINDER OF JANUARY RENT.',28,'2022-01-07 05:58:42.697','2022-01-07 05:58:42.697',null,0);
+-INSERT INTO `register`.`merchants` VALUES (274,'Transfer to Ally Bank','ALLY BANK $TRANSFER 220104 4335553919 ROBERT T CALLAHAN',59,'2022-01-07 05:59:01.207','2022-01-07 05:59:01.207',null,0);
+-INSERT INTO `register`.`merchants` VALUES (276,'Green Chef','GRNCHEF*247881742',14,'2022-01-08 00:01:37.290','2022-01-08 00:01:37.290','2023-09-01 01:40:31.329',null);
+-INSERT INTO `register`.`merchants` VALUES (277,'Clydes','CLYDE''S WILLOW CRK FAR BROADLAND',12,'2022-01-11 12:44:24.480','2022-01-11 12:44:24.480',null,0);
+-INSERT INTO `register`.`merchants` VALUES (278,'TechSmith Camtasia','FS *TechSmith 877-32789',41,'2022-01-11 12:44:38.831','2022-01-11 12:44:38.831',null,0);
+-INSERT INTO `register`.`merchants` VALUES (279,'Curiosity Stream','CURIOSITYSTREAM HTTPSWWW.',18,'2022-01-12 21:07:11.943','2022-01-12 21:07:11.943',null,0);
+-INSERT INTO `register`.`merchants` VALUES (280,'Crowdstrike Inc Payment (xmas gift)','Crowdstrike Inc Payment 246736 Rob Callahan',54,'2022-01-14 05:54:14.580','2022-01-14 05:54:14.580',null,0);
+-INSERT INTO `register`.`merchants` VALUES (281,'Green Chef','GRNCHEF*278731142',14,'2022-01-15 03:38:46.294','2022-01-15 03:38:46.294','2023-09-01 01:40:34.567',null);
+-INSERT INTO `register`.`merchants` VALUES (282,'Green Chef','GRNCHEF296155142',14,'2022-01-15 03:38:57.416','2022-01-15 03:38:57.416','2023-09-01 01:40:37.790',null);
+-INSERT INTO `register`.`merchants` VALUES (283,'Ashburn Vision Source','Ashbrn Vision Source ASHBURN',47,'2022-01-19 12:43:19.550','2022-01-19 12:43:19.550',null,0);
+-INSERT INTO `register`.`merchants` VALUES (284,'WAMU charitble gift','WAMU 88.5 202-88 Web Gift 011922 000001399989917 ROBERT T CALLAHAN',42,'2022-01-29 20:00:52.414','2022-01-29 20:00:52.414',null,0);
+-INSERT INTO `register`.`merchants` VALUES (285,'Green Chef','GREEN CHEF',14,'2022-01-29 20:01:08.202','2022-01-29 20:01:08.202',null,0);
+-INSERT INTO `register`.`merchants` VALUES (286,'Brunswick Liquors','BRUNSWICK LIQUORS KNOXVILLE',14,'2022-01-29 20:01:35.739','2022-01-29 20:01:35.739',null,0);
+-INSERT INTO `register`.`merchants` VALUES (287,'Brunswick Liquors','BRUNSWICK LIQUORS KNOXVILLE',14,'2022-01-29 20:01:43.537','2022-01-29 20:01:43.537',null,0);
+-INSERT INTO `register`.`merchants` VALUES (288,'AT&T','ATT Payment 012322 022491001EPAYD Family Name',17,'2022-01-29 20:02:03.475','2022-01-29 20:02:03.475',null,0);
+-INSERT INTO `register`.`merchants` VALUES (289,'Green Chef','GRNCHEF*232421222',14,'2022-01-29 20:02:22.512','2022-01-29 20:02:22.512','2023-09-01 01:40:42.220',null);
+-INSERT INTO `register`.`merchants` VALUES (291,'Transfer from Ally Bank','ALLY BANK P2P 220202 ROBERT T CAL',54,'2022-02-02 10:26:32.781','2022-02-02 10:26:32.781',null,0);
+-INSERT INTO `register`.`merchants` VALUES (293,'Law Office of Kelly King','LAW OFFICE OF KELLY L LEESBURG',54,'2022-02-03 03:17:42.201','2022-02-03 03:17:42.201',null,0);
+-INSERT INTO `register`.`merchants` VALUES (294,'WMACTL Phone service (Jail)','WMACTL *',15,'2022-02-10 21:57:06.586','2022-02-10 21:57:06.586',null,0);
+-INSERT INTO `register`.`merchants` VALUES (295,'Rent','TRANSFER TO GANNON BRENNDAN ON 02/10 REF #PP0Q8KPBTD FEB RENT',28,'2022-02-14 18:49:30.443','2022-02-14 18:49:30.443',null,0);
+-INSERT INTO `register`.`merchants` VALUES (296,'Christopher Gerric','CHRISTOPHER GERRIC Falls Chu',54,'2022-02-14 18:49:46.756','2022-02-14 18:49:46.756',null,0);
+-INSERT INTO `register`.`merchants` VALUES (297,'Dulles Super Tax','DULLES SUPER TAXI',54,'2022-02-14 18:50:12.524','2022-02-14 18:50:12.524',null,0);
+-INSERT INTO `register`.`merchants` VALUES (298,'VA ABC','VA ABC STORE 136',54,'2022-02-14 18:50:24.510','2022-02-14 18:50:24.510',null,0);
+-INSERT INTO `register`.`merchants` VALUES (299,'Transfer from RobinHood','ROBINHOOD CREDITS XXXXX6939 Robert Callahan',59,'2023-06-17 16:16:07.738','2023-06-17 16:16:07.738',null,0);
+-INSERT INTO `register`.`merchants` VALUES (301,'Martins','GIANT MARTINS 6078     800-573-2763  VA',14,'2023-06-23 12:37:55.651','2023-06-23 12:37:55.651',null,0);
+-INSERT INTO `register`.`merchants` VALUES (302,'GrubHub','GRUBHUBEASTERNCHINA    GRUBHUB.COM   NY',12,'2023-06-23 12:38:05.610','2023-06-23 12:38:05.610',null,0);
+-INSERT INTO `register`.`merchants` VALUES (303,'Uber','UBER   TRIP            HELP.UBER.COM CA',13,'2023-06-23 12:38:13.890','2023-06-23 12:38:13.890',null,0);
+-INSERT INTO `register`.`merchants` VALUES (304,'Jonathan Bishop Winchester','SQ *JONATHAN BISHOP    Winchester    VA',14,'2023-06-23 12:38:50.216','2023-06-23 12:38:50.216',null,0);
+-INSERT INTO `register`.`merchants` VALUES (306,'Freedom Agway','FREEDOM AG & ENERGY CO WINCHESTER    VA',40,'2023-06-23 12:39:27.863','2023-06-23 12:39:27.863',null,0);
+-INSERT INTO `register`.`merchants` VALUES (307,'Win Mart','WIN MART LLC           WINCHESTER    VA',14,'2023-06-23 12:39:43.350','2023-06-23 12:39:43.350',null,null);
+-INSERT INTO `register`.`merchants` VALUES (308,'MJ Hayes','MJ HAYES               WINCHESTER    VA',15,'2023-06-23 12:39:56.854','2023-06-23 12:39:56.854',null,0);
+-INSERT INTO `register`.`merchants` VALUES (311,'Uber','UBER   TRIP            HELP.UBER.COM CA',13,'2023-06-23 12:40:20.253','2023-06-23 12:40:20.253',null,0);
+-INSERT INTO `register`.`merchants` VALUES (313,'Bill Payment Return','BILL PAY PAYMENT RETURN ON 06-22',42,'2023-06-23 13:03:34.486','2023-06-23 13:03:34.486',null,0);
+-INSERT INTO `register`.`merchants` VALUES (316,'Uber','UBER TRIP 8005928996 CA',13,'2023-06-24 13:28:15.821','2023-06-24 13:28:15.821',null,0);
+-INSERT INTO `register`.`merchants` VALUES (317,'Fraud Dispute','FRAUD DISPUTE',31,'2023-06-24 13:30:54.493','2023-06-24 13:30:54.493',null,0);
+-INSERT INTO `register`.`merchants` VALUES (318,'Interest Returned','INTEREST REF PURCHASES FEB 2023',31,'2023-06-24 13:31:09.154','2023-06-24 13:31:09.154',null,0);
+-INSERT INTO `register`.`merchants` VALUES (319,'Amazon Marketplace','AMZN MKTP US*Y33O45VA3 AMZN.COM/BILLWA',40,'2023-06-24 13:36:12.500','2023-06-24 13:36:12.500',null,null);
+-INSERT INTO `register`.`merchants` VALUES (320,'Amazon Marketplace','AMZN MKTP US*W110Q99G3 AMZN.COM/BILLWA',40,'2023-06-24 13:36:22.800','2023-06-24 13:36:22.800',null,null);
+-INSERT INTO `register`.`merchants` VALUES (321,'Amazon Marketplace','AMZN MKTP US*7J8F581I3 AMZN.COM/BILLWA',40,'2023-06-24 13:36:26.935','2023-06-24 13:36:26.935','2023-09-02 02:43:51.367',null);
+-INSERT INTO `register`.`merchants` VALUES (322,'Spotify','SPOTIFY                877-778-1161  NY',18,'2023-07-02 18:13:13.551','2023-07-02 18:13:13.551',null,0);
+-INSERT INTO `register`.`merchants` VALUES (323,'AT&T','ATT Payment 062323 489186002EPAYY Family Name',17,'2023-07-02 18:13:28.540','2023-07-02 18:13:28.540',null,0);
+-INSERT INTO `register`.`merchants` VALUES (324,'Huff and Puffers','HUFF AND PUFFERS       657-2335688   CA',16,'2023-07-02 18:13:44.650','2023-07-02 18:13:44.650',null,0);
+-INSERT INTO `register`.`merchants` VALUES (325,'Loudoun County','NCOURT *VALoudounCount 844-4008880   VA',61,'2023-07-02 18:14:35.415','2023-07-02 18:14:35.415',null,0);
+-INSERT INTO `register`.`merchants` VALUES (326,'Sheetz','SHEETZ 0207   00002071 WINCHESTER    VA',12,'2023-07-08 14:28:41.324','2023-07-08 14:28:41.324',null,0);
+-INSERT INTO `register`.`merchants` VALUES (327,'Glo Fiber','GLO FIBER BILLPAY 230702 GLO FIBER ROBERT CALLAHAN',19,'2023-07-08 14:28:52.834','2023-07-08 14:28:52.834',null,0);
+-INSERT INTO `register`.`merchants` VALUES (328,'VA Dept of Taxation','BUSINESS TO BUSINESS ACH VA DEPT TAXATION TAX PAYMEN 230630 XXXXX2314 CALLAHAN, ROBERT T.',42,'2023-07-08 14:29:08.270','2023-07-08 14:29:08.270',null,0);
+-INSERT INTO `register`.`merchants` VALUES (329,'Olive Tree Properties','Olive Tree Prope WEB PMTS 070323 YP2MT7 Robert Callahan',28,'2023-07-08 14:29:26.766','2023-07-08 14:29:26.766',null,0);
+-INSERT INTO `register`.`merchants` VALUES (330,'Apple Card','APPLECARD GSBANK PAYMENT 063023 XXXXX5844 Robert Callahan',31,'2023-07-08 14:29:42.698','2023-07-08 14:29:42.698',null,0);
+-INSERT INTO `register`.`merchants` VALUES (331,'Transfer from Fidelity - points','FID BKG SVC LLC MONEYLINE 230705 X15716928 1JK7W ROBERT T CALLAHAN',42,'2023-07-08 14:29:59.640','2023-07-08 14:29:59.640',null,0);
+-INSERT INTO `register`.`merchants` VALUES (332,'Harland Clarke Checks','HARLAND CLARKE CHECK/ACC. 070323 00688487575488 ROBERT T CALLAHAN',41,'2023-07-08 14:30:23.647','2023-07-08 14:30:23.647',null,0);
+-INSERT INTO `register`.`merchants` VALUES (333,'Shenandoah Valley Electric','SHENANDOAH VALLE UTILITY 230704 3957509 ROBERT T *CALLAHAN',67,'2023-07-08 14:30:39.559','2023-07-08 14:30:39.559',null,null);
+-INSERT INTO `register`.`merchants` VALUES (334,'MasterCard','BILL PAY MasterCard ON-LINE xxxxxxxxxxxx5189 ON 07-07',31,'2023-07-08 14:30:52.504','2023-07-08 14:30:52.504',null,0);
+-INSERT INTO `register`.`merchants` VALUES (335,'MyVaporStore','MV STORE INC          718-7287838   NY',16,'2023-07-16 15:39:55.827','2023-07-16 15:39:55.827',null,0);
+-INSERT INTO `register`.`merchants` VALUES (336,'Transfer from E*Trade','MSPBNA ACH TRNSFR 230712 84178376906 45469742',42,'2023-07-16 15:45:28.642','2023-07-16 15:45:28.642',null,0);
+-INSERT INTO `register`.`merchants` VALUES (337,'Mavado','SP MAVADO              SUDBURY       GB',40,'2023-07-16 15:45:49.405','2023-07-16 15:45:49.405',null,0);
+-INSERT INTO `register`.`merchants` VALUES (338,'Foreign transaction fee','FRGN TRANS FEE-SP MAVADO              SU',40,'2023-07-16 15:46:08.180','2023-07-16 15:46:08.180',null,0);
+-INSERT INTO `register`.`merchants` VALUES (339,'Refactoring Guru','2COCOM*REFACTORINGGURU 888-2471614   GA',41,'2023-07-16 15:46:30.747','2023-07-16 15:46:30.747',null,0);
+-INSERT INTO `register`.`merchants` VALUES (340,'American Strategic Insurance','AMERICAN STRATEG 8662748765 1A55EB86FCFE ROBERT CALLAHAN',29,'2023-07-19 01:20:41.708','2023-07-19 01:20:41.708',null,null);
+-INSERT INTO `register`.`merchants` VALUES (341,'CarbonCopyCloner','FS *CARBONCOPYCLONE    877-3278914   CA',40,'2023-07-22 13:03:36.598','2023-07-22 13:03:36.598',null,0);
+-INSERT INTO `register`.`merchants` VALUES (342,'Babbel','Babbel.com Spanish La  Berlin        DE',41,'2023-07-22 13:03:48.480','2023-07-22 13:03:48.480',null,0);
+-INSERT INTO `register`.`merchants` VALUES (343,'Foreign Transaction Fee','FRGN TRANS FEE-Babbel.com Spanish La  Be',41,'2023-07-22 13:04:04.145','2023-07-22 13:04:04.145',null,0);
+-INSERT INTO `register`.`merchants` VALUES (344,'Foreign Transaction Fee','FRGN TRANS FEE-TOTALAVCOM             84',41,'2023-07-30 18:19:53.235','2023-07-30 18:19:53.235',null,0);
+-INSERT INTO `register`.`merchants` VALUES (345,'Vista Print','VISTAPRINT             866-207-4955  MA',40,'2023-07-30 18:20:08.732','2023-07-30 18:20:08.732',null,0);
+-INSERT INTO `register`.`merchants` VALUES (346,'Nibblins','NIBBLINS.COM           540-535-0787  VA',41,'2023-07-30 18:20:31.391','2023-07-30 18:20:31.391',null,0);
+-INSERT INTO `register`.`merchants` VALUES (347,'TotalAV','TOTALAVCOM             8443466837    GB',18,'2023-07-30 18:20:45.790','2023-07-30 18:20:45.790',null,0);
+-INSERT INTO `register`.`merchants` VALUES (348,'Evernote','Evernote               650-2570885   CA',18,'2023-07-30 18:21:00.174','2023-07-30 18:21:00.174',null,0);
+-INSERT INTO `register`.`merchants` VALUES (349,'Planet Fitness','09919 PF WINCHESTER VA WINCHESTER    VA',18,'2023-07-30 18:21:50.697','2023-07-30 18:21:50.697',null,0);
+-INSERT INTO `register`.`merchants` VALUES (350,'Hott Hair','SQ *HOTT HAIR          Winchester    VA',23,'2023-07-30 18:21:59.301','2023-07-30 18:21:59.301',null,0);
+-INSERT INTO `register`.`merchants` VALUES (351,'Straplez','ECHST.NET              866-452-5108  WA',18,'2023-07-30 18:21:59.301','2023-07-30 18:24:51.340',null,0);
+-INSERT INTO `register`.`merchants` VALUES (352,'eJuice','EJUICEDB.COM           631-7773487   NY',16,'2023-07-30 18:25:02.858','2023-07-30 18:25:02.858',null,0);
+-INSERT INTO `register`.`merchants` VALUES (353,'AT&T','ATT Payment 072323 010474011EPAYI Family Name',17,'2023-07-30 18:21:59.301','2023-07-30 18:21:59.301',null,0);
+-INSERT INTO `register`.`merchants` VALUES (354,'Transfer from Paypal','PAYPAL TRANSFER 230724 1028384006257 ROB CALLAHAN',35,'2023-07-30 18:21:59.301','2023-07-30 18:21:59.301',null,0);
+-INSERT INTO `register`.`merchants` VALUES (355,'Winchester Public Utilities','BILL PAY Winchester Public Utilities ON-LINE xx0009 ON 07-24',67,'2023-07-30 18:21:59.301','2023-07-30 18:21:59.301',null,0);
+-INSERT INTO `register`.`merchants` VALUES (356,'Martin''s','Martin''s',14,'2023-08-05 22:59:59.949','2023-08-05 22:59:59.949',null,0);
+-INSERT INTO `register`.`merchants` VALUES (357,'Plex','Plex',18,'2023-08-05 23:00:28.143','2023-08-05 23:00:28.143',null,0);
+-INSERT INTO `register`.`merchants` VALUES (358,'CHECK','CHECK',46,'2023-08-05 23:00:54.458','2023-08-05 23:00:54.458',null,0);
+-INSERT INTO `register`.`merchants` VALUES (359,'SoberLink','nCourt',61,'2023-08-05 23:01:12.148','2023-08-05 23:01:12.148',null,0);
+-INSERT INTO `register`.`merchants` VALUES (360,'Olive Tree Properties','Olive Tree Prope WEB PMTS 080123 9FRJZ7 Robert Callahan',28,'2023-08-05 23:01:21.950','2023-08-05 23:01:21.950',null,0);
+-INSERT INTO `register`.`merchants` VALUES (361,'AppleCard','APPLECARD GSBANK PAYMENT 073123 XXXXX5844 Robert Callahan',31,'2023-08-05 23:01:37.958','2023-08-05 23:01:37.958',null,0);
+-INSERT INTO `register`.`merchants` VALUES (362,'GloFiber','GLO FIBER BILLPAY 230801 GLO FIBER ROBERT CALLAHAN',19,'2023-08-05 23:01:49.666','2023-08-05 23:01:49.666',null,0);
+-INSERT INTO `register`.`merchants` VALUES (363,'Paul Chmielewski Optomitrist','Paul Chmielewski Od',41,'2023-08-05 23:02:17.816','2023-08-05 23:02:17.816',null,0);
+-INSERT INTO `register`.`merchants` VALUES (364,'Selah Theater Project','Www.selahtheatreprojec',41,'2023-08-05 23:02:34.292','2023-08-05 23:02:34.292',null,0);
+-INSERT INTO `register`.`merchants` VALUES (365,'Transfer from E*Trade','MSPBNA ACH TRNSFR 230802 85756320906 45469742',42,'2023-08-05 23:02:53.217','2023-08-05 23:02:53.217',null,0);
+-INSERT INTO `register`.`merchants` VALUES (366,'Piccadilly Grill','Piccadilly Grill',12,'2023-08-05 23:03:03.523','2023-08-05 23:03:03.523',null,0);
+-INSERT INTO `register`.`merchants` VALUES (367,'Win Mart','Win Mart Llc',14,'2023-08-05 23:03:12.891','2023-08-05 23:03:12.891',null,0);
+-INSERT INTO `register`.`merchants` VALUES (368,'Shenandoah Electric','SHENANDOAH VALLE UTILITY 230804 2530462 ROBERT T *CALLAHAN',22,'2023-08-12 11:56:52.944','2023-08-12 11:56:52.944',null,0);
+-INSERT INTO `register`.`merchants` VALUES (369,'Winchester Parks & Rec','Winchester Parks & Rec Httpswww.winc',41,'2023-08-12 11:57:08.287','2023-08-12 11:57:08.287',null,0);
+-INSERT INTO `register`.`merchants` VALUES (370,'Bank of America MasterCard','BILL PAY MasterCard ON-LINE xxxxxxxxxxxx5189 ON 08-09',31,'2023-08-12 11:57:28.923','2023-08-12 11:57:28.923',null,0);
+-INSERT INTO `register`.`merchants` VALUES (371,'Jetbrains','Jetbrains Americas Inc',41,'2023-08-12 11:57:42.374','2023-08-12 11:57:42.374',null,0);
+-INSERT INTO `register`.`merchants` VALUES (372,'JetBrains','JetBrains',18,'2023-08-20 13:18:38.959','2023-08-20 13:18:38.959',null,0);
+-INSERT INTO `register`.`merchants` VALUES (373,'eJuice','Ejuicedb.com',16,'2023-08-20 13:18:54.511','2023-08-20 13:18:54.511',null,0);
+-INSERT INTO `register`.`merchants` VALUES (374,'Plaid','Plaid',18,'2023-08-20 13:19:19.945','2023-08-20 13:19:19.945',null,0);
+-INSERT INTO `register`.`merchants` VALUES (375,'American Strategic Insurance','AMERICAN STRATEG 8662748765 13D97E89C102 ROBERT CALLAHAN',29,'2023-08-20 13:19:43.240','2023-08-20 13:19:43.240',null,null);
+-INSERT INTO `register`.`merchants` VALUES (376,'Martins','Martins',14,'2023-08-20 13:19:55.703','2023-08-20 13:19:55.703',null,0);
+-INSERT INTO `register`.`merchants` VALUES (377,'Planet Fitness','PLANET FIT CLUB FEES 2322814358736',18,'2023-08-20 13:20:25.445','2023-08-20 13:20:25.445',null,0);
+-INSERT INTO `register`.`merchants` VALUES (378,'Star Spa','Star Spa Llc',25,'2023-08-20 13:20:35.518','2023-08-20 13:20:35.518',null,0);
+-INSERT INTO `register`.`merchants` VALUES (380,'Sharp Shopper Grocery','Sharp Shopper Groce',14,'2023-08-26 12:24:57.430','2023-08-26 12:24:57.430',null,0);
+-INSERT INTO `register`.`merchants` VALUES (381,'AT&T','ATT Payment 082323 820487003EPAYH Family Name',17,'2023-08-26 12:25:08.120','2023-08-26 12:25:08.120',null,0);
+-INSERT INTO `register`.`merchants` VALUES (382,'The Mediterranean Dish','Sp Mediterranean Dish Shop.themedit',14,'2023-08-26 12:25:35.388','2023-08-26 12:25:35.388',null,0);
+-INSERT INTO `register`.`merchants` VALUES (383,'Starlink Internet','Starlink Internet',40,'2023-08-26 12:26:10.174','2023-08-26 12:26:10.174',null,0);
+-INSERT INTO `register`.`merchants` VALUES (384,'StarLink','Starlink',31,'2023-09-02 13:54:29.247','2023-09-02 13:54:29.247',null,0);
+-INSERT INTO `register`.`merchants` VALUES (385,'NAATW','Naatw.org Naatw.org Co',41,'2023-09-02 13:54:49.116','2023-09-02 13:54:49.116',null,0);
+-INSERT INTO `register`.`merchants` VALUES (386,'Planet Fitness','PLANET FIT CLUB FEES 232430120541',18,'2023-09-02 13:55:05.926','2023-09-02 13:55:05.926',null,0);
+-INSERT INTO `register`.`merchants` VALUES (387,'Olive Tree Property Management','Olive Tree Prope WEB PMTS 090123 BXL968',28,'2023-09-02 13:55:20.728','2023-09-02 13:55:20.728',null,0);
+-INSERT INTO `register`.`merchants` VALUES (388,'Rent Payment Fee','AppFolio, Inc. F WEB PMTS 090123 BYQ968',28,'2023-09-02 13:56:03.112','2023-09-02 13:56:03.112',null,0);
+-INSERT INTO `register`.`merchants` VALUES (389,'Glo Fiber','GLO FIBER BILLPAY 230901 GLO FIBER ROBERT CALLAHAN',19,'2023-09-11 13:04:37.648','2023-09-11 13:04:37.648',null,0);
+-INSERT INTO `register`.`merchants` VALUES (390,'Branch''s Daily Bread','branch''s Daily Bre',14,'2023-09-11 13:04:50.250','2023-09-11 13:04:50.250',null,0);
+-INSERT INTO `register`.`merchants` VALUES (391,'Shenandoah Valley Utility','SHENANDOAH VALLE UTILITY 230904 0925574 ROBERT T *CALLAHAN',22,'2023-09-11 13:05:27.299','2023-09-11 13:05:27.299',null,0);
+-INSERT INTO `register`.`merchants` VALUES (392,'Haven Farm Cross Jct','the Haven Farm Cross Jct',14,'2023-09-11 13:05:44.864','2023-09-11 13:05:44.864',null,0);
+-INSERT INTO `register`.`merchants` VALUES (393,'Josephine Kitchen','josephine Kitchen',14,'2023-09-11 13:05:54.543','2023-09-11 13:05:54.543',null,0);
+-INSERT INTO `register`.`merchants` VALUES (394,'Crockett Run Farm','crockett Run Farm',14,'2023-09-11 13:06:02.645','2023-09-11 13:06:02.645',null,0);
+-INSERT INTO `register`.`merchants` VALUES (395,'Vape Juice Depot','Vapejuicedepot Tobacco',16,'2023-09-11 13:06:21.961','2023-09-11 13:06:21.961',null,0);
+-INSERT INTO `register`.`merchants` VALUES (396,'Cash','Cash eWithdrawal in Branch 09/06/2023 07:19 AM 2490 VALLEY AVE WINCHESTER VA 0970',11,'2023-09-11 13:06:32.364','2023-09-11 13:06:32.364',null,0);
+-INSERT INTO `register`.`merchants` VALUES (397,'Transfer from E*Trade','MSPBNA ACH TRNSFR 230907 88424063906 354378605',42,'2023-09-11 13:07:04.762','2023-09-11 13:07:04.762',null,0);
+-INSERT INTO `register`.`merchants` VALUES (398,'Intensive Journaling','D House-intensive Jr Httpswww.inte',41,'2023-09-11 13:07:23.150','2023-09-11 13:07:23.150',null,0);
+-INSERT INTO `register`.`merchants` VALUES (399,'IFixit','Sp Ifixit',41,'2023-09-11 13:07:33.790','2023-09-11 13:07:33.790',null,0);
+-INSERT INTO `register`.`merchants` VALUES (400,'American Strategies Rental Insurance','AMERICAN STRATEG 8662748765 7668BE2646C5 ROBERT CALLAHAN',29,'2023-09-17 15:33:35.809','2023-09-17 15:33:35.809',null,0);
+-INSERT INTO `register`.`merchants` VALUES (401,'Knead Bread','Knead Bread',14,'2023-09-17 15:33:45.990','2023-09-17 15:33:45.990',null,0);
+-INSERT INTO `register`.`merchants` VALUES (402,'Planet Fitness','PLANET FIT CLUB FEES 2325815665872',18,'2023-09-23 15:12:42.978','2023-09-23 15:12:42.978',null,0);
+-INSERT INTO `register`.`merchants` VALUES (404,'AT&T','ATT Payment 092323 851654002EPAYM Family Name',17,'2023-09-30 17:53:20.693','2023-09-30 17:53:20.693',null,0);
+-INSERT INTO `register`.`merchants` VALUES (405,'My Personality Test','Personpay.net',41,'2023-09-30 17:54:06.429','2023-09-30 17:54:06.429',null,0);
+-INSERT INTO `register`.`merchants` VALUES (406,'American Anesthesiology of Virginia','Mitchell Bluhm & Assoc',47,'2023-09-30 17:55:20.140','2023-09-30 17:55:20.140',null,0);
+-INSERT INTO `register`.`merchants` VALUES (407,'iFixIt','Sp+aff* Ifixit Affirm.com',41,'2023-09-30 17:55:40.393','2023-09-30 17:55:40.393',null,0);
+-INSERT INTO `register`.`merchants` VALUES (408,'Olive Tree Properties','Olive Tree Prope WEB PMTS 100223 H388F8 Robert Callahan',28,'2023-10-07 14:29:24.114','2023-10-07 14:29:24.114',null,0);
+-INSERT INTO `register`.`merchants` VALUES (409,'Glo Fiber','GLO FIBER BILLPAY 231002 GLO FIBER ROBERT CALLAHAN',19,'2023-10-07 14:29:31.624','2023-10-07 14:29:31.624',null,0);
+-INSERT INTO `register`.`merchants` VALUES (410,'City of Winchester Utilities','CITY OF WINCHEST BILLPAY 231002 CITY OF WINCHES ROBERT T CALLAHAN',67,'2023-10-07 14:29:45.678','2023-10-07 14:29:45.678',null,0);
+-INSERT INTO `register`.`merchants` VALUES (411,'Rent Credit Card Fee','AppFolio, Inc. F WEB PMTS 100223 13QBF8 Robert Callahan',28,'2023-10-07 14:30:18.485','2023-10-07 14:30:18.485',null,0);
+-INSERT INTO `register`.`merchants` VALUES (412,'AppleCard Payment','APPLECARD GSBANK PAYMENT 092923 XXXXX5844 Robert Callahan',18,'2023-10-07 14:30:38.740','2023-10-07 14:30:38.740',null,0);
+-INSERT INTO `register`.`merchants` VALUES (413,'Shenandoah Valley Electric','SHENANDOAH VALLE UTILITY 231004 9393359 ROBERT T *CALLAHAN',22,'2023-10-07 14:31:02.836','2023-10-07 14:31:02.836',null,0);
+-INSERT INTO `register`.`merchants` VALUES (414,'Transfer from E*Trade','MSPBNA ACH TRNSFR 231005 90510579906',42,'2023-10-07 14:31:25.133','2023-10-07 14:31:25.133',null,0);
+-INSERT INTO `register`.`merchants` VALUES (415,'Cash','Cash eWithdrawal in Branch 10/12/2023 08:00 AM 2490 VALLEY AVE WINCHESTER VA 0970',11,'2023-10-15 18:40:05.828','2023-10-15 18:40:05.828',null,0);
+-INSERT INTO `register`.`merchants` VALUES (416,'MBA Payment','MBA PMT                866-9458627   TX',41,'2023-10-24 14:54:33.442','2023-10-24 14:54:33.442',null,0);
+-INSERT INTO `register`.`merchants` VALUES (417,'Afterpay','AFTERPAY               185-52896014  CA',40,'2023-10-24 14:55:03.395','2023-10-24 14:55:03.395',null,0);
+-INSERT INTO `register`.`merchants` VALUES (418,'Dashlane annual fee','DASHLANE* DASHLANE PRE HTTPSWWW.DASH NY',18,'2023-10-24 14:55:23.906','2023-10-24 14:55:23.906',null,0);
+-INSERT INTO `register`.`merchants` VALUES (419,'TruthFinder','TRTHFDR*TRUTHFINDER.CO 800-6998081   CA',41,'2023-10-24 14:55:40.272','2023-10-24 14:55:40.272',null,0);
+-INSERT INTO `register`.`merchants` VALUES (420,'Lynette & Jerri''s Diner','LYNETTE & JERRIS DINER WINCHESTER    VA',12,'2023-10-24 14:56:02.910','2023-10-24 14:56:02.910',null,0);
+-INSERT INTO `register`.`merchants` VALUES (421,'Geeks Outfit','GEEKSOUTFIT            IRL           IE',40,'2023-10-24 14:56:21.239','2023-10-24 14:56:21.239',null,0);
+-INSERT INTO `register`.`merchants` VALUES (422,'American Strategies','AMERICAN STRATEG 8662748765 FC23136F976C ROBERT CALLAHAN',29,'2023-10-24 14:56:47.158','2023-10-24 14:56:47.158',null,0);
+-INSERT INTO `register`.`merchants` VALUES (423,'Planet Fitness','PLANET FIT CLUB FEES 2328914981021 540-773-3435',18,'2023-10-24 14:57:02.802','2023-10-24 14:57:02.802',null,0);
+-INSERT INTO `register`.`merchants` VALUES (424,'Kindle Services','Kindle Svcs*TD0QC6OW1',41,'2023-10-28 15:53:48.550','2023-10-28 15:53:48.550',null,0);
+-INSERT INTO `register`.`merchants` VALUES (425,'AT&T','ATT Payment 102323 272079002EPAYQ Family Name',17,'2023-10-28 15:54:01.865','2023-10-28 15:54:01.865',null,0);
+-INSERT INTO `register`.`merchants` VALUES (426,'Walmart','WAL-MART #1406     SE2 WINCHESTER    VA',54,'2023-10-28 15:54:48.850','2023-10-28 15:54:48.850',null,0);
+-INSERT INTO `register`.`merchants` VALUES (427,'Walmart','WM SUPERCENTER #1406   WINCHESTER    VA',46,'2023-10-28 15:55:21.730','2023-10-28 15:55:21.730',null,0);
+-INSERT INTO `register`.`merchants` VALUES (428,'eBay','eBay O*20-10717-19742  San Jose      CA',40,'2023-11-04 22:39:59.418','2023-11-04 22:39:59.418',null,0);
+-INSERT INTO `register`.`merchants` VALUES (429,'Poshmark','POSHMARK               650-488-7740  CA',40,'2023-11-04 22:40:09.826','2023-11-04 22:40:09.826',null,0);
+-INSERT INTO `register`.`merchants` VALUES (430,'Olive Tree Property Mgmt','Olive Tree Prope WEB PMTS 110123 44RSM8 Robert Callahan',28,'2023-11-04 22:40:25.939','2023-11-04 22:40:25.939',null,0);
+-INSERT INTO `register`.`merchants` VALUES (431,'Applecard Payment','APPLECARD GSBANK PAYMENT 103023 XXXXX5844 Robert Callahan',18,'2023-11-04 22:40:49.189','2023-11-04 22:40:49.189',null,0);
+-INSERT INTO `register`.`merchants` VALUES (432,'AppFolio, Inc.','AppFolio, Inc. F WEB PMTS 110123 17WSM8 Robert Callahan',28,'2023-11-04 22:41:25.426','2023-11-04 22:41:25.426',null,0);
+-INSERT INTO `register`.`merchants` VALUES (433,'Glo Fiber','GLO FIBER BILLPAY 231101 GLO FIBER ROBERT CALLAHAN',19,'2023-11-04 22:41:33.539','2023-11-04 22:41:33.539',null,0);
+-INSERT INTO `register`.`merchants` VALUES (434,'Chewy.com','CHEWY.COM              800-672-4399  FL',40,'2023-11-04 22:42:04.587','2023-11-04 22:42:04.587',null,0);
+-INSERT INTO `register`.`merchants` VALUES (435,'Premium Spores','MYCO BRANDS DIRECT LLC 800-9431850   IL',41,'2023-11-11 13:29:10.503','2023-11-11 13:29:10.503',null,0);
+-INSERT INTO `register`.`merchants` VALUES (436,'North Spore','SP NORTH SPORE         HTTPSNORTHSPO ME',41,'2023-11-11 13:29:44.661','2023-11-11 13:29:44.661',null,0);
+-INSERT INTO `register`.`merchants` VALUES (437,'Shenandoah Valley Electric','SHENANDOAH VALLE UTILITY 231104 8327680 ROBERT T *CALLAHAN',22,'2023-11-11 13:30:03.103','2023-11-11 13:30:03.103',null,0);
+-INSERT INTO `register`.`merchants` VALUES (438,'Midwest Grow Kits','MIDWEST ORGANICS LLC   800-9244717   IL',41,'2023-11-11 13:30:33.767','2023-11-11 13:30:33.767',null,0);
+-INSERT INTO `register`.`merchants` VALUES (439,'Wikimedia','Wikimedia              San Francisco CA',46,'2023-11-11 13:30:54.667','2023-11-11 13:30:54.667',null,0);
+-INSERT INTO `register`.`merchants` VALUES (440,'eBay','eBay O*18-10762-43271  408-3766151   CA',14,'2023-11-11 13:31:27.838','2023-11-11 13:31:27.838',null,0);
+-INSERT INTO `register`.`merchants` VALUES (441,'Afterpay','Afterpay               044-4123456   CA',40,'2023-11-18 14:06:46.466','2023-11-18 14:06:46.466',null,0);
+-INSERT INTO `register`.`merchants` VALUES (442,'Getting Out','GTL*INMATE PHONE SVC   866-516-0115  VA',41,'2023-11-18 14:07:02.965','2023-11-18 14:07:02.965',null,0);
+-INSERT INTO `register`.`merchants` VALUES (443,'Plume House Vape','SQ *PLUME HOUSE VAPE C Winchester    VA',16,'2023-11-18 14:07:15.636','2023-11-18 14:07:15.636',null,0);
+-INSERT INTO `register`.`merchants` VALUES (444,'Exotic Himalayan','SQ *EXOTIC HIMALAYAN H Winchester    VA',40,'2023-11-18 14:07:38.324','2023-11-18 14:07:38.324',null,0);
+-INSERT INTO `register`.`merchants` VALUES (445,'American Strategies','AMERICAN STRATEG 8662748765 21448114B3E6 ROBERT CALLAHAN',29,'2023-11-18 14:08:14.300','2023-11-18 14:08:14.300',null,0);
+-INSERT INTO `register`.`merchants` VALUES (446,'Kindle Services','Kindle Svcs*V34DS8ZR3',41,'2023-11-18 14:08:40.973','2023-11-18 14:08:40.973',null,0);
+-INSERT INTO `register`.`merchants` VALUES (447,'YouTube Premium','GOOGLE *YouTubePremium g.co/helppay# CA',18,'2023-11-18 14:09:02.880','2023-11-18 14:09:02.880',null,0);
+-INSERT INTO `register`.`merchants` VALUES (448,'Bublup','BUBLUP INC.           WWW.BUBLUP.CO VA',18,'2023-11-26 18:04:44.857','2023-11-26 18:04:44.857',null,0);
+-INSERT INTO `register`.`merchants` VALUES (449,'Paypal Transfer','PAYPAL TRANSFER 231121 1030766699814 ROB CALLAHAN',16,'2023-11-26 18:05:30.285','2023-11-26 18:05:30.285',null,0);
+-INSERT INTO `register`.`merchants` VALUES (450,'Count of Frederick ASAP','COUNTY OF FREDERICK DI WINCHESTER    VA',58,'2023-11-26 18:06:10.998','2023-11-26 18:06:10.998',null,0);
+-INSERT INTO `register`.`merchants` VALUES (451,'Probation','LOCAL PROBATION        WINCHESTER    VA',58,'2023-11-26 18:06:27.230','2023-11-26 18:06:27.230',null,0);
+-INSERT INTO `register`.`merchants` VALUES (452,'Kindle Services','Kindle Svcs*DI6JY9WA3',15,'2023-11-26 18:06:45.758','2023-11-26 18:06:45.758',null,0);
+-INSERT INTO `register`.`merchants` VALUES (453,'AT&T','ATT Payment 112323 905788002EPAYV Family Name',17,'2023-11-26 18:06:56.490','2023-11-26 18:06:56.490',null,0);
+-INSERT INTO `register`.`merchants` VALUES (454,'Star Asian Spa','ZELLE TO SPA ON 11/28 REF #RP0RR8ZF2W',25,'2023-11-29 14:43:35.208','2023-11-29 14:43:35.208',null,0);
+-INSERT INTO `register`.`merchants` VALUES (455,'Food Maxx','FOOD MAXX INTERNATIONA WINCHESTER    VA',14,'2023-12-10 20:42:39.936','2023-12-10 20:42:39.936',null,0);
+-INSERT INTO `register`.`merchants` VALUES (456,'Olive Tree Properties','Olive Tree Prope WEB PMTS 120123 0556V8 Robert Callahan',28,'2023-12-10 20:48:47.162','2023-12-10 20:48:47.162',null,0);
+-INSERT INTO `register`.`merchants` VALUES (457,'AppFolio','AppFolio, Inc. F WEB PMTS 120123 5297V8 Robert Callahan',28,'2023-12-10 20:49:08.633','2023-12-10 20:49:08.633',null,0);
+-INSERT INTO `register`.`merchants` VALUES (458,'Applecard Payment','APPLECARD GSBANK PAYMENT 112923 XXXXX5844 Robert Callahan',18,'2023-12-10 20:49:36.959','2023-12-10 20:49:36.959',null,0);
+-INSERT INTO `register`.`merchants` VALUES (459,'City of Winchester','CITY OF WINCHEST BILLPAY 231204 CITY OF WINCHES ROBERT T CALLAHAN',67,'2023-12-10 20:51:51.292','2023-12-10 20:51:51.292',null,0);
+-INSERT INTO `register`.`merchants` VALUES (460,'GloFiber','GLO FIBER BILLPAY 231202 GLO FIBER ROBERT CALLAHAN',19,'2023-12-10 20:51:59.826','2023-12-10 20:51:59.826',null,0);
+-INSERT INTO `register`.`merchants` VALUES (461,'Shenandoah Valley Electric','SHENANDOAH VALLE UTILITY 231204 7469642 ROBERT T *CALLAHAN',22,'2023-12-10 20:52:15.403','2023-12-10 20:52:15.403',null,0);
+-INSERT INTO `register`.`merchants` VALUES (462,'E*Trade transfer','MSPBNA ACH TRNSFR 231204 94609590906 354378605',42,'2023-12-10 20:54:25.415','2023-12-10 20:54:25.415',null,0);
+-INSERT INTO `register`.`merchants` VALUES (463,'Kindle Services','Kindle Svcs*O98PM8NQ3',41,'2023-12-10 20:54:49.710','2023-12-10 20:54:49.710',null,0);
+-INSERT INTO `register`.`merchants` VALUES (464,'E*Trade transfer','MSPBNA ACH TRNSFR 231207 94946758906 354378605',42,'2023-12-10 20:55:19.501','2023-12-10 20:55:19.501',null,0);
+-INSERT INTO `register`.`merchants` VALUES (465,'Simnett Nutrition','SN ORDER* #150841      PARKSVILLE    BC',41,'2023-12-16 16:13:22.181','2023-12-16 16:13:22.181',null,0);
+-INSERT INTO `register`.`merchants` VALUES (466,'American Strategies','AMERICAN STRATEG 8662748765 EBF25A9F513D ROBERT CALLAHAN',29,'2023-12-16 16:13:45.146','2023-12-16 16:13:45.146',null,0);
+-INSERT INTO `register`.`merchants` VALUES (467,'Star Asian Spa','ZELLE TO SPA ON 12/15 REF #PP0RSP63D4',25,'2023-12-16 16:14:11.879','2023-12-16 16:14:11.879',null,0);
+-INSERT INTO `register`.`merchants` VALUES (468,'Rover.com','ROVER.COM* PET SVCS.   WWW.ROVER.COM WA',41,'2023-12-23 18:39:15.370','2023-12-23 18:39:15.370',null,0);
+-INSERT INTO `register`.`merchants` VALUES (469,'USPS','USPS PO 5198070322     WINCHESTER    VA',41,'2023-12-23 18:43:05.639','2023-12-23 18:43:05.639',null,0);
+-INSERT INTO `register`.`merchants` VALUES (470,'samharris.org','WWW.SAMHARRIS.ORG      HTTPSWWW.SAMH CA',18,'2024-01-01 17:13:03.708','2024-01-01 17:13:03.708',null,0);
+-INSERT INTO `register`.`merchants` VALUES (471,'nuts.com','NUTS.COM INC.         908-523-0333  NJ',14,'2024-01-01 17:13:11.770','2024-01-01 17:13:11.770',null,0);
+-INSERT INTO `register`.`merchants` VALUES (472,'ebay.com','eBay O*01-10979-93082  408-3766151   CA',41,'2024-01-01 17:14:18.550','2024-01-01 17:14:18.550',null,0);
+-INSERT INTO `register`.`merchants` VALUES (473,'AT&T','ATT Payment 122323 453988003EPAYY Family Name',17,'2024-01-01 17:22:40.682','2024-01-01 17:22:40.682',null,0);
+-INSERT INTO `register`.`merchants` VALUES (474,'Cash','Cash eWithdrawal in Branch 12/28/2023 12:18 PM 2490 VALLEY AVE WINCHESTER VA 0970',11,'2024-01-01 17:22:48.740','2024-01-01 17:22:48.740',null,0);
+-INSERT INTO `register`.`merchants` VALUES (475,'Olive Tree Properties','Olive Tree Prope WEB PMTS 010224 FSVD29 Robert Callahan',28,'2024-01-06 17:02:58.744','2024-01-06 17:02:58.744',null,0);
+-INSERT INTO `register`.`merchants` VALUES (476,'Glo Fiber','GLO FIBER BILLPAY 240101 GLO FIBER ROBERT CALLAHAN',19,'2024-01-06 17:03:05.935','2024-01-06 17:03:05.935',null,0);
+-INSERT INTO `register`.`merchants` VALUES (477,'AppFolio','AppFolio, Inc. F WEB PMTS 010224 G06M29 Robert Callahan',28,'2024-01-06 17:03:26.700','2024-01-06 17:03:26.700',null,0);
+-INSERT INTO `register`.`merchants` VALUES (478,'Apple Card Payment','APPLECARD GSBANK PAYMENT 123023 XXXXX5844 Robert Callahan',18,'2024-01-06 17:03:45.381','2024-01-06 17:03:45.381',null,0);
+-INSERT INTO `register`.`merchants` VALUES (479,'Shenandoah Valley Electric','SHENANDOAH VALLE UTILITY 240104 6967863 ROBERT T *CALLAHAN',22,'2024-01-06 17:04:03.861','2024-01-06 17:04:03.861',null,0);
+-INSERT INTO `register`.`merchants` VALUES (480,'Physicians Committee','PHYSICIANS COMMITTEE F 202-5277374   DC',18,'2024-01-13 14:53:01.964','2024-01-13 14:53:01.964',null,0);
+-INSERT INTO `register`.`merchants` VALUES (481,'eBay','eBay O*26-11040-34432  408-3766151   CA',14,'2024-01-21 15:52:07.674','2024-01-21 15:52:07.674',null,0);
+-INSERT INTO `register`.`merchants` VALUES (482,'Star Asian Spa','ZELLE TO LINDA ON 01/14 REF #PP0RVYRX6N',25,'2024-01-21 15:52:54.938','2024-01-21 15:52:54.938',null,0);
+-INSERT INTO `register`.`merchants` VALUES (483,'Wilkin''s Shoe Center','WILKINS SHOECENTER     WINCHESTER    VA',40,'2024-01-21 15:53:46.901','2024-01-21 15:53:46.901',null,0);
+-INSERT INTO `register`.`merchants` VALUES (484,'American Strategies','AMERICAN STRATEG 8662748765 9423E0D980BF ROBERT CALLAHAN',29,'2024-01-21 15:54:01.361','2024-01-21 15:54:01.361',null,0);
+-INSERT INTO `register`.`merchants` VALUES (485,'Kindle','Kindle Svcs*R878P9OD2',41,'2024-01-21 15:56:12.573','2024-01-21 15:56:12.573',null,0);
+-INSERT INTO `register`.`merchants` VALUES (486,'Murphy Beverage','SQ *MURPHY BEVERAGE CO Winchester    VA',14,'2024-01-28 18:28:38.720','2024-01-28 18:28:38.720',null,0);
+-INSERT INTO `register`.`merchants` VALUES (487,'AT&T','ATT Payment 012324 552199003EPAYD Family Name',17,'2024-01-28 18:28:48.688','2024-01-28 18:28:48.688',null,0);
+-INSERT INTO `register`.`merchants` VALUES (488,'Apple Card Payment','APPLECARD GSBANK PAYMENT 013024 XXXXX5844 Robert Callahan',18,'2024-02-04 19:01:59.395','2024-02-04 19:01:59.395',null,0);
+-INSERT INTO `register`.`merchants` VALUES (489,'AppFolio Rent CC use fee','AppFolio, Inc. F WEB PMTS 020124 6ZFC99 Robert Callahan',28,'2024-02-04 19:02:25.121','2024-02-04 19:02:25.121',null,0);
+-INSERT INTO `register`.`merchants` VALUES (490,'GloFiber','GLO FIBER BILLPAY 240201 GLO FIBER ROBERT CALLAHAN',19,'2024-02-04 19:02:37.423','2024-02-04 19:02:37.423',null,0);
+-INSERT INTO `register`.`merchants` VALUES (491,'Olive Tree Properties','Olive Tree Prope WEB PMTS 020124 FSBC99 Robert Callahan',28,'2024-02-04 19:02:51.289','2024-02-04 19:02:51.289',null,0);
+-INSERT INTO `register`.`merchants` VALUES (492,'City of Winchester','CITY OF WINCHEST BILLPAY 240205 CITY OF WINCHES ROBERT T CALLAHAN',67,'2024-02-12 18:32:58.833','2024-02-12 18:32:58.833',null,0);
+-INSERT INTO `register`.`merchants` VALUES (493,'Shenandoah Valley Electric','SHENANDOAH VALLE UTILITY 240204 6376302 ROBERT T *CALLAHAN',22,'2024-02-12 18:33:13.112','2024-02-12 18:33:13.112',null,0);
+-INSERT INTO `register`.`merchants` VALUES (494,'Star Asian Spa','STAR SPA               WINCHESTER    VA',25,'2024-02-19 15:18:07.391','2024-02-19 15:18:07.391',null,0);
+-INSERT INTO `register`.`merchants` VALUES (495,'American Strategies','AMERICAN STRATEG 8662748765 728023F43652 ROBERT CALLAHAN',29,'2024-02-19 15:18:24.128','2024-02-19 15:18:24.128',null,0);
+-INSERT INTO `register`.`merchants` VALUES (496,'Download Helper','WWW.DOWNLOADHELPER.NET SAINT GERVAIS FR',15,'2024-02-27 13:54:53.888','2024-02-27 13:54:53.888',null,0);
+-INSERT INTO `register`.`merchants` VALUES (497,'Data Tech Ljubljana','DATA TECH              LJUBLJANA     SI',18,'2024-02-27 13:55:43.468','2024-02-27 13:55:43.468',null,0);
+-INSERT INTO `register`.`merchants` VALUES (498,'Exxon ','EXXON STOP AND SHOP    WINCHESTER    VA',15,'2024-02-27 13:56:26.871','2024-02-27 13:56:26.871',null,0);
+-INSERT INTO `register`.`merchants` VALUES (499,'AT&T','ATT Payment 022324 094814001EPAYI Family Name',17,'2024-02-27 13:56:35.579','2024-02-27 13:56:35.579',null,0);
+-INSERT INTO `register`.`merchants` VALUES (500,'AppFolio 28','AppFolio, Inc. F WEB PMTS 030124 3256J9 Robert Callahan',28,'2024-03-03 15:58:05.868','2024-03-03 15:58:05.868',null,0);
+-INSERT INTO `register`.`merchants` VALUES (501,'Olive Tree Properties','Olive Tree Prope WEB PMTS 030124 T294J9 Robert Callahan',28,'2024-03-03 15:58:14.959','2024-03-03 15:58:14.959',null,0);
+-INSERT INTO `register`.`merchants` VALUES (502,'AppleCard payment','APPLECARD GSBANK PAYMENT 022824 XXXXX5844 Robert Callahan',18,'2024-03-03 15:58:35.404','2024-03-03 15:58:35.404',null,0);
+-INSERT INTO `register`.`merchants` VALUES (503,'GloFiber','GLO FIBER BILLPAY 240303 GLO FIBER ROBERT CALLAHAN',19,'2024-03-11 15:24:30.355','2024-03-11 15:24:30.355',null,0);
+-INSERT INTO `register`.`merchants` VALUES (504,'Slice King New York Pizza','SLICE*KINGSNEWYORKPIZZ SLICELIFE.COM NY',12,'2024-03-11 15:24:48.410','2024-03-11 15:24:48.410',null,0);
+-INSERT INTO `register`.`merchants` VALUES (505,'Shenandoah Valley Electric','SHENANDOAH VALLE UTILITY 240305 5667916 ROBERT T *CALLAHAN',22,'2024-03-11 15:25:04.509','2024-03-11 15:25:04.509',null,0);
+-INSERT INTO `register`.`merchants` VALUES (506,'BACtrack','BACTRACK V* TRIAL OVER HTTPSMONITORI CA',61,'2024-03-18 13:11:52.394','2024-03-18 13:11:52.394',null,0);
+-INSERT INTO `register`.`merchants` VALUES (507,'shein.com','SHEIN.COM              US.SHEIN.COM  CA',40,'2024-03-25 00:33:44.999','2024-03-25 00:33:44.999',null,0);
+-INSERT INTO `register`.`merchants` VALUES (508,'11','Cash eWithdrawal in Branch 03/20/2024 11:16 AM 2490 VALLEY AVE WINCHESTER VA 0970',11,'2024-03-25 00:33:58.861','2024-03-25 00:33:58.861',null,0);
+-INSERT INTO `register`.`merchants` VALUES (509,'H&R Block Tax Software','H&R BLOCK TAX SOFTWARE 800-472-5625  MO',41,'2024-03-25 00:34:19.205','2024-03-25 00:34:19.205',null,0);
+-INSERT INTO `register`.`merchants` VALUES (510,'shein.com','SHEIN.COM              137-2105366   DE',40,'2024-04-02 19:28:43.292','2024-04-02 19:28:43.292',null,0);
+-INSERT INTO `register`.`merchants` VALUES (511,'AT&T','ATT Payment 032324 701942003EPAYL Family Name',17,'2024-04-02 19:28:52.050','2024-04-02 19:28:52.050',null,0);
+-INSERT INTO `register`.`merchants` VALUES (512,'Transfer from E*Trade','MSPBNA ACH TRNSFR 240325 103464989906 354378605',42,'2024-04-02 19:29:34.910','2024-04-02 19:29:34.910',null,0);
+-INSERT INTO `register`.`merchants` VALUES (513,'Cash','Cash eWithdrawal in Branch 03/27/2024 11:50 AM 2490 VALLEY AVE WINCHESTER VA 0970',11,'2024-04-02 19:29:42.512','2024-04-02 19:29:42.512',null,0);
+-INSERT INTO `register`.`merchants` VALUES (514,'Zelle to Adam Gonder','ZELLE TO GONDER ADAM ON 03/29 REF #PP0S44VLG3 FOR NICKOLAS',41,'2024-04-02 19:30:07.311','2024-04-02 19:30:07.311',null,0);
+-INSERT INTO `register`.`merchants` VALUES (515,'Bo''s Xpress Market','BO''S XPRESS MARKET #10 WINCHESTER    VA',14,'2024-04-02 19:30:22.433','2024-04-02 19:30:22.433',null,0);
+-INSERT INTO `register`.`merchants` VALUES (516,'Olive Tree Property Management','Olive Tree Prope WEB PMTS 040124 JWK9R9',28,'2024-04-02 19:30:40.780','2024-04-02 19:30:40.780',null,0);
+-INSERT INTO `register`.`merchants` VALUES (517,'Nordstrom Direct','Nordstrom Direct',40,'2024-04-02 19:31:02.666','2024-04-02 19:31:02.666',null,0);
+-INSERT INTO `register`.`merchants` VALUES (518,'unknown','Credit Item',58,'2024-04-02 19:31:40.915','2024-04-02 19:31:40.915',null,0);
+-INSERT INTO `register`.`merchants` VALUES (519,'AppFolioo','AppFolio, Inc. F WEB PMTS 040124 TL3JR9',28,'2024-04-02 19:31:57.490','2024-04-02 19:31:57.490',null,0);
+-INSERT INTO `register`.`merchants` VALUES (520,'AppleCard Payment','APPLECARD GSBANK PAYMENT 033124 XXXXX5',18,'2024-04-02 19:32:10.936','2024-04-02 19:32:10.936',null,0);
+-INSERT INTO `register`.`merchants` VALUES (521,'shein.com','SHEIN.COM              188-5298505   CA',40,'2024-04-02 19:32:21.865','2024-04-02 19:32:21.865',null,0);
+-INSERT INTO `register`.`merchants` VALUES (522,'Shein','SHEINUSServicesLLC.   137-2105366   DE',40,'2024-05-06 17:48:24.105','2024-05-06 17:48:24.105',null,0);
+-INSERT INTO `register`.`merchants` VALUES (523,'ffnhelp.com','FFNHELP.COM            888-5758383   FL',41,'2024-05-06 17:49:09.589','2024-05-06 17:49:09.589',null,0);
+-INSERT INTO `register`.`merchants` VALUES (524,'CBDFX','CBDFX                  888-9917471   CA',16,'2024-05-06 17:49:23.457','2024-05-06 17:49:23.457',null,0);
+-INSERT INTO `register`.`merchants` VALUES (525,'Ashley Madison','AMDA                   866-7906550   DE',41,'2024-05-06 17:50:26.370','2024-05-06 17:50:26.370',null,0);
+-INSERT INTO `register`.`merchants` VALUES (526,'Cafe del Sol','TST* CAFE DEL SOL - WI 540-535-2275  VA',12,'2024-05-06 17:50:39.730','2024-05-06 17:50:39.730',null,0);
+-INSERT INTO `register`.`merchants` VALUES (527,'Blissy','BLISSY                 888-590-9670  CA',40,'2024-05-06 17:50:49.388','2024-05-06 17:50:49.388',null,0);
+-INSERT INTO `register`.`merchants` VALUES (528,'BACTrack View','BACTRACK VIEW PLUS     HTTPSMONITORI CA',61,'2024-05-06 17:51:01.556','2024-05-06 17:51:01.556',null,0);
+-INSERT INTO `register`.`merchants` VALUES (529,'Royal Farms','ROYAL FARMS #413       WINCHESTER    VA',12,'2024-05-06 17:51:08.859','2024-05-06 17:51:08.859',null,0);
+-INSERT INTO `register`.`merchants` VALUES (530,'AT&T','ATT Payment 042324 065791001EPAYQ Family Name',17,'2024-05-06 17:51:18.737','2024-05-06 17:51:18.737',null,0);
+-INSERT INTO `register`.`merchants` VALUES (531,'Milanos Sports Bar','MILANOS SPORTS BAR     540-6659437   VA',12,'2024-05-06 17:51:27.964','2024-05-06 17:51:27.964',null,0);
+-INSERT INTO `register`.`merchants` VALUES (532,'Fenghuo Hot Pot BBQ','DD *FENGHUOHOTPOTBBQ   WWW.DOORDASH. CA',12,'2024-05-06 17:51:47.455','2024-05-06 17:51:47.455',null,0);
+-INSERT INTO `register`.`merchants` VALUES (533,'Temu','TEMU.COM               130-248-0611  MA',40,'2024-05-06 17:51:57.269','2024-05-06 17:51:57.269',null,0);
+-INSERT INTO `register`.`merchants` VALUES (534,'eBay','eBay O*10-11503-49464  408-3766151   CA',40,'2024-05-06 17:52:01.869','2024-05-06 17:52:01.869',null,0);
+-INSERT INTO `register`.`merchants` VALUES (535,'Olive Tree Property Mgmt','Olive Tree Prope WEB PMTS 050124 YGDPY9 Robert Callahan',28,'2024-05-06 17:52:16.990','2024-05-06 17:52:16.990',null,0);
+-INSERT INTO `register`.`merchants` VALUES (536,'AppFolio','AppFolio, Inc. F WEB PMTS 050124 01MX34 Robert Callahan',28,'2024-05-06 17:53:17.790','2024-05-06 17:53:17.790',null,0);
+-INSERT INTO `register`.`merchants` VALUES (537,'AppleCard','APPLECARD GSBANK PAYMENT 043024 XXXXX5844 Robert Callahan',18,'2024-05-06 17:53:30.389','2024-05-06 17:53:30.389',null,0);
+-INSERT INTO `register`.`merchants` VALUES (538,'Chopstick Cafe','TST* CHOPSTICK CAFE    Winchester    VA',12,'2024-05-06 17:53:41.140','2024-05-06 17:53:41.140',null,0);
+-INSERT INTO `register`.`merchants` VALUES (539,'GloFiber','GLO FIBER BILLPAY 240502 GLO FIBER ROBERT CALLAHAN',19,'2024-05-06 17:53:49.510','2024-05-06 17:53:49.510',null,0);
+-INSERT INTO `register`.`merchants` VALUES (540,'Nordstrom','SL.NORD* PRODUCTS      HTTPSWWW.NORD NY',40,'2024-05-06 17:54:06.470','2024-05-06 17:54:06.470',null,0);
+-INSERT INTO `register`.`merchants` VALUES (541,'CDH Merchant','CDH MERCHANT           HTTPSWWW.CDHM WA',41,'2024-05-06 17:54:41.788','2024-05-06 17:54:41.788',null,0);
+-INSERT INTO `register`.`merchants` VALUES (542,'Adult Friend Finder','FFNHELP.COM AFF        8885758383    FL',41,'2024-05-19 13:06:59.272','2024-05-19 13:06:59.272',null,0);
+-INSERT INTO `register`.`merchants` VALUES (543,'eBay','eBay O*09-11529-51444  408-3766151   CA',40,'2024-05-19 13:07:17.080','2024-05-19 13:07:17.080',null,0);
+-INSERT INTO `register`.`merchants` VALUES (544,'eBay','eBay O*19-11520-77940  408-3766151   CA',40,'2024-05-19 13:07:27.129','2024-05-19 13:07:27.129',null,0);
+-INSERT INTO `register`.`merchants` VALUES (545,'TBMBM','TBMBM                  888-801-8697  NV',40,'2024-05-19 13:07:44.638','2024-05-19 13:07:44.638',null,0);
+-INSERT INTO `register`.`merchants` VALUES (546,'Shenandoah Valley Electric','SHENANDOAH VALLE UTILITY 240504 4326410 ROBERT T *CALLAHAN',22,'2024-05-19 13:08:25.884','2024-05-19 13:08:25.884',null,0);
+-INSERT INTO `register`.`merchants` VALUES (547,'Ashley Madison','AMDA                   866-7422218   DE',41,'2024-05-19 13:08:48.368','2024-05-19 13:08:48.368',null,0);
+-INSERT INTO `register`.`merchants` VALUES (548,'Cash','Cash eWithdrawal in Branch 05/07/2024 06:47 AM 2490 VALLEY AVE WINCHESTER VA 0970',11,'2024-05-19 13:08:59.160','2024-05-19 13:08:59.160',null,0);
+-INSERT INTO `register`.`merchants` VALUES (549,'Shein','SHEIN.COM              us.shein.com  DE',40,'2024-05-19 13:09:06.654','2024-05-19 13:09:06.654',null,0);
+-INSERT INTO `register`.`merchants` VALUES (550,'Chopstick Cafe','TST* CHOPSTICK CAFE    540-450-8691  VA',12,'2024-05-19 13:09:23.935','2024-05-19 13:09:23.935',null,0);
+-INSERT INTO `register`.`merchants` VALUES (551,'American Strategies','AMERICAN STRATEG 8662748765 3D256ADE27A5 ROBERT CALLAHAN',29,'2024-05-19 13:10:47.376','2024-05-19 13:10:47.376',null,0);
+-INSERT INTO `register`.`merchants` VALUES (552,'Star Asian Spa','STAR SPA',25,'2024-05-19 13:11:02.950','2024-05-19 13:11:02.950',null,0);
+-INSERT INTO `register`.`merchants` VALUES (553,'Solenberger''s Hardware','JNO. S SOLENBERGER AND WINCHESTER    VA',40,'2024-05-19 13:11:37.494','2024-05-19 13:11:37.494',null,0);
+-INSERT INTO `register`.`merchants` VALUES (554,'Transfer from E*Trade','MSPBNA ACH TRNSFR 240523 108067447906 354378605',42,'2024-06-02 14:50:21.817','2024-06-02 14:50:21.817',null,0);
+-INSERT INTO `register`.`merchants` VALUES (555,'AT&T','ATT Payment 052324 173434003EPAYU Family Name',17,'2024-06-02 14:50:37.670','2024-06-02 14:50:37.670',null,0);
+-INSERT INTO `register`.`merchants` VALUES (556,'Doordash','DD DOORDASH BENNYMELE  855-973-1040  CA',12,'2024-06-02 14:50:46.536','2024-06-02 14:50:46.536',null,0);
+-INSERT INTO `register`.`merchants` VALUES (557,'Bo''s Xpress Market','BO''S XPRESS MARKET #103',14,'2024-07-07 01:47:09.703','2024-07-07 01:47:09.703',null,0);
+-INSERT INTO `register`.`merchants` VALUES (558,'Plume House Vape','PLUME HOUSE VAPE CO.',16,'2024-07-07 01:47:26.179','2024-07-07 01:47:26.179',null,0);
+-INSERT INTO `register`.`merchants` VALUES (559,'AT&T','ATT Payment 062324 276393003EPAYZ Family Name',17,'2024-07-07 01:47:39.823','2024-07-07 01:47:39.823',null,0);
+-INSERT INTO `register`.`merchants` VALUES (560,'Umberto''s Pizza','SLICE*UMBERTOSPIZZAPAS SLICELIFE.COM NY',12,'2024-07-07 01:47:59.258','2024-07-07 01:47:59.258',null,0);
+-INSERT INTO `register`.`merchants` VALUES (561,'AppleCard Payment','APPLECARD GSBANK PAYMENT 063024 XXXXX5844 Robert Callahan',34,'2024-07-07 01:49:04.643','2024-07-07 01:49:04.643',null,0);
+-INSERT INTO `register`.`merchants` VALUES (562,'AppFolio','AppFolio, Inc. F WEB PMTS 070224 86SZ84 Robert Callahan',28,'2024-07-07 01:49:22.730','2024-07-07 01:49:22.730',null,0);
+-INSERT INTO `register`.`merchants` VALUES (563,'Olive Tree Properties','Olive Tree Prope WEB PMTS 070224 XK598B Robert Callahan',28,'2024-07-07 01:49:49.963','2024-07-07 01:49:49.963',null,0);
+-INSERT INTO `register`.`merchants` VALUES (564,'GloFiber','GLO FIBER BILLPAY 240702 GLO FIBER ROBERT CALLAHAN',19,'2024-07-07 01:50:03.400','2024-07-07 01:50:03.400',null,0);
+-INSERT INTO `register`.`merchants` VALUES (565,'Shenandoah Valley Utility','SHENANDOAH VALLE UTILITY 240704 3615367 ROBERT T *CALLAHAN',22,'2024-07-07 01:50:20.490','2024-07-07 01:50:20.490',null,0);
+-INSERT INTO `register`.`merchants` VALUES (566,'Plume House Vape','PLUME HOUSE VAPE C',16,'2024-07-07 01:50:37.988','2024-07-07 01:50:37.988',null,0);
+-INSERT INTO `register`.`merchants` VALUES (567,'Uno''s Pizza','WWW.UNOS.C* UNO CHICAG WWW.UNOS.COM  VA',12,'2024-07-07 01:50:49.766','2024-07-07 01:50:49.766',null,0);
+-INSERT INTO `register`.`merchants` VALUES (568,'AppleCard Payment','APPLECARD GSBANK PAYMENT 053124 XXXXX5844 Robert Callahan',34,'2024-07-07 02:10:03.996','2024-07-07 02:10:03.996',null,0);
+-INSERT INTO `register`.`merchants` VALUES (569,'Olive Tree Properties','Olive Tree Prope WEB PMTS 060324 ZC7G3B Robert Callahan',28,'2024-07-07 02:10:21.902','2024-07-07 02:10:21.902',null,0);
+-INSERT INTO `register`.`merchants` VALUES (570,'AppFolio','AppFolio, Inc. F WEB PMTS 060324 PMPG64 Robert Callahan',28,'2024-07-07 02:10:32.578','2024-07-07 02:10:32.578',null,0);
+-INSERT INTO `register`.`merchants` VALUES (571,'GloFiber','GLO FIBER BILLPAY 240601 GLO FIBER ROBERT CALLAHAN',19,'2024-07-07 02:10:47.211','2024-07-07 02:10:47.211',null,0);
+-INSERT INTO `register`.`merchants` VALUES (572,'City of Winchester','CITY OF WINCHEST BILLPAY 240603 CITY OF WINCHES ROBERT T CALLAHAN',67,'2024-07-07 02:11:08.580','2024-07-07 02:11:08.580',null,0);
+-INSERT INTO `register`.`merchants` VALUES (573,'Shenandoah Valley Electric','SHENANDOAH VALLE UTILITY 240604 3905573 ROBERT T *CALLAHAN',22,'2024-07-07 02:11:23.600','2024-07-07 02:11:23.600',null,0);
+-INSERT INTO `register`.`merchants` VALUES (574,'American Strategies','AMERICAN STRATEG 8662748765 56390A635843 ROBERT CALLAHAN',29,'2024-07-07 02:11:39.452','2024-07-07 02:11:39.452',null,0);
+-INSERT INTO `register`.`merchants` VALUES (575,'Chopstick Cafe','DD DOORDASH CHOPSTICK  855-973-1040  CA',12,'2024-08-16 15:18:43.732','2024-08-16 15:18:43.732',null,0);
+-INSERT INTO `register`.`merchants` VALUES (576,'Chinatown Kitchen','Y & F CHINATOWN KITCHE WINCHESTER    VA',12,'2024-08-16 15:18:56.556','2024-08-16 15:18:56.556',null,0);
+-INSERT INTO `register`.`merchants` VALUES (577,'craigslist.org','CRAIGSLIST.ORG         415-399-5200  CA',41,'2024-08-16 15:19:24.616','2024-08-16 15:19:24.616',null,0);
+-INSERT INTO `register`.`merchants` VALUES (578,'TotalAV','TotalAV.com            833-2018681   CA',18,'2024-08-16 15:19:40.563','2024-08-16 15:19:40.563',null,0);
+-INSERT INTO `register`.`merchants` VALUES (579,'Tinder','gotinder.com/help      Tinder        TX',41,'2024-08-16 15:20:19.494','2024-08-16 15:20:19.494',null,0);
+-INSERT INTO `register`.`merchants` VALUES (580,'Safeway','SAFEWAY 0764           ARLINGTON     VA',14,'2024-08-16 15:20:30.910','2024-08-16 15:20:30.910',null,0);
+-INSERT INTO `register`.`merchants` VALUES (581,'TKNBill.com','TKNBILL.COM            London        GB',41,'2024-08-16 15:21:00.300','2024-08-16 15:21:00.300',null,0);
+-INSERT INTO `register`.`merchants` VALUES (582,'Walmart','WAL-MART #1406         WINCHESTER    VA',14,'2024-08-16 15:21:14.180','2024-08-16 15:21:14.180',null,0);
+-INSERT INTO `register`.`merchants` VALUES (583,'Tinder','gotinder.com/help      214-8534309   TX',41,'2024-08-16 15:21:26.130','2024-08-16 15:21:26.130',null,0);
+-INSERT INTO `register`.`merchants` VALUES (584,'Aroma Deli','AROMA DELI             WINCHESTER    VA',12,'2024-11-18 16:59:26.781','2024-11-18 16:59:26.781',null,0);
+-INSERT INTO `register`.`merchants` VALUES (585,'The Tight Spot','THE TIGHT SPOT ST. HELIER GB - 29.8000 POUND STERLING',40,'2024-11-18 16:59:48.256','2024-11-18 16:59:48.256',null,0);
+-INSERT INTO `register`.`merchants` VALUES (586,'Cintilet.com','Cintilet.com           442037449596  IE',41,'2024-12-12 06:26:25.649','2024-12-12 06:26:25.649',null,0);
+-INSERT INTO `register`.`merchants` VALUES (587,'CELLARDOORLTD','INFOSECUREPAY365.COM   CELLARDOORLTD GI',41,'2024-12-12 06:26:41.267','2024-12-12 06:26:41.267',null,0);
+-INSERT INTO `register`.`merchants` VALUES (588,'SPRED','SPRED                  +1844211-8832 CZ',41,'2024-12-12 06:26:53.586','2024-12-12 06:26:53.586',null,0);
+-INSERT INTO `register`.`merchants` VALUES (589,'FFNHELP.COM','FFNHELP.COM AFF        888-5758383   FL',41,'2024-12-12 06:27:02.256','2024-12-12 06:27:02.256',null,0);
+-INSERT INTO `register`.`merchants` VALUES (590,'Bumble','Bumble help@bumble.com 207-0990939   CA',41,'2024-12-12 06:27:15.878','2024-12-12 06:27:15.878',null,0);
+-INSERT INTO `register`.`merchants` VALUES (591,'Pizzaco','SQ *PIZZOCO            gosq.com      VA',12,'2024-12-12 06:27:38.538','2024-12-12 06:27:38.538',null,0);
+-INSERT INTO `register`.`merchants` VALUES (592,'EZPASSVA','EZPASSVA SERVICE       877-7627824   VA',41,'2024-12-12 06:28:03.876','2024-12-12 06:28:03.876',null,0);
+-INSERT INTO `register`.`merchants` VALUES (593,'Slice','SLICE*PERUSCHICKENREST SLICELIFE.COM NY',12,'2024-12-12 06:28:17.997','2024-12-12 06:28:17.997',null,0);
+-INSERT INTO `register`.`merchants` VALUES (594,'SegPayEU.com','SegPayEU.com*SB        866-450-4000  CY',41,'2024-12-12 06:28:27.941','2024-12-12 06:28:27.941',null,0);
+-INSERT INTO `register`.`merchants` VALUES (595,'Dashlane','DASHLANE U* DASHLANE P HTTPSWWW.DASH NY',12,'2024-12-12 06:28:43.510','2024-12-12 06:28:43.510',null,0);
+-INSERT INTO `register`.`merchants` VALUES (596,'EDGEHILL RECOVERY CENT','EDGEHILL RECOVERY CENT WINCHESTER    VA',41,'2024-12-12 06:28:55.785','2024-12-12 06:28:55.785',null,0);
+-INSERT INTO `register`.`merchants` VALUES (597,'SMOKE KING','SMOKE KING             WINCHESTER    VA',41,'2024-12-12 06:29:06.670','2024-12-12 06:29:06.670',null,0);
+-INSERT INTO `register`.`merchants` VALUES (598,'LOY*PATHGROUP','LOY*PATHGROUP          615-234-4521  TN',41,'2024-12-12 06:29:26.406','2024-12-12 06:29:26.406',null,0);
+-INSERT INTO `register`.`merchants` VALUES (599,'QEFIS.COM (fraud)','PROV FR CR QEFIS.COM           # 2397',41,'2025-02-08 17:19:23.700','2025-02-08 17:19:23.700',null,0);
+-INSERT INTO `register`.`merchants` VALUES (600,'Bogato','BOGATO                 PROVO         UT',41,'2025-02-08 17:19:33.394','2025-02-08 17:19:33.394',null,0);
+-INSERT INTO `register`.`merchants` VALUES (601,'NETKAN3.COM ','PROV FR CR NETKAN3.COM         # 5662',41,'2025-02-08 17:19:44.400','2025-02-08 17:19:44.400',null,0);
+-INSERT INTO `register`.`merchants` VALUES (602,'ECHST.NET','PROV FR CR ECHST.NET           # 4850',41,'2025-02-08 17:19:53.608','2025-02-08 17:19:53.608',null,0);
+-INSERT INTO `register`.`merchants` VALUES (603,'FFNHELP.COM','PROV FR CR FFNHELP.COM AFF     # 4640',41,'2025-02-08 17:20:02.217','2025-02-08 17:20:02.217',null,0);
+-INSERT INTO `register`.`merchants` VALUES (604,'FFNHELP.COM','PROV FR CR FFNHELP.COM AFF     # 8060',41,'2025-02-08 17:20:08.284','2025-02-08 17:20:08.284',null,0);
+-INSERT INTO `register`.`merchants` VALUES (605,'BOGATO','PROV FR CR BOGATO              # 2403',41,'2025-02-08 17:20:18.147','2025-02-08 17:20:18.147',null,0);
+-INSERT INTO `register`.`merchants` VALUES (606,'AQAX3T.COM','PROV FR CR AQAX3T.COM          # 5527',41,'2025-02-08 17:20:25.892','2025-02-08 17:20:25.892',null,0);
+-INSERT INTO `register`.`merchants` VALUES (607,'SPRED','PROV FR CR SPRED               # 8666',41,'2025-02-08 17:20:34.139','2025-02-08 17:20:34.139',null,0);
+-INSERT INTO `register`.`merchants` VALUES (608,'BOGATO','PROV FR CR BOGATO              # 3879',41,'2025-02-08 17:20:44.700','2025-02-08 17:20:44.700',null,0);
+-INSERT INTO `register`.`merchants` VALUES (609,'BOGATO','REV PROV FR CR BOGATO          # 2403',41,'2025-02-08 17:20:51.793','2025-02-08 17:20:51.793',null,0);
+-INSERT INTO `register`.`merchants` VALUES (610,'BOGATO','REV PROV FR CR BOGATO          # 3879',41,'2025-02-08 17:21:07.533','2025-02-08 17:21:07.533',null,0);
+-INSERT INTO `register`.`merchants` VALUES (611,'SPRED','REV PROV FR CR SPRED           # 8666',41,'2025-02-08 17:21:13.685','2025-02-08 17:21:13.685',null,0);
+-INSERT INTO `register`.`merchants` VALUES (612,'Handley Library','HANDLEY REGIONAL LIBRA WINCHESTER    VA',15,'2025-02-08 17:21:31.434','2025-02-08 17:21:31.434',null,0);
+-INSERT INTO `register`.`merchants` VALUES (613,'OurTime.com','PM *OurTime.com        833-2238874   TX',41,'2025-02-08 17:21:41.685','2025-02-08 17:21:41.685',null,0);
+-INSERT INTO `register`.`merchants` VALUES (614,'Hostinger','HOSTINGER* HOSTINGER.C',41,'2025-02-08 17:21:50.957','2025-02-08 17:21:50.957',null,0);
+-INSERT INTO `register`.`merchants` VALUES (615,'Business Filing','BUSINESS FILING',41,'2025-02-08 17:22:18.864','2025-02-08 17:22:18.864',null,0);
+-INSERT INTO `register`.`merchants` VALUES (616,'MeetMyAge.com','MEETMYAGE.COM',41,'2025-02-08 17:22:29.895','2025-02-08 17:22:29.895',null,0);
+-INSERT INTO `register`.`merchants` VALUES (617,'Shenandoah Valley Utility','SHENANDOAH VALLE UTILITY 250127 4660292 ROBERT T *CALLAHAN',22,'2025-02-08 17:30:03.100','2025-02-08 17:30:03.100',null,0);
+-INSERT INTO `register`.`merchants` VALUES (618,'Transfer from E*Trade','MSPBNA ACH TRNSFR 250127 128152644906 354378605',42,'2025-02-08 17:30:24.432','2025-02-08 17:30:24.432',null,0);
+-INSERT INTO `register`.`merchants` VALUES (619,'AppleCard payment','APPLECARD GSBANK PAYMENT 013125 XXXXX5844 Robert Callahan',34,'2025-02-08 17:31:11.507','2025-02-08 17:31:11.507',null,0);
+-INSERT INTO `register`.`merchants` VALUES (620,'AppFolio','AppFolio, Inc. F WEB PMTS 020325 QB2XV4 Robert Callahan',28,'2025-02-08 17:31:20.846','2025-02-08 17:31:20.846',null,0);
+-INSERT INTO `register`.`merchants` VALUES (621,'GloFiber','GLO FIBER BILLPAY 250201 GLO FIBER ROBERT CALLAHAN',19,'2025-02-08 17:31:29.886','2025-02-08 17:31:29.886',null,0);
+-INSERT INTO `register`.`merchants` VALUES (622,'Olive Tree Properties','Olive Tree Prope WEB PMTS 020325 3S0VBC Robert Callahan',28,'2025-02-08 17:31:40.339','2025-02-08 17:31:40.339',null,0);
+-INSERT INTO `register`.`merchants` VALUES (623,'REV PROV CR FFNHELP','REV PROV CR FFNHELP.',41,'2025-02-18 15:29:58.481','2025-02-18 15:29:58.481',null,0);
+-INSERT INTO `register`.`merchants` VALUES (624,'Square','Square Inc ACCTVERIFY 250211 T3F9N8S4W3D7EZX Robert Callahan',41,'2025-02-18 15:30:08.142','2025-02-18 15:30:08.142',null,0);
+-INSERT INTO `register`.`merchants` VALUES (625,'Square','Square Inc ACCTVERIFY 250211 T3PJ9432DAJSXSQ Robert Callahan',41,'2025-02-18 15:30:15.684','2025-02-18 15:30:15.684',null,0);
+-INSERT INTO `register`.`merchants` VALUES (626,'Cash','Cash eWithdrawal in Branch 02/14/2025 11:51 AM 2490 VALLEY AVE WINCHESTER VA 0970',11,'2025-02-18 15:30:23.325','2025-02-18 15:30:23.325',null,0);
+-INSERT INTO `register`.`merchants` VALUES (627,'American Strategies','AMERICAN STRATEG 0BDF199984 250213 ROBERT CALLAHAN',29,'2025-02-24 19:45:29.239','2025-02-24 19:45:29.239',null,0);
+-INSERT INTO `register`.`merchants` VALUES (628,'Blue Ridge Tech Services','SQ *BLUE RIDGE TECH SE Winchester    VA',42,'2025-02-24 19:45:45.120','2025-02-24 19:45:45.120',null,0);
+-INSERT INTO `register`.`merchants` VALUES (629,'Snibbs','SP SNIBBS              SNIBBS.CO     CA',41,'2025-02-24 19:46:04.301','2025-02-24 19:46:04.301',null,0);
+-INSERT INTO `register`.`merchants` VALUES (630,'Square','Square Inc SQ250220 250220 T3ZJMANYYWBFNSS Robert Callahan',42,'2025-02-24 19:46:13.318','2025-02-24 19:46:13.318',null,0);
+-INSERT INTO `register`.`merchants` VALUES (631,'Wix','WIX.COM                1-415-6399034 CA',41,'2025-02-24 19:46:20.940','2025-02-24 19:46:20.940',null,0);
+-INSERT INTO `register`.`merchants` VALUES (632,'MSPBNA ACH TRNSFR','MSPBNA ACH TRNSFR 250221 130450962906 354378605',42,'2025-02-27 12:56:30.878','2025-02-27 12:56:30.878',null,0);
+-INSERT INTO `register`.`merchants` VALUES (633,'ATT','ATT Payment 022325 814931002EPAYK Family Name',17,'2025-02-27 12:56:42.825','2025-02-27 12:56:42.825',null,0);
+-INSERT INTO `register`.`merchants` VALUES (634,'Office Depot','OFFICE DEPOT #2943     800-463-3768  PA',41,'2025-03-06 15:54:05.923','2025-03-06 15:54:05.923',null,0);
+-INSERT INTO `register`.`merchants` VALUES (635,'AppleCard','APPLECARD GSBANK PAYMENT 022725 XXXXX5844 Robert Callahan',31,'2025-03-06 15:54:26.800','2025-03-06 15:54:26.800',null,0);
+-INSERT INTO `register`.`merchants` VALUES (636,'AppFolio','AppFolio, Inc. F WEB PMTS 030325 X3CFY4 Robert Callahan',28,'2025-03-06 15:54:37.378','2025-03-06 15:54:37.378',null,0);
+-INSERT INTO `register`.`merchants` VALUES (637,'Olive Tree Property Mgmt','Olive Tree Prope WEB PMTS 030325 7F0LHC Robert Callahan',28,'2025-03-06 15:54:50.770','2025-03-06 15:54:50.770',null,0);
+-INSERT INTO `register`.`merchants` VALUES (638,'Glo Fiber','GLO FIBER BILLPAY 250304 GLO FIBER ROBERT CALLAHAN',19,'2025-03-06 15:54:57.255','2025-03-06 15:54:57.255',null,0);
+-INSERT INTO `register`.`merchants` VALUES (639,'Shenandoah Valley Utility','SHENANDOAH VALLE UTILITY 250305 9305923 ROBERT T *CALLAHAN',22,'2025-03-08 15:43:40.434','2025-03-08 15:43:40.434',null,0);
+-INSERT INTO `register`.`merchants` VALUES (640,'Chopstick Cafe','TST*CHOPSTICK CAFE     Winchester    VA',12,'2025-03-13 22:17:43.612','2025-03-13 22:17:43.612',null,0);
+-INSERT INTO `register`.`merchants` VALUES (641,'American Strategies','AMERICAN STRATEG E0320CCF74 250313 ROBERT CALLAHAN',29,'2025-03-22 16:09:54.138','2025-03-22 16:09:54.138',null,0);
+-INSERT INTO `register`.`merchants` VALUES (642,'Facebook Marketing','FACEBK *B2VAWJ4952     650-5434800   CA',41,'2025-03-22 16:10:21.420','2025-03-22 16:10:21.420',null,0);
+-INSERT INTO `register`.`merchants` VALUES (643,'Facebook Marketing','FACEBK *KWDW8KU952     650-5434800   CA',41,'2025-03-22 16:10:24.867','2025-03-22 16:10:24.867',null,0);
+-INSERT INTO `register`.`merchants` VALUES (644,'Facebook Marketing','FACEBK *PTF6GKQ952     650-5434800   CA',41,'2025-03-22 16:10:29.579','2025-03-22 16:10:29.579',null,0);
+-INSERT INTO `register`.`merchants` VALUES (645,'Facebook Marketing','FACEBK *B83UXLU852     650-5434800   CA',41,'2025-03-22 16:10:34.758','2025-03-22 16:10:34.758',null,0);
+-INSERT INTO `register`.`merchants` VALUES (646,'Facebook Marketing','FACEBK *RCSJJKY852     650-5434800   CA',41,'2025-03-22 16:10:38.635','2025-03-22 16:10:38.635',null,0);
+-INSERT INTO `register`.`merchants` VALUES (647,'Facebook Marketing','FACEBK *9D94DKU952     650-5434800   CA',41,'2025-03-22 16:10:42.909','2025-03-22 16:10:42.909',null,0);
+-INSERT INTO `register`.`merchants` VALUES (648,'50/50 Taphouse','50/50                  WINCHESTER    VA',12,'2025-03-22 16:11:00.654','2025-03-22 16:11:00.654',null,0);
+-INSERT INTO `register`.`merchants` VALUES (649,'Element Vape','WWW.ELEMEN* ELEMENT SP WWW.ELEMENTSP VA',16,'2025-03-22 16:11:17.109','2025-03-22 16:11:17.109',null,0);
+-INSERT INTO `register`.`merchants` VALUES (650,'Wix','WIX.COM 1168723961     WWW.WIX.COM   CA',18,'2025-03-22 16:12:08.271','2025-03-22 16:12:08.271',null,0);
+-INSERT INTO `register`.`merchants` VALUES (651,'Facebook Marketing','FACEBK *5JP22KG952     650-5434800   CA',41,'2025-03-22 16:12:21.230','2025-03-22 16:12:21.230',null,0);
+-INSERT INTO `register`.`merchants` VALUES (652,'Match.com','MATCH.COM              800-326-5161  TX',41,'2025-03-22 16:12:32.409','2025-03-22 16:12:32.409',null,0);
+-INSERT INTO `register`.`merchants` VALUES (653,'50/50 Taphouse','NOVA BEER LLC DIRECT DEP 250321 92903705267842A CALLAHAN,ROBERT',42,'2025-03-22 16:13:03.964','2025-03-22 16:13:03.964',null,0);
+-INSERT INTO `register`.`merchants` VALUES (654,'GeekVape','USP*geekvape           Hong Kong     HK',16,'2025-03-29 19:07:17.548','2025-03-29 19:07:17.548',null,0);
+-INSERT INTO `register`.`merchants` VALUES (655,'Facebook','FACEBK *63Z63KG952     650-5434800   CA',41,'2025-03-29 19:07:24.290','2025-03-29 19:07:24.290',null,0);
+-INSERT INTO `register`.`merchants` VALUES (656,'Transfer from E*Trade','MSPBNA ACH TRNSFR 250321 132991093906 354378605',42,'2025-03-29 19:07:46.797','2025-03-29 19:07:46.797',null,0);
+-INSERT INTO `register`.`merchants` VALUES (657,'AT&T','ATT Payment 032325 396430002EPAYM Family Name',17,'2025-03-29 19:07:55.958','2025-03-29 19:07:55.958',null,0);
+-INSERT INTO `register`.`merchants` VALUES (658,'Transfer from E*Trade','MSPBNA ACH TRNSFR 250325 133248617906 354378605',42,'2025-03-29 19:08:07.781','2025-03-29 19:08:07.781',null,0);
+-INSERT INTO `register`.`merchants` VALUES (659,'Espresso Bar & Cafe','SQ *ESPRESSO BAR & CAF Winchester    VA',12,'2025-03-29 19:08:18.963','2025-03-29 19:08:18.963',null,0);
+-INSERT INTO `register`.`merchants` VALUES (660,'Winchester Transit','WINCHESTER TRANSIT     WWW.WINCHESTE VA',13,'2025-04-08 12:47:53.904','2025-04-08 12:47:53.904',null,0);
+-INSERT INTO `register`.`merchants` VALUES (661,'AppFolio','AppFolio, Inc. F WEB PMTS 040125 K59Y05 Robert Callahan',28,'2025-04-08 12:48:04.449','2025-04-08 12:48:04.449',null,0);
+-INSERT INTO `register`.`merchants` VALUES (662,'AppleCard Payment','APPLECARD GSBANK PAYMENT 033125 XXXXX5844 Robert Callahan',31,'2025-04-08 12:48:42.809','2025-04-08 12:48:42.809',null,0);
+-INSERT INTO `register`.`merchants` VALUES (663,'Glo Fiber','GLO FIBER BILLPAY 250401 GLO FIBER ROBERT CALLAHAN',19,'2025-04-08 12:48:53.881','2025-04-08 12:48:53.881',null,0);
+-INSERT INTO `register`.`merchants` VALUES (664,'VA Department of Taxation','VA DEPT TAXATION WITHDRAWAL 250328 XXXXX2314 ROBERT CALLAH',59,'2025-04-08 12:49:09.478','2025-04-08 12:49:09.478',null,0);
+-INSERT INTO `register`.`merchants` VALUES (665,'Olive Tree Properties','Olive Tree Prope WEB PMTS 040125 8DGBNC Robert Callahan',28,'2025-04-08 12:49:21.561','2025-04-08 12:49:21.561',null,0);
+-INSERT INTO `register`.`merchants` VALUES (666,'Ground News','GROUND NEWS            KITCHENER     ON',18,'2025-04-08 12:49:45.447','2025-04-08 12:49:45.447',null,0);
+-INSERT INTO `register`.`merchants` VALUES (667,'Transfer from Fidelity Rewards','FID BKG SVC LLC MONEYLINE 250403 X1571692814V08I ROBERT T CALLAHAN',42,'2025-04-08 12:50:09.728','2025-04-08 12:50:09.728',null,0);
+-INSERT INTO `register`.`merchants` VALUES (668,'50/50 Taphouse Pay','NOVA BEER LLC DIRECT DEP 250404 43256509152442A CALLAHAN,ROBERT',42,'2025-04-08 12:50:40.580','2025-04-08 12:50:40.580',null,0);
+-INSERT INTO `register`.`merchants` VALUES (669,'Shenandoah Valley Utility','SHENANDOAH VALLE UTILITY 250404 0045565',22,'2025-04-08 12:50:59.152','2025-04-08 12:50:59.152',null,0);
+-INSERT INTO `register`.`merchants` VALUES (670,'IRS Treasury Refund','IRS TREAS 310 TAX REF 040925 XXXXXXXXXX00',59,'2025-04-08 12:51:21.132','2025-04-08 12:51:21.132',null,0);
+-INSERT INTO `register`.`merchants` VALUES (671,'Atlas Counseling','SQ *ATLAS COUNSELING C WINCHESTER    VA',61,'2025-04-15 14:26:23.886','2025-04-15 14:26:23.886',null,0);
+-INSERT INTO `register`.`merchants` VALUES (672,'EHarmony','EHARMONY               800-2044237   CA',41,'2025-04-15 14:29:00.262','2025-04-15 14:29:00.262',null,0);
+-INSERT INTO `register`.`merchants` VALUES (673,'American Strategies','AMERICAN STRATEG B5DE00CB63 250414 ROBERT CALLAHAN',29,'2025-04-22 14:07:59.143','2025-04-22 14:07:59.143',null,0);
+-INSERT INTO `register`.`merchants` VALUES (674,'Transfer from E*Trade','MSPBNA ACH TRNSFR 250416 135479756906 354378605',42,'2025-04-22 14:08:19.750','2025-04-22 14:08:19.750',null,0);
+-INSERT INTO `register`.`merchants` VALUES (675,'50/50 Taphouse paycheck','NOVA BEER LLC DIRECT DEP 250418 51909677671942A CALLAHAN,ROBERT',42,'2025-04-22 14:08:38.350','2025-04-22 14:08:38.350',null,0);
+-INSERT INTO `register`.`merchants` VALUES (676,'Wix web hosting service','WIX.COM 1174022749     WWW.WIX.COM   CA',41,'2025-04-22 14:08:56.990','2025-04-22 14:08:56.990',null,0);
+-INSERT INTO `register`.`merchants` VALUES (677,'AT&T','ATT Payment 042325 860245002EPA',17,'2025-04-26 15:21:32.573','2025-04-26 15:21:32.573',null,0);
+-INSERT INTO `register`.`merchants` VALUES (678,'OKCupid','OkCupid.com            646-4507073   NY',41,'2025-05-05 17:47:59.490','2025-05-05 17:47:59.490',null,0);
+-INSERT INTO `register`.`merchants` VALUES (679,'Apple Cash transfer','APPLE CASH BANK XFER Rob Callahan Rob Callahan',42,'2025-05-05 17:48:16.364','2025-05-05 17:48:16.364',null,0);
+-INSERT INTO `register`.`merchants` VALUES (680,'MasterCard payment','BILL PAY MasterCard ON-LINE xxxxxxxxxxxx5189 ON 04-29',31,'2025-05-05 17:48:27.840','2025-05-05 17:48:27.840',null,0);
+-INSERT INTO `register`.`merchants` VALUES (681,'AppleCard payment','APPLECARD GSBANK PAYMENT 043025 XXXXX5844 Robert Callahan',31,'2025-05-05 17:48:44.441','2025-05-05 17:48:44.441',null,0);
+-INSERT INTO `register`.`merchants` VALUES (682,'AppFolio','AppFolio, Inc. F WEB PMTS 050125 V3ZC35 Robert Callahan',28,'2025-05-05 17:48:52.209','2025-05-05 17:48:52.209',null,0);
+-INSERT INTO `register`.`merchants` VALUES (683,'Olive Tree Properties','Olive Tree Prope WEB PMTS 050125 KTY1TC Robert Callahan',28,'2025-05-05 17:49:03.484','2025-05-05 17:49:03.484',null,0);
+-INSERT INTO `register`.`merchants` VALUES (684,'GloFiber','GLO FIBER BILLPAY 250502 GLO FIBER ROBERT CALLAHAN',19,'2025-05-05 17:49:10.893','2025-05-05 17:49:10.893',null,0);
+-INSERT INTO `register`.`merchants` VALUES (685,'NordVPN','SL.NORD* PRODUCTS      NORDVPN.COM   NY',18,'2025-05-05 17:49:30.877','2025-05-05 17:49:30.877',null,0);
+-INSERT INTO `register`.`merchants` VALUES (686,'50/50 Taphouse paycheck','NOVA BEER LLC DIRECT DEP 250502 79809858981342A CALLAHAN,ROBERT',42,'2025-05-05 17:49:48.944','2025-05-05 17:49:48.944',null,0);
+-INSERT INTO `register`.`merchants` VALUES (687,'Plenty of Fish','POF.COM                888-2999531   TX',41,'2025-05-13 18:29:42.170','2025-05-13 18:29:42.170',null,0);
+-INSERT INTO `register`.`merchants` VALUES (688,'Shenandoah Valley Utility','SHENANDOAH VALLE UTILITY 250504 1101488 ROBERT T *CALLAHAN',22,'2025-05-13 18:29:54.239','2025-05-13 18:29:54.239',null,0);
+-INSERT INTO `register`.`merchants` VALUES (689,'American Strategies','AMERICAN STRATEG 14960E636B 250514 ROBERT CALLAHAN',29,'2025-05-24 18:30:10.543','2025-05-24 18:30:10.543',null,0);
+-INSERT INTO `register`.`merchants` VALUES (690,'North Spore','SP NORTH SPORE         NORTHSPORE.CO ME',41,'2025-05-24 18:30:27.506','2025-05-24 18:30:27.506',null,0);
+-INSERT INTO `register`.`merchants` VALUES (693,'American Strategies','AMERICAN STRATEG 14960E636B 250514 866-274-8765 ROBERT CALLAHAN',29,'2025-05-24 19:57:10.244','2025-05-24 19:57:10.244',null,0);
+-INSERT INTO `register`.`merchants` VALUES (694,'ServSafe','NTLREST SERVSAFE       312-7151010   IL',41,'2025-06-15 16:31:40.206','2025-06-15 16:31:40.206',null,0);
+-INSERT INTO `register`.`merchants` VALUES (695,'Sunflower Trading Company','SUNFLOWER TRADING COMP ELLICOTT CITY MD',40,'2025-06-15 16:41:56.487','2025-06-15 16:41:56.487',null,0);
+-INSERT INTO `register`.`merchants` VALUES (696,'Olive Tree Properties','Olive Tree Prope WEB PMTS 060225 V1SBZC Robert Callahan',28,'2025-06-15 17:19:50.716','2025-06-15 17:19:50.716',null,0);
+-INSERT INTO `register`.`merchants` VALUES (697,'AppleCard Payment','APPLECARD GSBANK PAYMENT 053125 XXXXX5844 Robert Callahan',31,'2025-06-15 17:20:02.270','2025-06-15 17:20:02.270',null,0);
+-INSERT INTO `register`.`merchants` VALUES (698,'AppFolio, Inc','AppFolio, Inc. F WEB PMTS 060225 HZL165 Robert Callahan',28,'2025-06-15 17:20:17.280','2025-06-15 17:20:17.280',null,0);
+-INSERT INTO `register`.`merchants` VALUES (699,'City of Winchester','CITY OF WINCHEST BILLPAY 250602 CITY OF WINCHES ROBERT T CALLAHAN',67,'2025-06-15 17:20:34.106','2025-06-15 17:20:34.106',null,0);
+-INSERT INTO `register`.`merchants` VALUES (700,'GloFiber','GLO FIBER BILLPAY 250601 GLO FIBER ROBERT CALLAHAN',19,'2025-06-15 17:20:48.619','2025-06-15 17:20:48.619',null,0);
+-INSERT INTO `register`.`merchants` VALUES (701,'Shenandoah Valley Electric','SHENANDOAH VALLE UTILITY 250604 2543859 ROBERT T *CALLAHAN',22,'2025-06-15 17:21:09.469','2025-06-15 17:21:09.469',null,0);
+-INSERT INTO `register`.`merchants` VALUES (702,'Kindle','Kindle Svcs*NH4FG97L0',15,'2025-06-15 17:21:28.206','2025-06-15 17:21:28.206',null,0);
+-INSERT INTO `register`.`merchants` VALUES (703,'American Strategies','AMERICAN STRATEG 84470BF00F 250616 ROBERT CALLAHAN',29,'2025-06-19 14:51:26.257','2025-06-19 14:51:26.257',null,0);
+-INSERT INTO `register`.`merchants` VALUES (704,'AT&T','ATT Payment 052325 552608003EPAYV Family Name',17,'2025-07-15 12:57:42.880','2025-07-15 12:57:42.880',null,0);
+-INSERT INTO `register`.`merchants` VALUES (705,'Transfer from E*Trade','MSPBNA ACH TRNSFR 250527 138718467906 354378605',42,'2025-07-15 12:58:10.760','2025-07-15 12:58:10.760',null,0);
+-INSERT INTO `register`.`merchants` VALUES (706,'OneFreshHat','WWW.ONEFRESHHAT.COM    WWW.ONEFRESHH MD',40,'2025-07-15 12:58:25.152','2025-07-15 12:58:25.152',null,0);
+-INSERT INTO `register`.`merchants` VALUES (707,'Wix','WIX.COM*1184363243     800-6000949   NY',18,'2025-07-15 12:58:36.459','2025-07-15 12:58:36.459',null,0);
+-INSERT INTO `register`.`merchants` VALUES (708,'dev.marketprohacks.com','dev.marketprohacks.com 1-888-889-108 IE',41,'2025-07-15 12:58:58.357','2025-07-15 12:58:58.357',null,0);
+-INSERT INTO `register`.`merchants` VALUES (709,'AT&T','ATT PAYMENT 062325 066951002EPAYA Family Name',17,'2025-07-15 12:59:06.600','2025-07-15 12:59:06.600',null,0);
+-INSERT INTO `register`.`merchants` VALUES (710,'Transfer from E*Trade','MSPBNA ACH TRNSFR 250625 141217690906 354378605',42,'2025-07-15 12:59:41.415','2025-07-15 12:59:41.415',null,0);
+-INSERT INTO `register`.`merchants` VALUES (711,'CCBill.com The Mayflower','CCBill.com *The Mayflowe',41,'2025-07-15 13:00:19.633','2025-07-15 13:00:19.633',null,0);
+-INSERT INTO `register`.`merchants` VALUES (712,'CCBill.com ICF Technologies','CCBill.com *ICF Technolo',41,'2025-07-15 13:00:40.636','2025-07-15 13:00:40.636',null,0);
+-INSERT INTO `register`.`merchants` VALUES (713,'SSP TACDAY','SP TACDAY',41,'2025-07-15 13:01:31.925','2025-07-15 13:01:31.925',null,0);
+-INSERT INTO `register`.`merchants` VALUES (714,'getonce.com','getonce.com',41,'2025-07-15 13:01:43.728','2025-07-15 13:01:43.728',null,0);
+-INSERT INTO `register`.`merchants` VALUES (715,'AppleCard Payment','APPLECARD GSBANK PAYMENT 063025 XXXXX5844 Robert Callahan',31,'2025-07-15 13:02:00.157','2025-07-15 13:02:00.157',null,0);
+-INSERT INTO `register`.`merchants` VALUES (716,'AppFolio','AppFolio, Inc. F WEB PMTS 070125 PKPD85 Robert Callahan',28,'2025-07-15 13:02:12.808','2025-07-15 13:02:12.808',null,0);
+-INSERT INTO `register`.`merchants` VALUES (717,'Olive Tree Propertiess','Olive Tree Prope WEB PMTS 070125 0RKS3D Robert Callahan',28,'2025-07-15 13:02:27.567','2025-07-15 13:02:27.567',null,0);
+-INSERT INTO `register`.`merchants` VALUES (718,'GloFiber','GLO FIBER BILLPAY 250702 GLO FIBER ROBERT CALLAHAN',19,'2025-07-15 13:02:36.501','2025-07-15 13:02:36.501',null,0);
+-INSERT INTO `register`.`merchants` VALUES (719,'Shenandoah Valley Utility','SHENANDOAH VALLE UTILITY 250704 3936197 ROBERT T *CALLAHAN',22,'2025-07-15 13:02:49.776','2025-07-15 13:02:49.776',null,0);
+-INSERT INTO `register`.`merchants` VALUES (720,'Geeks Outfit','Geeksoutfit            Kowloon City  HK',40,'2025-07-15 13:03:03.386','2025-07-15 13:03:03.386',null,0);
+-INSERT INTO `register`.`merchants` VALUES (721,'Pizzoco Pizza','PIZZOCO PIZZA PARLOR   WWW.PIZZOCO.C VA',12,'2025-07-15 13:03:19.760','2025-07-15 13:03:19.760',null,0);
+-INSERT INTO `register`.`merchants` VALUES (722,'MONEY TRANSFER AUTHORIZED','MONEY TRANSFER AUTHORIZED ON 07/04 FROM Callahan Robert VA S385185792777909 CARD 0970',15,'2025-07-15 13:04:24.338','2025-07-15 13:04:24.338',null,0);
+-INSERT INTO `register`.`merchants` VALUES (723,'Mindful Glimpses','MINDFUL GLIMPSES',18,'2025-07-15 13:04:39.532','2025-07-15 13:04:39.532',null,0);
+-INSERT INTO `register`.`merchants` VALUES (724,'PROV FR CR dev.marketprohacks','PROV FR CR dev.marketprohacks. # 0720',41,'2025-07-15 13:05:01.813','2025-07-15 13:05:01.813',null,0);
+-INSERT INTO `register`.`merchants` VALUES (725,'PROV FR CR dev.marketprohack','PROV FR CR dev.marketprohacks. # 0716',41,'2025-07-15 13:05:09.350','2025-07-15 13:05:09.350',null,0);
+-INSERT INTO `register`.`merchants` VALUES (726,'Piano Marvel','PIANOMARVEL            8666801290    CO',18,'2025-07-15 13:05:28.383','2025-07-15 13:05:28.383',null,0);
+-INSERT INTO `register`.`merchants` VALUES (727,'American Strategies','AMERICAN STRATEG F79D4DC1A8 250714 ROBERT CALLAHAN',28,'2025-07-22 18:19:27.377','2025-07-22 18:19:27.377',null,0);
+-INSERT INTO `register`.`merchants` VALUES (728,'Solenberger''s Hardware','SOLENBERGER''S HME & HD WINCHESTER    VA',40,'2025-07-22 18:19:41.359','2025-07-22 18:19:41.359',null,0);
+-INSERT INTO `register`.`merchants` VALUES (729,'Transfer from BRTS business account','TELE-TRANSFER FR XXXXXX0369 REFERENCE #',58,'2025-07-22 18:20:06.469','2025-07-22 18:20:06.469',null,0);
+-INSERT INTO `register`.`merchants` VALUES (730,'National Parks Foundation','NATIONAL PARK FDN      NATIONALPARKS DC',41,'2025-07-22 18:20:24.584','2025-07-22 18:20:24.584',null,0);
+-INSERT INTO `register`.`merchants` VALUES (731,'AT&T','ATT PAYMENT 072325 241182001EPAYE Family Name',17,'2025-08-25 14:24:36.168','2025-08-25 14:24:36.168',null,0);
+-INSERT INTO `register`.`merchants` VALUES (732,'GloFiber','GLO FIBER BILLPAY 250801 GLO FIBER ROBERT CALLAHAN',19,'2025-08-25 14:24:42.936','2025-08-25 14:24:42.936',null,0);
+-INSERT INTO `register`.`merchants` VALUES (733,'TotalAVPro','TOTALAVPRO.COM         185-5977012   FL',18,'2025-08-25 14:25:14.190','2025-08-25 14:25:14.190',null,0);
+-INSERT INTO `register`.`merchants` VALUES (734,'Olive Tree Properties','Olive Tree Prope WEB PMTS 080125 CM7V8D Robert Callahan',28,'2025-08-25 14:25:31.755','2025-08-25 14:25:31.755',null,0);
+-INSERT INTO `register`.`merchants` VALUES (735,'AppFolio','AppFolio, Inc. F WEB PMTS 080125 YNKZB5 Robert Callahan',28,'2025-08-25 14:25:42.830','2025-08-25 14:25:42.830',null,0);
+-INSERT INTO `register`.`merchants` VALUES (736,'AppleCard payment','APPLECARD GSBANK PAYMENT 073125 XXXXX5844 Robert Callahan',31,'2025-08-25 14:26:41.444','2025-08-25 14:26:41.444',null,0);
+-INSERT INTO `register`.`merchants` VALUES (737,'City of Winchester','CITY OF WINCHEST BILLPAY 250804 CITY OF WINCHES ROBERT T CALLAHAN',67,'2025-08-25 14:27:12.654','2025-08-25 14:27:12.654',null,0);
+-INSERT INTO `register`.`merchants` VALUES (738,'Shenandoah Valley Utility','SHENANDOAH VALLE UTILITY 250804 5770167 ROBERT T *CALLAHAN',22,'2025-08-25 14:27:29.295','2025-08-25 14:27:29.295',null,0);
+-INSERT INTO `register`.`merchants` VALUES (739,'50/50 Taphouse Paycheck','NOVA BEER LLC PAYROLL 250808 92963969400542A CALLAHAN,ROBERT',42,'2025-08-25 14:27:55.633','2025-08-25 14:27:55.633',null,0);
+-INSERT INTO `register`.`merchants` VALUES (740,'American Strategies','AMERICAN STRATEG 15F0F58EDE 250814 ROBERT CALLAHAN',29,'2025-08-25 14:28:08.872','2025-08-25 14:28:08.872',null,0);
+-INSERT INTO `register`.`merchants` VALUES (741,'50/50 Taphouse Paycheck','NOVA BEER LLC PAYROLL 250822 36757677459742A CALLAHAN,ROBERT',42,'2025-08-25 14:28:25.602','2025-08-25 14:28:25.602',null,0);
+-INSERT INTO `register`.`merchants` VALUES (742,'AT&T','ATT PAYMENT 082325 182278001EPAYJ Family Name',17,'2025-09-24 14:08:31.912','2025-09-24 14:08:31.912',null,0);
+-INSERT INTO `register`.`merchants` VALUES (743,'CCBill.com','CCBill.com  *ICF Techn 888-5969279   WA',41,'2025-09-24 14:08:47.809','2025-09-24 14:08:47.809',null,0);
+-INSERT INTO `register`.`merchants` VALUES (744,'Transfer from E*Trade','MSPBNA ACH TRNSFR 250828 146937943906 354378605',42,'2025-09-24 14:09:21.201','2025-09-24 14:09:21.201',null,0);
+-INSERT INTO `register`.`merchants` VALUES (745,'AppleCard','APPLECARD GSBANK PAYMENT 083125 XXXXX5844 Robert Callahan',31,'2025-09-24 14:09:44.920','2025-09-24 14:09:44.920',null,0);
+-INSERT INTO `register`.`merchants` VALUES (746,'EverAI','EVERAI                 SANTA VENERA  MT',41,'2025-09-24 14:09:56.700','2025-09-24 14:09:56.700',null,0);
+-INSERT INTO `register`.`merchants` VALUES (747,'Olive Tree Properties','Olive Tree Prope WEB PMTS 090225 XSF0GD Robert Callahan',28,'2025-09-24 14:10:21.166','2025-09-24 14:10:21.166',null,0);
+-INSERT INTO `register`.`merchants` VALUES (748,'GloFiber','GLO FIBER BILLPAY 250901 GLO FIBER ROBERT CALLAHAN',19,'2025-09-24 14:10:28.577','2025-09-24 14:10:28.577',null,0);
+-INSERT INTO `register`.`merchants` VALUES (749,'AppFolio','AppFolio, Inc. F WEB PMTS 090225 6GZLF5 Robert Callahan',28,'2025-09-24 14:10:35.278','2025-09-24 14:10:35.278',null,0);
+-INSERT INTO `register`.`merchants` VALUES (750,'50/50 Taphouse Paycheck','NOVA BEER LLC PAYROLL 250905 51410019615242A CALLAHAN,ROBERT',42,'2025-09-24 14:11:08.995','2025-09-24 14:11:08.995',null,0);
+-INSERT INTO `register`.`merchants` VALUES (751,'Shenandoah Valley Utility','SHENANDOAH VALLE UTILITY 250904 7722629 ROBERT T *CALLAHAN',22,'2025-09-24 14:11:24.352','2025-09-24 14:11:24.352',null,0);
+-INSERT INTO `register`.`merchants` VALUES (752,'Paramount+','PARAMOUNT+             888-274-5343  CA',41,'2025-09-24 14:11:40.657','2025-09-24 14:11:40.657',null,0);
+-INSERT INTO `register`.`merchants` VALUES (753,'Unknown','MONEY TRANSFER AUTHORIZED ON 09/12 APPLE CASH SENT MO 1INFINITELOOP CA S305256040338519 CARD 0970',41,'2025-09-24 14:12:02.174','2025-09-24 14:12:02.174',null,0);
+-INSERT INTO `register`.`merchants` VALUES (754,'Cobra Smoke Zon3','COBRA SMOKE ZONE INC   WINCHESTER    VA',41,'2025-09-24 14:12:20.352','2025-09-24 14:12:20.352',null,0);
+-INSERT INTO `register`.`merchants` VALUES (755,'Paypal','PAYPAL INST XFER 250915 PETERSNATASHAAN ROB CALLAHAN',41,'2025-09-24 14:12:32.740','2025-09-24 14:12:32.740',null,0);
+-INSERT INTO `register`.`merchants` VALUES (756,'Apple Cash','MONEY TRANSFER AUTHORIZED ON 09/12 APPLE CASH SENT MO 1INFINITELOOP CA S465256071670806 CARD 0970',41,'2025-09-24 14:12:47.949','2025-09-24 14:12:47.949',null,0);
+-INSERT INTO `register`.`merchants` VALUES (757,'Apple Cash','MONEY TRANSFER AUTHORIZED ON 09/12 APPLE CASH SENT MO 1INFINITELOOP CA S385256051349157 CARD 0970',41,'2025-09-24 14:12:55.734','2025-09-24 14:12:55.734',null,0);
+-INSERT INTO `register`.`merchants` VALUES (758,'Apple Cash','MONEY TRANSFER AUTHORIZED ON 09/14 APPLE CASH SENT MO 1INFINITELOOP CA S465258054577466 CARD 0970',41,'2025-09-24 14:13:04.330','2025-09-24 14:13:04.330',null,0);
+-INSERT INTO `register`.`merchants` VALUES (759,'American Strategies','AMERICAN STRATEG 62387C06E3 250915 ROBERT CALLAHAN',29,'2025-09-24 14:13:30.197','2025-09-24 14:13:30.197',null,0);
+-INSERT INTO `register`.`merchants` VALUES (760,'Paypal','PAYPAL INST XFER 250916 CAITLYNCASSIUS7 ROB CALLAHAN',41,'2025-09-24 14:13:40.443','2025-09-24 14:13:40.443',null,0);
+-INSERT INTO `register`.`merchants` VALUES (761,'Apple Cash','MONEY TRANSFER AUTHORIZED ON 09/15 APPLE CASH BALANCE 1INFINITELOOP CA S305259251760164 CARD 0970',41,'2025-09-24 14:14:29.582','2025-09-24 14:14:29.582',null,0);
+-INSERT INTO `register`.`merchants` VALUES (762,'Chopstick Cafe','TST*CHOPSTICK CAFE     540-450-8691  VA',12,'2025-09-24 14:14:44.762','2025-09-24 14:14:44.762',null,0);
+-INSERT INTO `register`.`merchants` VALUES (763,'50/50 Taphouse Paycheck','NOVA BEER LLC PAYROLL 250919 23010665985242A CALLAHAN,ROBERT',42,'2025-09-24 14:15:11.258','2025-09-24 14:15:11.258',null,0);
+-INSERT INTO `register`.`merchants` VALUES (764,'CashApp','MONEY TRANSFER AUTHORIZED ON 09/20 CASH APP*NICK CALL Oakland CA S585263670243409 CARD 0970',41,'2025-09-24 14:15:31.753','2025-09-24 14:15:31.753',null,0);
+-INSERT INTO `register`.`merchants` VALUES (765,'Apple Cash','PURCHASE RETURN AUTHORIZED ON 09/19 APPLE CASH SENT MO 1INFINITELOOP CA S465256071670806 CARD 0970',41,'2025-09-24 14:15:41.270','2025-09-24 14:15:41.270',null,0);
+-INSERT INTO `register`.`merchants` VALUES (766,'Cashapp','TRANSFER CASH APP*NIC Oakland CA CARD0970',41,'2025-09-24 14:15:56.320','2025-09-24 14:15:56.320',null,0);
+-INSERT INTO `register`.`merchants` VALUES (767,'GloFiber','GLO FIBER BILLPAY 260101 GLO FIBER ROBERT CALLAHAN',19,'2026-02-06 07:57:44.309','2026-02-06 07:57:44.309',null,0);
+-INSERT INTO `register`.`merchants` VALUES (768,'Shenandoah Valley Utilities','SHENANDOAH VALLE UTILITY 260104 1978888 ROBERT T *CALLAHAN',22,'2026-02-06 07:58:12.500','2026-02-06 07:58:12.500',null,0);
+-INSERT INTO `register`.`merchants` VALUES (769,'Epoch.com','EPOCH.COM   *MXFXFilms 003-106645810 WI',41,'2026-02-06 07:58:40.341','2026-02-06 07:58:40.341',null,0);
+-INSERT INTO `register`.`merchants` VALUES (770,'50/50 Taphouse Paycheck','NOVA BEER LLC PAYROLL 260109 68007340148942A CALLAHAN,ROBERT',42,'2026-02-06 07:59:20.216','2026-02-06 07:59:20.216',null,0);
+-INSERT INTO `register`.`merchants` VALUES (771,'Winchester Radiologist','WINCHESTER RADIOLOGIST WINCHESTER    VA',41,'2026-02-06 07:59:37.783','2026-02-06 07:59:37.783',null,0);
+-INSERT INTO `register`.`merchants` VALUES (772,'American Strategies','AMERICAN STRATEG VAA176206 260113 CALLAHAN ROBERT',29,'2026-02-06 07:59:52.457','2026-02-06 07:59:52.457',null,0);
+-INSERT INTO `register`.`merchants` VALUES (773,'DoorDash','DD *DOORDASH CHENGSASI DOORDASH.COM  CA',41,'2026-02-06 08:00:33.753','2026-02-06 08:00:33.753',null,0);
+-INSERT INTO `register`.`merchants` VALUES (774,'T-Mobile','T-Mobile',17,'2026-02-06 08:00:43.909','2026-02-06 08:00:43.909',null,0);
+-INSERT INTO `register`.`merchants` VALUES (775,'Sam Harris Media','SAM HARRIS MEDIA LLC   ENCINO        CA',18,'2026-02-06 08:01:07.572','2026-02-06 08:01:07.572',null,0);
+-INSERT INTO `register`.`merchants` VALUES (776,'50/50 Taphouse Paycheck','NOVA BEER LLC PAYROLL 260123 15008520705142A CALLAHAN,ROBERT',42,'2026-02-06 08:01:30.292','2026-02-06 08:01:30.292',null,0);
+-INSERT INTO `register`.`merchants` VALUES (777,'Disney Plus','Disney Plus            888-9057888   CA',18,'2026-02-06 08:01:40.634','2026-02-06 08:01:40.634',null,0);
+-INSERT INTO `register`.`merchants` VALUES (778,'VA ABC','VA ABC STORE 901       800-7671176   VA',41,'2026-02-06 08:01:54.672','2026-02-06 08:01:54.672',null,0);
+-INSERT INTO `register`.`merchants` VALUES (779,'17','ATT PAYMENT 012326 241848001EPAYG Family Name',17,'2026-02-06 08:11:22.129','2026-02-06 08:11:22.129',null,0);
+-INSERT INTO `register`.`merchants` VALUES (780,'DoorDash','DD *DOORDASH WEISMARKE DOORDASH.COM  CA',41,'2026-02-06 08:11:31.674','2026-02-06 08:11:31.674',null,0);
+-INSERT INTO `register`.`merchants` VALUES (781,'The Roku Channel','The Roku Channel       816-2728107   DE',18,'2026-02-06 08:11:48.116','2026-02-06 08:11:48.116',null,0);
+-INSERT INTO `register`.`merchants` VALUES (782,'VA ABC','VA ABC STORE 049       ARLINGTON     VA',41,'2026-02-06 08:11:56.187','2026-02-06 08:11:56.187',null,0);
+-INSERT INTO `register`.`merchants` VALUES (783,'Transfer from E*Trade','MSPBNA ACH TRNSFR 260126 10960089395 354378605',42,'2026-02-06 08:12:15.980','2026-02-06 08:12:15.980',null,0);
+-INSERT INTO `register`.`merchants` VALUES (784,'AppleCard Payment','APPLECARD GSBANK PAYMENT 013126 XXXXX5844 Robert Callahan',31,'2026-02-06 08:12:43.376','2026-02-06 08:12:43.376',null,0);
+-INSERT INTO `register`.`merchants` VALUES (785,'GloFiber','GLO FIBER BILLPAY 260201 GLO FIBER ROBERT CALLAHAN',19,'2026-02-06 08:12:52.560','2026-02-06 08:12:52.560',null,0);
+-INSERT INTO `register`.`merchants` VALUES (786,'City of Winchester','CITY OF WINCHEST BILLPAY 260202 CITY OF WINCHES ROBERT T CALLAHAN',67,'2026-02-06 08:13:13.814','2026-02-06 08:13:13.814',null,0);
+-INSERT INTO `register`.`merchants` VALUES (787,'AppFolio, In ','AppFolio, Inc. F WEB PMTS 020226 CVM6V5 Robert Callahan',28,'2026-02-06 08:13:32.308','2026-02-06 08:13:32.308',null,0);
+-INSERT INTO `register`.`merchants` VALUES (788,'Transfer from Ally Bank','ALLY BANK P2P 260203 ROBERT T CALLAH ROBERT T CALLAHAN',42,'2026-02-06 08:13:51.939','2026-02-06 08:13:51.939',null,0);
+-INSERT INTO `register`.`merchants` VALUES (789,'Cash deposit','eDeposit in Branch 02/05/26 01:28:27 PM 2490 VALLEY AVE',42,'2026-02-06 08:14:10.279','2026-02-06 08:14:10.279',null,0);
+-INSERT INTO `register`.`merchants` VALUES (790,'Shenandoah Valley Electric','SHENANDOAH VALLE UTILITY 260204 2148429 ROBERT T *CALLAHAN',22,'2026-02-06 08:14:33.732','2026-02-06 08:14:33.732',null,0);
+-INSERT INTO `register`.`merchants` VALUES (791,'50/50 Taphouse Paycheck','NOVA BEER LLC PAYROLL 260206 62907648089942A CALLAHAN,ROBERT',42,'2026-02-06 08:14:49.190','2026-02-06 08:14:49.190',null,0);
+-INSERT INTO `register`.`merchants` VALUES (792,'Olive Tree Properties','APF*Olive Tree Propert 540-3134166   VA',28,'2026-04-25 09:54:06.235','2026-04-25 09:54:06.235',null,0);
+-INSERT INTO `register`.`merchants` VALUES (793,'VA ABC','VA ABC STORE 901',41,'2026-04-25 09:54:27.770','2026-04-25 09:54:27.770',null,0);
+-INSERT INTO `register`.`merchants` VALUES (794,'Transfer from IRA','BETTERMENT SEC TRANSFER 260210 A153075027 ROBERT T CALLAHAN',42,'2026-04-25 09:55:05.990','2026-04-25 09:55:05.990',null,0);
+-INSERT INTO `register`.`merchants` VALUES (795,'American Strategies','AMERICAN STRATEGIC INS 727-8218765   FL',29,'2026-04-25 09:56:27.781','2026-04-25 09:56:27.781',null,0);
+-INSERT INTO `register`.`merchants` VALUES (796,'American Strategies','AMERICAN STRATEG PURCHASE 260217 CALLAHAN ROBERT',29,'2026-04-25 09:56:57.277','2026-04-25 09:56:57.277',null,0);
+-INSERT INTO `register`.`merchants` VALUES (797,'\\50/50 Taphouse Paycheck','NOVA BEER LLC PAYROLL 260220 77008111094342A CALLAHAN,ROBERT',42,'2026-04-25 09:58:11.470','2026-04-25 09:58:11.470',null,0);
+-INSERT INTO `register`.`merchants` VALUES (798,'Transfer from Betterment IRA','BETTERMENT SEC TRANSFER 260222 A153710451 ROBERT T CALLAHAN',42,'2026-04-25 09:58:46.984','2026-04-25 09:58:46.984',null,0);
+-INSERT INTO `register`.`merchants` VALUES (799,'Transfer from Betterment IRA','BETTERMENT SEC TRANSFER 260223 A153833941 ROBERT T CALLAHAN',42,'2026-04-25 09:59:05.606','2026-04-25 09:59:05.606',null,0);
+-INSERT INTO `register`.`merchants` VALUES (800,'Instacart','IC* INSTACART          888-246-7822  CA',12,'2026-04-25 09:59:23.243','2026-04-25 09:59:23.243',null,0);
+-INSERT INTO `register`.`merchants` VALUES (801,'Olive Tree Properties','Olive Tree Prope WEB PMTS 030226 831TDF Robert Callahan',28,'2026-04-25 09:59:39.159','2026-04-25 09:59:39.159',null,0);
+-INSERT INTO `register`.`merchants` VALUES (802,'AppFolio, Inc.','AppFolio, Inc. F WEB PMTS 030226 SQNLX5 Robert Callahan',28,'2026-04-25 09:59:56.270','2026-04-25 09:59:56.270',null,0);
+-INSERT INTO `register`.`merchants` VALUES (803,'Apple Card Payment','APPLECARD GSBANK PAYMENT 022826 XXXXX5844 Robert Callahan',31,'2026-04-25 10:00:18.822','2026-04-25 10:00:18.822',null,0);
+-INSERT INTO `register`.`merchants` VALUES (804,'Glo Fiber Payment','GLO FIBER BILLPAY 260304 GLO FIBER ROBERT CALLAHAN',19,'2026-04-25 10:00:34.125','2026-04-25 10:00:34.125',null,0);
+-INSERT INTO `register`.`merchants` VALUES (805,'Shenandoah Valley Utility','SHENANDOAH VALLE UTILITY 260304 1907162 ROBERT T *CALLAHAN',22,'2026-04-25 10:01:01.609','2026-04-25 10:01:01.609',null,0);
+-INSERT INTO `register`.`merchants` VALUES (806,'50/50 Taphouse Paycheck','NOVA BEER LLC PAYROLL 260306 04507811422742A CALLAHAN,ROBERT',42,'2026-04-25 10:01:15.515','2026-04-25 10:01:15.515',null,0);
+-INSERT INTO `register`.`merchants` VALUES (807,'China House','DD *CHINAHOUSEII       DOORDASH.COM  CA',12,'2026-04-25 10:01:46.947','2026-04-25 10:01:46.947',null,0);
+-INSERT INTO `register`.`merchants` VALUES (808,'50/50 Taphouse Paycheck','NOVA BEER LLC PAYROLL 260320 92994194521142A CALLAHAN,ROBERT',42,'2026-04-25 10:02:14.926','2026-04-25 10:02:14.926',null,0);
+-INSERT INTO `register`.`merchants` VALUES (809,'Transfer from Betterment IRA','BETTERMENT SEC TRANSFER 260325 A155899866 ROBERT T CALLAHAN',42,'2026-04-25 10:02:27.781','2026-04-25 10:02:27.781',null,0);
+-INSERT INTO `register`.`merchants` VALUES (810,'VA Department of Taxation','BUSINESS TO BUSINESS ACH VA DEPT TAXATION TAX PAYMEN 260325 XXXXX2314 Robert Callahan',59,'2026-04-25 10:03:01.450','2026-04-25 10:03:01.450',null,0);
+-INSERT INTO `register`.`merchants` VALUES (811,'American Strategies','AMERICAN STRATEG ACH 260330 CALLAHAN ROBERT',29,'2026-04-25 10:03:43.496','2026-04-25 10:03:43.496',null,0);
+-INSERT INTO `register`.`merchants` VALUES (812,'AppFolio, Inc.','AppFolio, Inc. F WEB PMTS 040126 Y9D406 Robert Callahan',28,'2026-04-25 10:04:01.580','2026-04-25 10:04:01.580',null,0);
+-INSERT INTO `register`.`merchants` VALUES (813,'Fidelity Visa Payment','PAYMENT MADE BY ACCOUNT ENDING IN:5409',31,'2026-04-25 10:04:46.656','2026-04-25 10:04:46.656',null,0);
+-INSERT INTO `register`.`merchants` VALUES (814,'Olive Tree Properties','Olive Tree Prope WEB PMTS 040126 84JPKF Robert Callahan',28,'2026-04-25 10:05:00.995','2026-04-25 10:05:00.995',null,0);
+-INSERT INTO `register`.`merchants` VALUES (815,'Glo Fiber Payment','GLO FIBER BILLPAY 260401 GLO FIBER ROBERT CALLAHAN',19,'2026-04-25 10:05:17.841','2026-04-25 10:05:17.841',null,0);
+-INSERT INTO `register`.`merchants` VALUES (816,'Apple Card Payment','APPLECARD GSBANK PAYMENT 033126 XXXXX5844 Robert Callahan',31,'2026-04-25 10:05:38.692','2026-04-25 10:05:38.692',null,0);
+-INSERT INTO `register`.`merchants` VALUES (817,'Transfer from Betterment IRA','BETTERMENT SEC TRANSFER 260331 A156211313 ROBERT T CALLAHAN',42,'2026-04-25 10:05:56.149','2026-04-25 10:05:56.149',null,0);
+-INSERT INTO `register`.`merchants` VALUES (818,'Celtic Circles','SQ *CELTIC CIRCLES LLC Winchester    VA',41,'2026-04-25 10:06:34.417','2026-04-25 10:06:34.417',null,0);
+-INSERT INTO `register`.`merchants` VALUES (819,'City of Winchester','CITY OF WINCHEST BILLPAY 260406 CITY OF WINCHES ROBERT T CALLAHAN',67,'2026-04-25 10:07:10.817','2026-04-25 10:07:10.817',null,0);
+-INSERT INTO `register`.`merchants` VALUES (820,'Shenandoah Valley Utility','SHENANDOAH VALLE UTILITY 260404 2625263 ROBERT T *CALLAHAN',22,'2026-04-25 10:07:30.670','2026-04-25 10:07:30.670',null,0);
+-INSERT INTO `register`.`merchants` VALUES (821,'Edgehill Recovery Center','EDGEHILL RECOVERY CENTER',41,'2026-04-25 10:08:15.476','2026-04-25 10:08:15.476',null,0);
+-INSERT INTO `register`.`merchants` VALUES (822,'Cheng''s Asian Kitchen','DD *CHENGSASIANKITCH   DOORDASH.COM  CA',12,'2026-04-25 10:08:42.116','2026-04-25 10:08:42.116',null,0);
+-INSERT INTO `register`.`merchants` VALUES (823,'VA ABC','VA ABC STORE 047       WINCHESTER    VA',41,'2026-04-25 10:09:37.784','2026-04-25 10:09:37.784',null,0);
+-INSERT INTO `register`.`merchants` VALUES (824,'eBay','eBay O*23-14533-88518  800-4563229   CA',40,'2026-05-02 18:03:35.811','2026-05-02 18:03:35.811',null,0);
+-INSERT INTO `register`.`merchants` VALUES (825,'Geek Vape','USP*geekvape           store.geekvap HK',16,'2026-05-02 18:03:53.650','2026-05-02 18:03:53.650',null,0);
+-INSERT INTO `register`.`merchants` VALUES (826,'Transfer from Betterment IRA','BETTERMENT SEC TRANSFER 260427 A157987620 ROBERT T CALLAHAN',42,'2026-05-02 18:23:50.304','2026-05-02 18:23:50.304',null,0);
+-INSERT INTO `register`.`merchants` VALUES (827,'AppleCard payment','APPLECARD GSBANK PAYMENT 043026 XXXXX5',31,'2026-05-02 18:24:04.477','2026-05-02 18:24:04.477',null,0);
+-INSERT INTO `register`.`merchants` VALUES (828,'Appfolio, Inc.','AppFolio, Inc. F WEB PMTS 050126 BK8M26',28,'2026-05-02 18:24:16.900','2026-05-02 18:24:16.900',null,0);
+-INSERT INTO `register`.`merchants` VALUES (829,'Olive Tree Properties','Olive Tree Prope WEB PMTS 050126 18PQQF',28,'2026-05-02 18:24:26.851','2026-05-02 18:24:26.851',null,0);

@@ -375,10 +375,6 @@ func updateBalances(sheetsService *sheets_service.SheetsService, balances map[st
 			return err
 		}
 	}
-	//if balances[banking.FidelityID].Error == nil {
-	//	_, err := sheetsService.WriteCell("AA2", balances[banking.FidelityID].Amount)
-	//	checkError(err)
-	//}
 	if balances[banking.ChaseID].Error == nil {
 		if _, err := sheetsService.WriteCell("AB2", balances[banking.ChaseID].Amount); err != nil {
 			return err
