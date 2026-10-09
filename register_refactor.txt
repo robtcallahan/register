@@ -27,7 +27,7 @@ Phase 3 — De-god update()
 - [X] 3.2 Extract normalizeMerchants stage (merchant name lookup)
 - [X] 3.3 Extract dedupeAgainstSheet stage (fuzzy ±1-day date matching)
 - [X] 3.4 Extract persistTransactions stage (DB + interactive prompts)
-- [ ] 3.5 Extract updateSpreadsheet stage (CopyRows + UpdateRows + balances)
+- [X] 3.5 Extract updateSpreadsheet stage (CopyRows + UpdateRows + balances)
 - [ ] 3.6 Replace shellout("./register copy") with direct sheetsService.CopyRows call
 - [ ] 3.7 Rename --no-updates flag to --dry-run (fix double negative)
 - [ ] 3.8 Move interactive prompts before long silent work

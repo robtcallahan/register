@@ -18,11 +18,9 @@ package cmd
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"math"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -281,9 +279,8 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
 
 	// add the needed number of rows for transactions
 	fmt.Println("Adding rows...")
-	out, errOut, err := shellout("./register copy -n " + strconv.Itoa(len(transactions)))
-	if err != nil {
-		return fmt.Errorf("error: %v\n--- stdout ---\n%s\n--- stderr ---\n%s", err, out, errOut)
+	if err := sheetsService.CopyRows(len(transactions)); err != nil {
+		return err
 	}
 
 	fmt.Printf("Transaction updates...\n")
@@ -320,16 +317,6 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
 		}
 	}
 	return nil
-}
-
-func shellout(command string) (string, string, error) {
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd := exec.Command("bash", "-c", command)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	return stdout.String(), stderr.String(), err
 }
 
 func updateBalances(sheetsService *sheets_service.SheetsService, balances map[string]banking.Balance) error {
