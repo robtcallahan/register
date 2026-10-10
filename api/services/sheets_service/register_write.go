@@ -148,3 +148,89 @@ func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []mode
 	}
 	return cells
 }
+
+func addDeposit(amount float64, bgColor string, cells []*sheets.CellData) []*sheets.CellData {
+	cells = append(cells, mkCellDataString("", "left", bgColor, false))
+	cells = append(cells, mkCellDataDollars(amount, "right", bgColor, false))
+	return cells
+}
+
+func addWithdrawal(amount float64, bgColor string, cells []*sheets.CellData) []*sheets.CellData {
+	cells = append(cells, mkCellDataDollars(amount, "right", bgColor, false))
+	cells = append(cells, mkCellDataString("", "left", bgColor, false))
+	return cells
+}
+
+func addCheckingTransaction(trans *models.Transaction, bgColor string, cells []*sheets.CellData) []*sheets.CellData {
+	if trans.Deposit > 0 {
+		cells = addDeposit(trans.Deposit, bgColor, cells)
+	} else {
+		cells = addWithdrawal(trans.Withdrawal, bgColor, cells)
+	}
+	// add credit card cell
+	cells = append(cells, mkCellDataString("", "left", bgColor, false))
+	return cells
+}
+
+func addCCTransaction(trans *models.Transaction, bgColor string, cells []*sheets.CellData) []*sheets.CellData {
+	cells = append(cells, mkCellDataString("", "left", bgColor, false))
+	cells = append(cells, mkCellDataString("", "left", bgColor, false))
+	cells = append(cells, mkCellDataDollars(trans.CreditPurchase, "right", bgColor, false))
+	return cells
+}
+
+func addSourceDateNameCells(cells []*sheets.CellData, trans *models.Transaction, bgColor string) ([]*sheets.CellData, error) {
+	cells = append(cells, getCellDataReconcileColumn("X", "center", bgColor, false))
+	cells = append(cells, mkCellDataString(trans.Source, "center", bgColor, false))
+	dateCell, err := getCellDataDate(trans.Date, "center", bgColor, false)
+	if err != nil {
+		return nil, err
+	}
+	cells = append(cells, dateCell)
+	cells = append(cells, mkCellDataString(trans.Name, "left", bgColor, false))
+	return cells, nil
+}
+
+func addAmountCell(cells []*sheets.CellData, trans *models.Transaction, bgColor string) []*sheets.CellData {
+	if isCheckingAccount(trans) {
+		cells = addCheckingTransaction(trans, bgColor, cells)
+	} else {
+		cells = addCCTransaction(trans, bgColor, cells)
+	}
+	return cells
+}
+
+func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, columns []models.Column, transNameToColName map[string]string, totalsFormulas []string) []*sheets.CellData {
+	// Cells for cols A-G (DB indexes 1-7) are already appended. Category cells
+	// are placed by each column's own ColumnIndex, not by slice position, so a
+	// gap in the columns table leaves an empty cell instead of shifting every
+	// amount after it one column left.
+	nextIndex := BankRegister + 1 // 1-based index of the next cell to fill (8 = H)
+	for _, col := range columns {
+		if col.ColumnIndex < nextIndex {
+			continue // part of the fixed A-G block, already appended
+		}
+		for ; nextIndex < col.ColumnIndex; nextIndex++ {
+			cells = append(cells, mkCellDataEmpty("left", "", true))
+		}
+		// i is this column's offset within the category block (0 = H)
+		i := col.ColumnIndex - BankRegister - 1
+		if isRegisterClearedOrDeltaColumn(i) {
+			// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here
+			cells = append(cells, mkCellDataFormula(totalsFormulas[i], "right", col.Color, false))
+		} else if isCreditCardTransaction(trans.Source, col.Name) {
+			// enter a positive value in the credit card column
+			cells = append(cells, mkCellDataDollars(trans.CreditCard, "left", models.ColorYellow, true))
+		} else if trans.ColumnIndex != 0 && trans.ColumnIndex == col.ColumnIndex {
+			cells = append(cells, mkCellDataDollars(trans.Budget, "left", col.Color, true))
+		} else if isCorrectBudgetColumn(trans.Name, col.Name, transNameToColName) {
+			// enter the value in the budget category column
+			cells = append(cells, mkCellDataDollars(trans.Budget, "left", col.Color, true))
+		} else {
+			// this cell doesn't apply. Just create an empty cell.
+			cells = append(cells, mkCellDataEmpty("left", col.Color, true))
+		}
+		nextIndex++
+	}
+	return cells
+}
