@@ -53,10 +53,10 @@ type RegisterSheet struct {
 
 func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.Column) error {
 	// The register's last column comes from the columns table (its
-	// highest-indexed column). The config values remain as a fallback for
-	// callers that don't read the DB (register copy) until 6.6 retires them.
-	endColumnName := cfg.RegisterCategoryEndColumn
-	endColumnIndex := cfg.ColumnIndexes[cfg.RegisterCategoryEndColumn]
+	// highest-indexed column). Callers that don't read the DB (register
+	// copy) pass no columns; they get the sheet's own grid width below.
+	var endColumnName string
+	var endColumnIndex int64
 	if len(columns) > 0 {
 		set := models.NewColumnSet(columns)
 		if end, ok := set.End(); ok {
@@ -82,6 +82,12 @@ func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.C
 	if props.GridProperties != nil {
 		ss.RegisterSheet.SheetCoords.RowCount = props.GridProperties.RowCount
 		ss.RegisterSheet.SheetCoords.ColumnCount = props.GridProperties.ColumnCount
+		if len(columns) == 0 {
+			// no DB columns: the register ends at the sheet's grid edge
+			columnCount := props.GridProperties.ColumnCount
+			ss.RegisterSheet.SheetCoords.EndColumnName = models.ColumnLetter(int(columnCount))
+			ss.RegisterSheet.SheetCoords.EndColumnIndex = columnCount - 1
+		}
 	}
 	return nil
 }

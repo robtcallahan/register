@@ -59,8 +59,6 @@ type Config struct {
 	GoogleCredentialsFile       string                   `json:"google_credentials_file"`
 	Banks                       map[string]Bank          `json:"banks"`
 	SpreadsheetID               string                   `json:"spreadsheet_id"`
-	RegisterSheetID             string                   `json:"register_sheet_id"`
-	BudgetSheetID               string                   `json:"budget_sheet_id"`
 	FinanceDir                  string                   `json:"finance_dir"`
 	BudgetStartRow              int64                    `json:"budget_start_row"`
 	BudgetEndRow                int64                    `json:"budget_end_row"`
@@ -68,8 +66,6 @@ type Config struct {
 	RegisterEndRow              int64                    `json:"register_end_row"`
 	MonthlyStartRow             int64                    `json:"monthly_start_row"`
 	MonthlyEndRow               int64                    `json:"monthly_end_row"`
-	RegisterCategoryEndColumn   string                   `json:"register_category_end_column"`
-	ColumnIndexes               map[string]int64         `json:"column_indexes"`
 	IncomeSources               []IncomeSource           `json:"income_sources"`
 }
 

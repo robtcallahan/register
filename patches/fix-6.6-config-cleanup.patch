@@ -1,0 +1,69 @@
+diff --git a/api/services/sheets_service/register_service.go b/api/services/sheets_service/register_service.go
+index 8b01e53..b79688b 100644
+--- a/api/services/sheets_service/register_service.go
++++ b/api/services/sheets_service/register_service.go
+@@ -53,10 +53,10 @@ type RegisterSheet struct {
+ 
+ func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.Column) error {
+ 	// The register's last column comes from the columns table (its
+-	// highest-indexed column). The config values remain as a fallback for
+-	// callers that don't read the DB (register copy) until 6.6 retires them.
+-	endColumnName := cfg.RegisterCategoryEndColumn
+-	endColumnIndex := cfg.ColumnIndexes[cfg.RegisterCategoryEndColumn]
++	// highest-indexed column). Callers that don't read the DB (register
++	// copy) pass no columns; they get the sheet's own grid width below.
++	var endColumnName string
++	var endColumnIndex int64
+ 	if len(columns) > 0 {
+ 		set := models.NewColumnSet(columns)
+ 		if end, ok := set.End(); ok {
+@@ -82,6 +82,12 @@ func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.C
+ 	if props.GridProperties != nil {
+ 		ss.RegisterSheet.SheetCoords.RowCount = props.GridProperties.RowCount
+ 		ss.RegisterSheet.SheetCoords.ColumnCount = props.GridProperties.ColumnCount
++		if len(columns) == 0 {
++			// no DB columns: the register ends at the sheet's grid edge
++			columnCount := props.GridProperties.ColumnCount
++			ss.RegisterSheet.SheetCoords.EndColumnName = models.ColumnLetter(int(columnCount))
++			ss.RegisterSheet.SheetCoords.EndColumnIndex = columnCount - 1
++		}
+ 	}
+ 	return nil
+ }
+diff --git a/cmd/copy.go b/cmd/copy.go
+index 188057a..ee0165c 100644
+--- a/cmd/copy.go
++++ b/cmd/copy.go
+@@ -61,8 +61,8 @@ func copyRows() error {
+ 	if err != nil {
+ 		return err
+ 	}
+-	// copy doesn't read the DB; nil columns keeps the config-derived sheet
+-	// extent until 6.6 gives this command its own source.
++	// copy doesn't read the DB; nil columns makes NewRegisterSheet use
++	// the sheet's own grid width for the register extent.
+ 	err = sheetsService.NewRegisterSheet(config, nil)
+ 	if err != nil {
+ 		return err
+diff --git a/pkg/config/config.go b/pkg/config/config.go
+index 12a55ad..701321a 100644
+--- a/pkg/config/config.go
++++ b/pkg/config/config.go
+@@ -59,8 +59,6 @@ type Config struct {
+ 	GoogleCredentialsFile       string                   `json:"google_credentials_file"`
+ 	Banks                       map[string]Bank          `json:"banks"`
+ 	SpreadsheetID               string                   `json:"spreadsheet_id"`
+-	RegisterSheetID             string                   `json:"register_sheet_id"`
+-	BudgetSheetID               string                   `json:"budget_sheet_id"`
+ 	FinanceDir                  string                   `json:"finance_dir"`
+ 	BudgetStartRow              int64                    `json:"budget_start_row"`
+ 	BudgetEndRow                int64                    `json:"budget_end_row"`
+@@ -68,8 +66,6 @@ type Config struct {
+ 	RegisterEndRow              int64                    `json:"register_end_row"`
+ 	MonthlyStartRow             int64                    `json:"monthly_start_row"`
+ 	MonthlyEndRow               int64                    `json:"monthly_end_row"`
+-	RegisterCategoryEndColumn   string                   `json:"register_category_end_column"`
+-	ColumnIndexes               map[string]int64         `json:"column_indexes"`
+ 	IncomeSources               []IncomeSource           `json:"income_sources"`
+ }
+ 

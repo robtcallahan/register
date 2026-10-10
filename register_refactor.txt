@@ -57,7 +57,7 @@ Phase 6 — Column management CLI
 - [X] 6.3 Add register columns check for sheet-vs-DB drift (done 2026-10-09 — caught the 7 mismatches, reconciled same day)
 - [X] 6.4 Retire the is_category flag; category-ness derived from position (done 2026-10-09)
 - [X] 6.5 Budget category names from the same source (the Budget-sync CLI work — patch delivered tonight, awaiting your apply)
-- [ ] 6.6 Config index cleanup (remove ColumnIndexes/RegisterCategoryEndColumn from config; RegisterIndexes already gone)
+- [X] 6.6 Config index cleanup (remove ColumnIndexes/RegisterCategoryEndColumn from config; RegisterIndexes already gone)
 -----------------------------------------------------------------------------------------
 Phase 7 — Constants + readability
 - [ ] 7.1 Move cell addresses, colors, magic values to constants.go or config
