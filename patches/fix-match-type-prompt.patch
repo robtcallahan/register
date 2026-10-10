@@ -1,0 +1,46 @@
+diff --git a/cmd/update.go b/cmd/update.go
+index ce83051..56a48fb 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -554,6 +554,27 @@ func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*mode
+ 			}
+ 			trans[i].Note = readString("           Note: ")
+ 
++			matchType := "substring"
++			for {
++				v := strings.ToLower(strings.TrimSpace(readString("     Match type (e=exact, s=substring) [s]: ")))
++				if v == "" || v == "s" {
++					matchType = "substring"
++					break
++				}
++				if v == "e" {
++					matchType = "exact"
++					break
++				}
++			}
++			// the rule's pattern: the full bank name, or a shorter
++			// substring that catches every variant of this merchant
++			pattern := t.BankName
++			if matchType == "substring" {
++				if sub := readString(fmt.Sprintf("         Substring [%s]: ", t.BankName)); sub != "" {
++					pattern = sub
++				}
++			}
++
+ 			// the menu prints column IDs, but the transaction wants the
+ 			// column's position — translate instead of sharing one number
+ 			columns, err := db.GetColumns()
+@@ -565,9 +586,10 @@ func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*mode
+ 			}
+ 
+ 			if err := db.CreateMerchant(&models.Merchant{
+-				Name:     trans[i].Name,
+-				BankName: t.BankName,
+-				ColumnID: columnID,
++				Name:      trans[i].Name,
++				BankName:   pattern,
++				ColumnID:   columnID,
++				MatchType:  matchType,
+ 			}); err != nil {
+ 				return false, nil, err
+ 			}
