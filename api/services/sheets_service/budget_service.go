@@ -38,8 +38,8 @@ func (ss *SheetsService) NewBudgetSheet(cfg *config.Config) error {
 		SheetCoords: SheetCoords{
 			StartRow:       cfg.BudgetStartRow,
 			EndRow:         cfg.BudgetEndRow,
-			EndColumnName:  "J",
-			EndColumnIndex: 9,
+			EndColumnName:  "I",
+			EndColumnIndex: 8,
 		},
 	}
 	props, err := ss.getSheetProperties(BudgetTabName)
@@ -51,7 +51,7 @@ func (ss *SheetsService) NewBudgetSheet(cfg *config.Config) error {
 }
 
 func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
-	range_ := fmt.Sprintf("%s!B%d:%s%d", ss.BudgetSheet.TabName, ss.BudgetSheet.SheetCoords.StartRow, ss.BudgetSheet.SheetCoords.EndColumnName, ss.BudgetSheet.SheetCoords.EndRow)
+	range_ := fmt.Sprintf("%s!A%d:%s%d", ss.BudgetSheet.TabName, ss.BudgetSheet.SheetCoords.StartRow, ss.BudgetSheet.SheetCoords.EndColumnName, ss.BudgetSheet.SheetCoords.EndRow)
 	resp, err := ss.Provider.GetValues(range_)
 	if err != nil {
 		return nil, fmt.Errorf("could not get sheet values: %s\n", err.Error())
@@ -90,8 +90,8 @@ func (ss *SheetsService) getBudgetCategory(values []interface{}) string {
 }
 
 func (ss *SheetsService) populateBudgetEntry(values []interface{}) (*BudgetEntry, error) {
-	// Sheet layout, counted from the B-anchored read range:
-	// B=Category, C=Weekly, D=Monthly
+	// Sheet layout, counted from the A-anchored read range:
+	// A=Category, B=Weekly, C=Monthly
 	weekly, err := readDollarsValue(values[1])
 	if err != nil {
 		return nil, err
@@ -130,7 +130,7 @@ func budgetGroupName(color string) (string, bool) {
 // the given name, or false if the tab has no such row. Reads fresh: the
 // columns CLI is short-lived and the tab may have been edited by hand.
 func (ss *SheetsService) BudgetRowFor(name string) (int, bool, error) {
-	rng := fmt.Sprintf("%s!B%d:B%d", ss.BudgetSheet.TabName,
+	rng := fmt.Sprintf("%s!A%d:A%d", ss.BudgetSheet.TabName,
 		ss.BudgetSheet.SheetCoords.StartRow, ss.BudgetSheet.SheetCoords.EndRow)
 	resp, err := ss.Provider.GetValues(rng)
 	if err != nil {
@@ -151,7 +151,7 @@ func (ss *SheetsService) BudgetEntryFor(name string) (*BudgetEntry, bool, error)
 	if err != nil || !found {
 		return nil, found, err
 	}
-	rng := fmt.Sprintf("%s!B%d:%s%d", ss.BudgetSheet.TabName, row,
+	rng := fmt.Sprintf("%s!A%d:%s%d", ss.BudgetSheet.TabName, row,
 		ss.BudgetSheet.SheetCoords.EndColumnName, row)
 	resp, err := ss.Provider.GetValues(rng)
 	if err != nil {
@@ -178,7 +178,7 @@ func (ss *SheetsService) RenameBudgetCategory(oldName, newName string) (bool, er
 	if err != nil || !found {
 		return found, err
 	}
-	rng := fmt.Sprintf("%s!B%d", ss.BudgetSheet.TabName, row)
+	rng := fmt.Sprintf("%s!A%d", ss.BudgetSheet.TabName, row)
 	if _, err := ss.Provider.Update(rng, &sheets.ValueRange{Values: [][]interface{}{{newName}}}); err != nil {
 		return false, fmt.Errorf("could not rename budget row %d: %w", row, err)
 	}
@@ -219,7 +219,7 @@ func (ss *SheetsService) InsertBudgetCategory(name, color string) error {
 	}
 
 	// the new row sits at totalsRow; label it
-	rng := fmt.Sprintf("%s!B%d", ss.BudgetSheet.TabName, totalsRow)
+	rng := fmt.Sprintf("%s!A%d", ss.BudgetSheet.TabName, totalsRow)
 	if _, err := ss.Provider.Update(rng, &sheets.ValueRange{Values: [][]interface{}{{name}}}); err != nil {
 		return fmt.Errorf("could not label budget row %d: %w", totalsRow, err)
 	}
@@ -229,7 +229,7 @@ func (ss *SheetsService) InsertBudgetCategory(name, color string) error {
 	// the new row — Sheets does not widen a range for a row inserted
 	// immediately above its formula.
 	newTotalsRow := totalsRow + 1
-	frng := fmt.Sprintf("%s!B%d:H%d", ss.BudgetSheet.TabName, newTotalsRow, newTotalsRow)
+	frng := fmt.Sprintf("%s!A%d:G%d", ss.BudgetSheet.TabName, newTotalsRow, newTotalsRow)
 	resp, err := ss.Provider.GetFormula(frng)
 	if err != nil {
 		return fmt.Errorf("could not read budget totals row: %w", err)
@@ -247,7 +247,7 @@ func (ss *SheetsService) InsertBudgetCategory(name, color string) error {
 			continue
 		}
 		cellRef := fmt.Sprintf("%s!%s%d", ss.BudgetSheet.TabName,
-			string(rune('B'+j)), newTotalsRow)
+			string(rune('A'+j)), newTotalsRow)
 		if _, err := ss.Provider.Update(cellRef, &sheets.ValueRange{Values: [][]interface{}{{extended}}}); err != nil {
 			return fmt.Errorf("could not extend budget totals formula at %s: %w", cellRef, err)
 		}
