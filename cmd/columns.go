@@ -157,7 +157,7 @@ func listColumns() error {
 
 func addColumn(name string) error {
 	switch addColor {
-	case "green", "yellow", "blue":
+	case models.ColorGreen, models.ColorYellow, models.ColorBlue:
 	default:
 		return fmt.Errorf("--color must be green, yellow, or blue (black is reserved for the payoff columns)")
 	}

@@ -59,6 +59,19 @@ func (c Column) IsCategory() bool {
 	return c.ColumnIndex >= FirstCategoryIndex
 }
 
+// Column colors: stored on each columns row, and the names of the cell
+// background palette. Black is reserved for the payoff columns (Credit
+// Cards, AppleCard, IRS) and is never offered for a new category.
+const (
+	ColorBlack     = "black"
+	ColorWhite     = "white"
+	ColorGreen     = "green"
+	ColorYellow    = "yellow"
+	ColorBlue      = "blue"
+	ColorGrey      = "grey"
+	ColorLightGrey = "lightgrey"
+)
+
 // DataRow ...
 type DataRow struct {
 	ID            int

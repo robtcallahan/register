@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"register/pkg/config"
+	"register/pkg/models"
 
 	"google.golang.org/api/sheets/v4"
 )
@@ -113,11 +114,11 @@ func (ss *SheetsService) populateBudgetEntry(values []interface{}) (*BudgetEntry
 // group whose totals row ends its block.
 func budgetGroupName(color string) (string, bool) {
 	switch color {
-	case "green":
+	case models.ColorGreen:
 		return "Discretionary", true
-	case "yellow":
+	case models.ColorYellow:
 		return "Non-Discretionary", true
-	case "blue":
+	case models.ColorBlue:
 		return "Savings Categories", true
 	}
 	return "", false

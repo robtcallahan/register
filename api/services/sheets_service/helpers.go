@@ -15,43 +15,43 @@ import (
 )
 
 var cellColors = map[string]*sheets.Color{
-	"black": {
+	models.ColorBlack: {
 		Alpha: 1,
 		Blue:  0,
 		Red:   0,
 		Green: 0,
 	},
-	"white": {
+	models.ColorWhite: {
 		Alpha: 1,
 		Blue:  1,
 		Red:   1,
 		Green: 1,
 	},
-	"green": {
+	models.ColorGreen: {
 		Alpha: 1,
 		Blue:  0,
 		Red:   0.5,
 		Green: 1,
 	},
-	"yellow": {
+	models.ColorYellow: {
 		Alpha: 1,
 		Blue:  0.6,
 		Red:   1,
 		Green: 1,
 	},
-	"blue": {
+	models.ColorBlue: {
 		Alpha: 1,
 		Blue:  1,
 		Red:   0,
 		Green: 0.8,
 	},
-	"lightgrey": {
+	models.ColorLightGrey: {
 		Alpha: 1,
 		Blue:  0.937,
 		Red:   0.937,
 		Green: 0.937,
 	},
-	"grey": {
+	models.ColorGrey: {
 		Alpha: 1,
 		Blue:  0.8,
 		Red:   0.8,
@@ -72,11 +72,11 @@ func getRegisterToDeltaReadRange(i int64) string {
 
 func getBackgroundColor(trans *models.Transaction, income bool) string {
 	if income {
-		return "green"
+		return models.ColorGreen
 	} else if trans.TaxDeductible {
-		return "yellow"
+		return models.ColorYellow
 	}
-	return "white"
+	return models.ColorWhite
 }
 
 func isCheckingAccount(trans *models.Transaction) bool {
@@ -110,15 +110,15 @@ func mkBorders(on bool) *sheets.Borders {
 	}
 	return &sheets.Borders{
 		Left: &sheets.Border{
-			Color: mkColor("black"),
+			Color: mkColor(models.ColorBlack),
 			Style: "SOLID",
 		},
 		Right: &sheets.Border{
-			Color: mkColor("black"),
+			Color: mkColor(models.ColorBlack),
 			Style: "SOLID",
 		},
 		Bottom: &sheets.Border{
-			Color: mkColor("black"),
+			Color: mkColor(models.ColorBlack),
 			Style: "SOLID",
 		},
 	}
@@ -493,7 +493,7 @@ func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, colum
 			cells = append(cells, mkCellDataFormula(totalsFormulas[i], "right", col.Color, false))
 		} else if isCreditCardTransaction(trans.Source, col.Name) {
 			// enter a positive value in the credit card column
-			cells = append(cells, mkCellDataDollars(trans.CreditCard, "left", "yellow", true))
+			cells = append(cells, mkCellDataDollars(trans.CreditCard, "left", models.ColorYellow, true))
 		} else if trans.ColumnIndex != 0 && trans.ColumnIndex == col.ColumnIndex {
 			cells = append(cells, mkCellDataDollars(trans.Budget, "left", col.Color, true))
 		} else if isCorrectBudgetColumn(trans.Name, col.Name, transNameToColName) {

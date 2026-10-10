@@ -398,7 +398,7 @@ func (c *Client) IncomeMatcher() (*MerchantMatcher, error) {
 func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher, income *MerchantMatcher, columns []models.Column) []*models.Transaction {
 	for i, t := range trans {
 		if t.Name == CheckTransactionName {
-			trans[i].Color = "white"
+			trans[i].Color = models.ColorWhite
 			if l, ok := matcher.FindByBankPattern(CheckBankPattern); ok {
 				trans[i].ColumnIndex = l.ColumnIndex
 			}
@@ -406,7 +406,7 @@ func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *Merch
 			trans[i].TaxDeductible = false
 		} else if src, ok := income.Match(t.BankName); ok {
 			trans[i].Name = src.Name
-			trans[i].Color = "green"
+			trans[i].Color = models.ColorGreen
 			trans[i].ColumnIndex = ColumnIndexForName(columns, IncomeColumnName)
 			trans[i].IsCategory = false
 			trans[i].TaxDeductible = false
