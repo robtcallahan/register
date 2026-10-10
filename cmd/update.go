@@ -440,11 +440,23 @@ func printRegister(trans []*sheets_service.RegisterEntry) {
 
 func needTransactionName(trans []*models.Transaction) bool {
 	for _, t := range trans {
-		if t.Name == "" {
+		if needsName(t) {
 			return true
 		}
 	}
 	return false
+}
+
+// needsName reports whether the merchant matcher left this transaction
+// without a name of its own: no name at all, or the raw bank name still
+// standing in as a placeholder because no rule matched (in which case it
+// has no column either). Checks are excluded: they take the CHECK path
+// (note prompt) instead.
+func needsName(t *models.Transaction) bool {
+	if strings.Contains(t.BankName, "CHECK #") {
+		return false
+	}
+	return t.Name == "" || (t.Name == t.BankName && t.ColumnIndex == 0)
 }
 
 func printColumns(db *handler.Query) error {
@@ -529,7 +541,7 @@ func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*mode
 	var err error
 
 	for i, t := range trans {
-		if t.Name == "" && !strings.Contains(t.BankName, "CHECK #") {
+		if needsName(t) {
 			fmt.Printf("Source: %s, Date: %s, Amt: $%0.2f\n", t.BankName, t.Date, t.Amount)
 
 			trans[i].Name = readString("            Name: ")
