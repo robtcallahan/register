@@ -7,8 +7,9 @@ import (
 	"register/api/providers/sheets_provider"
 	"register/api/services/sheets_service"
 	"register/pkg/driver"
-	"register/pkg/handler"
 	"register/pkg/models"
+	"register/pkg/repository"
+	"register/pkg/repository/mysql"
 
 	"github.com/spf13/cobra"
 )
@@ -105,7 +106,7 @@ func init() {
 	_ = columnsAddCmd.MarkFlagRequired("color")
 }
 
-func columnsQuery() (*handler.Query, error) {
+func columnsQuery() (repository.QueryRepo, error) {
 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
 		DBType: driver.DBType(config.DB.Type),
 		Host:   config.DB.Host,
@@ -117,10 +118,10 @@ func columnsQuery() (*handler.Query, error) {
 	if err != nil {
 		return nil, err
 	}
-	return handler.NewQueryHandler(conn), nil
+	return mysql.NewMySQLQueryRepo(conn.SQL), nil
 }
 
-func columnsSheetService(q *handler.Query) (*sheets_service.SheetsService, error) {
+func columnsSheetService(q repository.QueryRepo) (*sheets_service.SheetsService, error) {
 	columns, err := q.GetColumns()
 	if err != nil {
 		return nil, err
@@ -138,7 +139,7 @@ func columnsSheetService(q *handler.Query) (*sheets_service.SheetsService, error
 
 // columnsBudgetSheetService is columnsSheetService plus the Budget tab
 // coordinates, for the commands that keep the Budget tab in step.
-func columnsBudgetSheetService(q *handler.Query) (*sheets_service.SheetsService, error) {
+func columnsBudgetSheetService(q repository.QueryRepo) (*sheets_service.SheetsService, error) {
 	ss, err := columnsSheetService(q)
 	if err != nil {
 		return nil, err

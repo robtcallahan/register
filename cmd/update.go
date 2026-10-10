@@ -32,8 +32,9 @@ import (
 	cfg "register/pkg/config"
 	"register/pkg/csv"
 	"register/pkg/driver"
-	"register/pkg/handler"
 	"register/pkg/models"
+	"register/pkg/repository"
+	"register/pkg/repository/mysql"
 
 	"github.com/spf13/cobra"
 )
@@ -77,7 +78,7 @@ func update(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	qHandler := handler.NewQueryHandler(conn)
+	qHandler := mysql.NewMySQLQueryRepo(conn.SQL)
 
 	sheetsProvider, err := sheets_provider.New(options.SpreadsheetID, config)
 	if err != nil {
@@ -210,7 +211,7 @@ func writeRawTransactionsCSV(transactions []*models.Transaction) error {
 
 // normalizeMerchants assigns each transaction its display name, color, and
 // budget column from the merchant lookup data.
-func normalizeMerchants(client *Client, qHandler *handler.Query, transactions []*models.Transaction) ([]*models.Transaction, error) {
+func normalizeMerchants(client *Client, qHandler repository.QueryRepo, transactions []*models.Transaction) ([]*models.Transaction, error) {
 	fmt.Println("Updating merchants...")
 	lookupData, err := qHandler.GetLookupData()
 	if err != nil {
@@ -279,7 +280,7 @@ func fuzzyKeySet(keys map[string]bool) map[string]bool {
 // persistTransactions interactively fills in any missing names and notes,
 // then saves the transactions to the DB. All questions come first, so the rest
 // of the run is unattended. Skipped entirely on --dry-run runs.
-func persistTransactions(client *Client, qHandler *handler.Query, transactions []*models.Transaction) ([]*models.Transaction, error) {
+func persistTransactions(client *Client, qHandler repository.QueryRepo, transactions []*models.Transaction) ([]*models.Transaction, error) {
 	if options.DryRun {
 		return transactions, nil
 	}
@@ -307,7 +308,7 @@ func persistTransactions(client *Client, qHandler *handler.Query, transactions [
 // updateSpreadsheet writes the transactions into the register sheet and
 // refreshes the bank balances. Skipped when there is nothing to write or on
 // --dry-run runs.
-func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsService, qHandler *handler.Query, transactions []*models.Transaction) error {
+func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsService, qHandler repository.QueryRepo, transactions []*models.Transaction) error {
 	if len(transactions) == 0 || options.DryRun {
 		fmt.Println("No updates needed")
 		return nil
@@ -464,7 +465,7 @@ func needsName(t *models.Transaction) bool {
 	return t.Name == "" || (t.Name == t.BankName && t.ColumnIndex == 0)
 }
 
-func printColumns(db *handler.Query) error {
+func printColumns(db repository.QueryRepo) error {
 	columns, err := db.GetColumns()
 	if err != nil {
 		return err
@@ -512,7 +513,7 @@ func getNotes(trans []*models.Transaction) []*models.Transaction {
 	return trans
 }
 
-func getBankNameToName(bankClient *banking.Client, db *handler.Query, trans []*models.Transaction) ([]*models.Transaction, error) {
+func getBankNameToName(bankClient *banking.Client, db repository.QueryRepo, trans []*models.Transaction) ([]*models.Transaction, error) {
 	var err error
 	updated := true
 
@@ -542,7 +543,7 @@ func getBankNameToName(bankClient *banking.Client, db *handler.Query, trans []*m
 	return trans, nil
 }
 
-func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*models.Transaction, error) {
+func readFromUser(db repository.QueryRepo, trans []*models.Transaction) (bool, []*models.Transaction, error) {
 	var err error
 
 	for i, t := range trans {

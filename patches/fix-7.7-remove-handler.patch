@@ -1,0 +1,255 @@
+diff --git a/cmd/columns.go b/cmd/columns.go
+index a83d95d..bf8026a 100644
+--- a/cmd/columns.go
++++ b/cmd/columns.go
+@@ -7,8 +7,9 @@ import (
+ 	"register/api/providers/sheets_provider"
+ 	"register/api/services/sheets_service"
+ 	"register/pkg/driver"
+-	"register/pkg/handler"
+ 	"register/pkg/models"
++	"register/pkg/repository"
++	"register/pkg/repository/mysql"
+ 
+ 	"github.com/spf13/cobra"
+ )
+@@ -105,7 +106,7 @@ func init() {
+ 	_ = columnsAddCmd.MarkFlagRequired("color")
+ }
+ 
+-func columnsQuery() (*handler.Query, error) {
++func columnsQuery() (repository.QueryRepo, error) {
+ 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
+ 		DBType: driver.DBType(config.DB.Type),
+ 		Host:   config.DB.Host,
+@@ -117,10 +118,10 @@ func columnsQuery() (*handler.Query, error) {
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	return handler.NewQueryHandler(conn), nil
++	return mysql.NewMySQLQueryRepo(conn.SQL), nil
+ }
+ 
+-func columnsSheetService(q *handler.Query) (*sheets_service.SheetsService, error) {
++func columnsSheetService(q repository.QueryRepo) (*sheets_service.SheetsService, error) {
+ 	columns, err := q.GetColumns()
+ 	if err != nil {
+ 		return nil, err
+@@ -138,7 +139,7 @@ func columnsSheetService(q *handler.Query) (*sheets_service.SheetsService, error
+ 
+ // columnsBudgetSheetService is columnsSheetService plus the Budget tab
+ // coordinates, for the commands that keep the Budget tab in step.
+-func columnsBudgetSheetService(q *handler.Query) (*sheets_service.SheetsService, error) {
++func columnsBudgetSheetService(q repository.QueryRepo) (*sheets_service.SheetsService, error) {
+ 	ss, err := columnsSheetService(q)
+ 	if err != nil {
+ 		return nil, err
+diff --git a/cmd/monthly.go b/cmd/monthly.go
+index 571d864..876e6ca 100644
+--- a/cmd/monthly.go
++++ b/cmd/monthly.go
+@@ -21,7 +21,7 @@ import (
+ 	"register/api/providers/sheets_provider"
+ 
+ 	"register/pkg/driver"
+-	"register/pkg/handler"
++	"register/pkg/repository/mysql"
+ 
+ 	"register/api/services/sheets_service"
+ 
+@@ -59,7 +59,7 @@ func monthly() error {
+ 	if err != nil {
+ 		return err
+ 	}
+-	qHandler := handler.NewQueryHandler(conn)
++	qHandler := mysql.NewMySQLQueryRepo(conn.SQL)
+ 
+ 	sheetsProvider, err := sheets_provider.New(options.SpreadsheetID, config)
+ 	if err != nil {
+diff --git a/cmd/update.go b/cmd/update.go
+index 8f2151b..d1eaf95 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -32,8 +32,9 @@ import (
+ 	cfg "register/pkg/config"
+ 	"register/pkg/csv"
+ 	"register/pkg/driver"
+-	"register/pkg/handler"
+ 	"register/pkg/models"
++	"register/pkg/repository"
++	"register/pkg/repository/mysql"
+ 
+ 	"github.com/spf13/cobra"
+ )
+@@ -77,7 +78,7 @@ func update(cmd *cobra.Command, args []string) error {
+ 	if err != nil {
+ 		return err
+ 	}
+-	qHandler := handler.NewQueryHandler(conn)
++	qHandler := mysql.NewMySQLQueryRepo(conn.SQL)
+ 
+ 	sheetsProvider, err := sheets_provider.New(options.SpreadsheetID, config)
+ 	if err != nil {
+@@ -210,7 +211,7 @@ func writeRawTransactionsCSV(transactions []*models.Transaction) error {
+ 
+ // normalizeMerchants assigns each transaction its display name, color, and
+ // budget column from the merchant lookup data.
+-func normalizeMerchants(client *Client, qHandler *handler.Query, transactions []*models.Transaction) ([]*models.Transaction, error) {
++func normalizeMerchants(client *Client, qHandler repository.QueryRepo, transactions []*models.Transaction) ([]*models.Transaction, error) {
+ 	fmt.Println("Updating merchants...")
+ 	lookupData, err := qHandler.GetLookupData()
+ 	if err != nil {
+@@ -279,7 +280,7 @@ func fuzzyKeySet(keys map[string]bool) map[string]bool {
+ // persistTransactions interactively fills in any missing names and notes,
+ // then saves the transactions to the DB. All questions come first, so the rest
+ // of the run is unattended. Skipped entirely on --dry-run runs.
+-func persistTransactions(client *Client, qHandler *handler.Query, transactions []*models.Transaction) ([]*models.Transaction, error) {
++func persistTransactions(client *Client, qHandler repository.QueryRepo, transactions []*models.Transaction) ([]*models.Transaction, error) {
+ 	if options.DryRun {
+ 		return transactions, nil
+ 	}
+@@ -307,7 +308,7 @@ func persistTransactions(client *Client, qHandler *handler.Query, transactions [
+ // updateSpreadsheet writes the transactions into the register sheet and
+ // refreshes the bank balances. Skipped when there is nothing to write or on
+ // --dry-run runs.
+-func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsService, qHandler *handler.Query, transactions []*models.Transaction) error {
++func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsService, qHandler repository.QueryRepo, transactions []*models.Transaction) error {
+ 	if len(transactions) == 0 || options.DryRun {
+ 		fmt.Println("No updates needed")
+ 		return nil
+@@ -464,7 +465,7 @@ func needsName(t *models.Transaction) bool {
+ 	return t.Name == "" || (t.Name == t.BankName && t.ColumnIndex == 0)
+ }
+ 
+-func printColumns(db *handler.Query) error {
++func printColumns(db repository.QueryRepo) error {
+ 	columns, err := db.GetColumns()
+ 	if err != nil {
+ 		return err
+@@ -512,7 +513,7 @@ func getNotes(trans []*models.Transaction) []*models.Transaction {
+ 	return trans
+ }
+ 
+-func getBankNameToName(bankClient *banking.Client, db *handler.Query, trans []*models.Transaction) ([]*models.Transaction, error) {
++func getBankNameToName(bankClient *banking.Client, db repository.QueryRepo, trans []*models.Transaction) ([]*models.Transaction, error) {
+ 	var err error
+ 	updated := true
+ 
+@@ -542,7 +543,7 @@ func getBankNameToName(bankClient *banking.Client, db *handler.Query, trans []*m
+ 	return trans, nil
+ }
+ 
+-func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*models.Transaction, error) {
++func readFromUser(db repository.QueryRepo, trans []*models.Transaction) (bool, []*models.Transaction, error) {
+ 	var err error
+ 
+ 	for i, t := range trans {
+diff --git a/pkg/handler/handler.go b/pkg/handler/handler.go
+deleted file mode 100644
+index 69c0bab..0000000
+--- a/pkg/handler/handler.go
++++ /dev/null
+@@ -1,103 +0,0 @@
+-package handler
+-
+-import (
+-	"register/pkg/driver"
+-	"register/pkg/models"
+-	"register/pkg/repository"
+-	"register/pkg/repository/mysql"
+-)
+-
+-// Query ...
+-type Query struct {
+-	repo repository.QueryRepo
+-}
+-
+-// NewQueryHandler ...
+-func NewQueryHandler(db *driver.DB) *Query {
+-	var repo repository.QueryRepo
+-
+-	switch db.DBType {
+-	case driver.MySQL:
+-		repo = mysql.NewMySQLQueryRepo(db.SQL)
+-	}
+-	return &Query{
+-		repo: repo,
+-	}
+-}
+-
+-func (q *Query) GetTransactions() ([]models.Transaction, error) {
+-	return q.repo.GetTransactions()
+-}
+-
+-func (q *Query) SaveTransaction(trans *models.Transaction) error {
+-	return q.repo.SaveTransaction(trans)
+-}
+-
+-func (q *Query) UpdateTransactionTables(trans []*models.Transaction) error {
+-	return q.repo.UpdateTransactionTables(trans)
+-}
+-
+-// GetColumns get all columns
+-func (q *Query) GetColumns() ([]models.Column, error) {
+-	return q.repo.GetColumns()
+-}
+-
+-// AddColumn inserts a column at its index, shifting later columns up
+-func (q *Query) AddColumn(col *models.Column) error {
+-	return q.repo.AddColumn(col)
+-}
+-
+-// RenameColumn changes a column's display name
+-func (q *Query) RenameColumn(id int, name string) error {
+-	return q.repo.RenameColumn(id, name)
+-}
+-
+-// DeleteColumn removes a column, its merchant rules, and renumbers
+-func (q *Query) DeleteColumn(id int) error {
+-	return q.repo.DeleteColumn(id)
+-}
+-
+-// MoveColumn repositions a column, shifting the ones in between
+-func (q *Query) MoveColumn(id int, newIndex int) error {
+-	return q.repo.MoveColumn(id, newIndex)
+-}
+-
+-// GetMerchantsByColumn lists the merchant rules pointing at a column
+-func (q *Query) GetMerchantsByColumn(columnID int) ([]models.Merchant, error) {
+-	return q.repo.GetMerchantsByColumn(columnID)
+-}
+-
+-// GetMerchants get all merchants
+-func (q *Query) GetMerchants() ([]models.Merchant, error) {
+-	return q.repo.GetMerchants()
+-}
+-
+-// CreateMerchant ...
+-func (q *Query) CreateMerchant(m *models.Merchant) error {
+-	return q.repo.CreateMerchant(m)
+-}
+-
+-// GetMaxMerchantPriority ...
+-func (q *Query) GetMaxMerchantPriority() (int, error) {
+-	return q.repo.GetMaxMerchantPriority()
+-}
+-
+-// GetLookupData ...
+-func (q *Query) GetLookupData() ([]*models.DataRow, error) {
+-	return q.repo.GetLookupData()
+-}
+-
+-// GetNameMapToColumn creates a map lookup from trans name to budget category/column names
+-func (q *Query) GetNameMapToColumn() (map[string]string, error) {
+-	return q.repo.GetNameMapToColumn()
+-}
+-
+-// PrintData ...
+-func (q *Query) PrintData() error {
+-	return q.repo.PrintData()
+-}
+-
+-// PrintTable ...
+-func (q *Query) PrintTable(table string) error {
+-	return q.repo.PrintTable(table)
+-}

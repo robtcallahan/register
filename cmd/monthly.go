@@ -21,7 +21,7 @@ import (
 	"register/api/providers/sheets_provider"
 
 	"register/pkg/driver"
-	"register/pkg/handler"
+	"register/pkg/repository/mysql"
 
 	"register/api/services/sheets_service"
 
@@ -59,7 +59,7 @@ func monthly() error {
 	if err != nil {
 		return err
 	}
-	qHandler := handler.NewQueryHandler(conn)
+	qHandler := mysql.NewMySQLQueryRepo(conn.SQL)
 
 	sheetsProvider, err := sheets_provider.New(options.SpreadsheetID, config)
 	if err != nil {

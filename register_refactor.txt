@@ -67,7 +67,7 @@ Phase 7 — Constants + readability
 - [X] 7.4 Split banking.go GetTransactions
 - [X] 7.5 Go-idiom cleanup (boolean returns, *[]string, fmt.Errorf)
 - [X] 7.6 Slim SheetsService god-object (RowBuilder type)
-- [ ] 7.7 Remove handler.Query delegation layer or give it a job
+- [X] 7.7 Remove handler.Query delegation layer or give it a job
 -----------------------------------------------------------------------------------------
 Phase 8 — Monthly summary correction
 - [ ] 8.1 Return errors from UpdateMonthlyCategories/UpdateMonthlyPayees in monthly() instead of swallowing them (monthly() always returns nil today)
