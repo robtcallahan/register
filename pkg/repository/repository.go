@@ -19,6 +19,7 @@ type QueryRepo interface {
 
 	GetMerchants() ([]models.Merchant, error)
 	CreateMerchant(m *models.Merchant) error
+	GetMaxMerchantPriority() (int, error)
 
 	GetTransactions() ([]models.Transaction, error)
 	SaveTransaction(trans *models.Transaction) error

@@ -581,6 +581,17 @@ func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*mode
 				}
 			}
 
+			// a new substring rule outranks everything already in the
+			// table, so its variants can't be shadowed by an older rule
+			priority := 0
+			if matchType == "substring" {
+				maxPrio, err := db.GetMaxMerchantPriority()
+				if err != nil {
+					return false, nil, err
+				}
+				priority = maxPrio + 10
+			}
+
 			// the menu prints column IDs, but the transaction wants the
 			// column's position — translate instead of sharing one number
 			columns, err := db.GetColumns()
@@ -597,9 +608,11 @@ func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*mode
 				ColumnID:  columnID,
 				MatchType: matchType,
 				Pattern:   pattern,
+				Priority:  priority,
 			}); err != nil {
 				return false, nil, err
 			}
+			fmt.Printf("    Rule saved (priority %d).\n", priority)
 			return true, trans, nil
 		}
 	}

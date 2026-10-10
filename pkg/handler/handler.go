@@ -77,6 +77,11 @@ func (q *Query) CreateMerchant(m *models.Merchant) error {
 	return q.repo.CreateMerchant(m)
 }
 
+// GetMaxMerchantPriority ...
+func (q *Query) GetMaxMerchantPriority() (int, error) {
+	return q.repo.GetMaxMerchantPriority()
+}
+
 // GetLookupData ...
 func (q *Query) GetLookupData() ([]*models.DataRow, error) {
 	return q.repo.GetLookupData()

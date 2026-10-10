@@ -96,6 +96,16 @@ func (r *mysqlQueryRepo) CreateMerchant(m *models.Merchant) error {
 	return nil
 }
 
+// GetMaxMerchantPriority returns the highest rule priority in the merchants
+// table, or 0 when the table is empty.
+func (r *mysqlQueryRepo) GetMaxMerchantPriority() (int, error) {
+	var max int
+	if result := r.Conn.Model(&models.Merchant{}).Select("COALESCE(MAX(priority), 0)").Scan(&max); result.Error != nil {
+		return 0, fmt.Errorf("unable to get max merchant priority: %w", result.Error)
+	}
+	return max, nil
+}
+
 // GetLookupData ...
 func (r *mysqlQueryRepo) GetLookupData() ([]*models.DataRow, error) {
 	var merchants []models.Merchant
