@@ -84,7 +84,7 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 				catAgg[k] = make(map[string]float64)
 			}
 
-			if ss.isIncomeName(r.Name) {
+			if isIncomeName(r.Name, ss.IncomeSources) {
 				catAgg[k][r.Name] += r.Deposit
 				continue
 			}

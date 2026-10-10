@@ -58,25 +58,3 @@ func New(provider sheets_provider.SheetsProviderInterface) *SheetsService {
 		Provider: provider,
 	}
 }
-
-// isIncomeName reports whether a register row's display name is one of the
-// configured income sources.
-func (ss *SheetsService) isIncomeName(name string) bool {
-	for _, src := range ss.IncomeSources {
-		if src.Name == name {
-			return true
-		}
-	}
-	return false
-}
-
-// incomeFrequency returns the configured pay frequency ("weekly", "monthly",
-// ...) of the income source with the given display name, or "".
-func (ss *SheetsService) incomeFrequency(name string) string {
-	for _, src := range ss.IncomeSources {
-		if src.Name == name {
-			return src.Frequency
-		}
-	}
-	return ""
-}
