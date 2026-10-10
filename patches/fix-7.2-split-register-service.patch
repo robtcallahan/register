@@ -1,0 +1,672 @@
+diff --git a/api/services/sheets_service/register_columns.go b/api/services/sheets_service/register_columns.go
+new file mode 100644
+index 0000000..4f7c41e
+--- /dev/null
++++ b/api/services/sheets_service/register_columns.go
+@@ -0,0 +1,183 @@
++package sheets_service
++
++// Register column surgery and drift checking: keeping the sheet's
++// columns in step with the columns table.
++
++import (
++	"fmt"
++	"regexp"
++	"strings"
++	"register/pkg/models"
++
++	"google.golang.org/api/sheets/v4"
++)
++
++// CheckRegisterColumns reports drift between the columns table and the
++// Register tab: structural problems in the DB indexes, a sheet grid wider
++// or narrower than the DB's last column, and row-4 header names that
++// disagree with the DB. Report-only; it never writes anything.
++func (ss *SheetsService) CheckRegisterColumns(columns []models.Column) ([]string, error) {
++	set := models.NewColumnSet(columns)
++	problems := set.Validate()
++
++	headerRange := fmt.Sprintf("%s!A4:%s4", ss.RegisterSheet.TabName, ss.RegisterSheet.SheetCoords.EndColumnName)
++	resp, err := ss.Provider.GetValues(headerRange)
++	if err != nil {
++		return nil, fmt.Errorf("could not read header row: %w", err)
++	}
++	var headerRow []interface{}
++	if len(resp.Values) > 0 {
++		headerRow = resp.Values[0]
++	}
++	problems = append(problems, compareColumnHeaders(columns, headerRow)...)
++
++	if end, ok := set.End(); ok {
++		if count := ss.RegisterSheet.SheetCoords.ColumnCount; count > 0 && int64(end.ColumnIndex) != count {
++			problems = append(problems, fmt.Sprintf(
++				"column count mismatch: DB ends at %s (index %d) but the sheet grid has %d columns",
++				set.LetterFor(end.ColumnIndex), end.ColumnIndex, count))
++		}
++	}
++	return problems, nil
++}
++
++// compareColumnHeaders matches each category column's DB name against the
++// sheet's row-4 header at its position. Only category columns (K, index 11
++// and up) are compared: the fixed block's sheet labels ("Register") predate
++// its DB names ("BankRegister") and are the code's business, not drift.
++func compareColumnHeaders(columns []models.Column, headerRow []interface{}) []string {
++	var problems []string
++	set := models.NewColumnSet(columns)
++	for _, col := range columns {
++		if col.ColumnIndex < models.FirstCategoryIndex {
++			continue
++		}
++		header := ""
++		if offset := set.SliceOffset(col.ColumnIndex); offset >= 0 && offset < len(headerRow) {
++			if s, ok := headerRow[offset].(string); ok {
++				header = strings.TrimSpace(s)
++			}
++		}
++		if header != col.Name {
++			problems = append(problems, fmt.Sprintf("header mismatch at %s (index %d): DB has %q, sheet has %q",
++				set.LetterFor(col.ColumnIndex), col.ColumnIndex, col.Name, header))
++		}
++	}
++	return problems
++}
++
++// InsertRegisterColumn inserts a blank sheet column at the given 1-based
++// index, labels it in the row-4 header, and fills its running-total
++// formulas by translating the left neighbor column's formulas. The
++// position math is the caller's (DB) job; this keeps the sheet in step.
++func (ss *SheetsService) InsertRegisterColumn(index int, name string) error {
++	insertReq := sheets.BatchUpdateSpreadsheetRequest{
++		Requests: []*sheets.Request{{
++			InsertDimension: &sheets.InsertDimensionRequest{
++				Range: &sheets.DimensionRange{
++					SheetId:    ss.RegisterSheet.ID,
++					Dimension:  "COLUMNS",
++					StartIndex: int64(index - 1),
++					EndIndex:   int64(index),
++				},
++				InheritFromBefore: true,
++			},
++		}},
++	}
++	if _, err := ss.Provider.BatchUpdate(&insertReq); err != nil {
++		return fmt.Errorf("could not insert column: %w", err)
++	}
++
++	rowCount := ss.RegisterSheet.SheetCoords.RowCount
++	newLetter := models.ColumnLetter(index)
++	values := make([][]interface{}, rowCount)
++	for i := range values {
++		values[i] = []interface{}{""}
++	}
++	if rowCount > 3 {
++		values[3] = []interface{}{name} // row 4 holds the column name
++	}
++	if index > 1 && rowCount > 0 {
++		neighborLetter := models.ColumnLetter(index - 1)
++		formulas, err := ss.readColumnFormulas(neighborLetter, rowCount)
++		if err != nil {
++			return err
++		}
++		// totals formulas live in the data rows (row 5 down); rows 1-4 are
++		// titles, the totals block, the group header, and the name
++		for row := 4; row < len(formulas); row++ {
++			if formulas[row] != "" {
++				values[row] = []interface{}{shiftFormulaColumn(formulas[row], neighborLetter, newLetter)}
++			}
++		}
++	}
++	writeRange := fmt.Sprintf("%s!%s1:%s%d", ss.RegisterSheet.TabName, newLetter, newLetter, rowCount)
++	if _, err := ss.Provider.Update(writeRange, &sheets.ValueRange{Values: values}); err != nil {
++		return fmt.Errorf("could not write column %s: %w", newLetter, err)
++	}
++	return nil
++}
++
++// DeleteRegisterColumn removes the sheet column at the given 1-based index.
++func (ss *SheetsService) DeleteRegisterColumn(index int) error {
++	deleteReq := sheets.BatchUpdateSpreadsheetRequest{
++		Requests: []*sheets.Request{{
++			DeleteDimension: &sheets.DeleteDimensionRequest{
++				Range: &sheets.DimensionRange{
++					SheetId:    ss.RegisterSheet.ID,
++					Dimension:  "COLUMNS",
++					StartIndex: int64(index - 1),
++					EndIndex:   int64(index),
++				},
++			},
++		}},
++	}
++	if _, err := ss.Provider.BatchUpdate(&deleteReq); err != nil {
++		return fmt.Errorf("could not delete column %s: %w", models.ColumnLetter(index), err)
++	}
++	return nil
++}
++
++// RenameRegisterColumnHeader rewrites the row-4 name cell of the column at
++// the given 1-based index.
++func (ss *SheetsService) RenameRegisterColumnHeader(index int, name string) error {
++	_, err := ss.WriteCell(models.ColumnLetter(index)+"4", name)
++	return err
++}
++
++// readColumnFormulas returns the formulas of one sheet column, one entry per
++// row ("" where the cell holds no formula).
++func (ss *SheetsService) readColumnFormulas(letter string, rowCount int64) ([]string, error) {
++	rng := fmt.Sprintf("%s!%s1:%s%d", ss.RegisterSheet.TabName, letter, letter, rowCount)
++	resp, err := ss.Provider.GetFormula(rng)
++	if err != nil {
++		return nil, fmt.Errorf("could not read formulas from column %s: %w", letter, err)
++	}
++	formulas := make([]string, rowCount)
++	for i, row := range resp.Values {
++		if i >= int(rowCount) {
++			break
++		}
++		if len(row) > 0 {
++			if s, ok := row[0].(string); ok && strings.HasPrefix(s, "=") {
++				formulas[i] = s
++			}
++		}
++	}
++	return formulas, nil
++}
++
++var cellRefRegex = regexp.MustCompile(`\$?([A-Z]+)\$?(\d+)`)
++
++// shiftFormulaColumn rewrites a formula so references to fromLetter point
++// at toLetter instead. Register totals formulas reference only their own
++// column, so this moves a copied formula into its new column wholesale.
++func shiftFormulaColumn(formula, fromLetter, toLetter string) string {
++	return cellRefRegex.ReplaceAllStringFunc(formula, func(ref string) string {
++		sub := cellRefRegex.FindStringSubmatch(ref)
++		if sub[1] != fromLetter {
++			return ref
++		}
++		return strings.Replace(ref, sub[1], toLetter, 1)
++	})
++}
+diff --git a/api/services/sheets_service/register_service.go b/api/services/sheets_service/register_service.go
+index 6058b0f..d122fec 100644
+--- a/api/services/sheets_service/register_service.go
++++ b/api/services/sheets_service/register_service.go
+@@ -3,7 +3,6 @@ package sheets_service
+ import (
+ 	"errors"
+ 	"fmt"
+-	"regexp"
+ 	"register/pkg/config"
+ 	"register/pkg/models"
+ 	"strings"
+@@ -231,314 +230,6 @@ func (ss *SheetsService) WriteCell(cell string, value interface{}) (*sheets.Upda
+ 	return resp, nil
+ }
+ 
+-// CheckRegisterColumns reports drift between the columns table and the
+-// Register tab: structural problems in the DB indexes, a sheet grid wider
+-// or narrower than the DB's last column, and row-4 header names that
+-// disagree with the DB. Report-only; it never writes anything.
+-func (ss *SheetsService) CheckRegisterColumns(columns []models.Column) ([]string, error) {
+-	set := models.NewColumnSet(columns)
+-	problems := set.Validate()
+-
+-	headerRange := fmt.Sprintf("%s!A4:%s4", ss.RegisterSheet.TabName, ss.RegisterSheet.SheetCoords.EndColumnName)
+-	resp, err := ss.Provider.GetValues(headerRange)
+-	if err != nil {
+-		return nil, fmt.Errorf("could not read header row: %w", err)
+-	}
+-	var headerRow []interface{}
+-	if len(resp.Values) > 0 {
+-		headerRow = resp.Values[0]
+-	}
+-	problems = append(problems, compareColumnHeaders(columns, headerRow)...)
+-
+-	if end, ok := set.End(); ok {
+-		if count := ss.RegisterSheet.SheetCoords.ColumnCount; count > 0 && int64(end.ColumnIndex) != count {
+-			problems = append(problems, fmt.Sprintf(
+-				"column count mismatch: DB ends at %s (index %d) but the sheet grid has %d columns",
+-				set.LetterFor(end.ColumnIndex), end.ColumnIndex, count))
+-		}
+-	}
+-	return problems, nil
+-}
+-
+-// compareColumnHeaders matches each category column's DB name against the
+-// sheet's row-4 header at its position. Only category columns (K, index 11
+-// and up) are compared: the fixed block's sheet labels ("Register") predate
+-// its DB names ("BankRegister") and are the code's business, not drift.
+-func compareColumnHeaders(columns []models.Column, headerRow []interface{}) []string {
+-	var problems []string
+-	set := models.NewColumnSet(columns)
+-	for _, col := range columns {
+-		if col.ColumnIndex < models.FirstCategoryIndex {
+-			continue
+-		}
+-		header := ""
+-		if offset := set.SliceOffset(col.ColumnIndex); offset >= 0 && offset < len(headerRow) {
+-			if s, ok := headerRow[offset].(string); ok {
+-				header = strings.TrimSpace(s)
+-			}
+-		}
+-		if header != col.Name {
+-			problems = append(problems, fmt.Sprintf("header mismatch at %s (index %d): DB has %q, sheet has %q",
+-				set.LetterFor(col.ColumnIndex), col.ColumnIndex, col.Name, header))
+-		}
+-	}
+-	return problems
+-}
+-
+-// InsertRegisterColumn inserts a blank sheet column at the given 1-based
+-// index, labels it in the row-4 header, and fills its running-total
+-// formulas by translating the left neighbor column's formulas. The
+-// position math is the caller's (DB) job; this keeps the sheet in step.
+-func (ss *SheetsService) InsertRegisterColumn(index int, name string) error {
+-	insertReq := sheets.BatchUpdateSpreadsheetRequest{
+-		Requests: []*sheets.Request{{
+-			InsertDimension: &sheets.InsertDimensionRequest{
+-				Range: &sheets.DimensionRange{
+-					SheetId:    ss.RegisterSheet.ID,
+-					Dimension:  "COLUMNS",
+-					StartIndex: int64(index - 1),
+-					EndIndex:   int64(index),
+-				},
+-				InheritFromBefore: true,
+-			},
+-		}},
+-	}
+-	if _, err := ss.Provider.BatchUpdate(&insertReq); err != nil {
+-		return fmt.Errorf("could not insert column: %w", err)
+-	}
+-
+-	rowCount := ss.RegisterSheet.SheetCoords.RowCount
+-	newLetter := models.ColumnLetter(index)
+-	values := make([][]interface{}, rowCount)
+-	for i := range values {
+-		values[i] = []interface{}{""}
+-	}
+-	if rowCount > 3 {
+-		values[3] = []interface{}{name} // row 4 holds the column name
+-	}
+-	if index > 1 && rowCount > 0 {
+-		neighborLetter := models.ColumnLetter(index - 1)
+-		formulas, err := ss.readColumnFormulas(neighborLetter, rowCount)
+-		if err != nil {
+-			return err
+-		}
+-		// totals formulas live in the data rows (row 5 down); rows 1-4 are
+-		// titles, the totals block, the group header, and the name
+-		for row := 4; row < len(formulas); row++ {
+-			if formulas[row] != "" {
+-				values[row] = []interface{}{shiftFormulaColumn(formulas[row], neighborLetter, newLetter)}
+-			}
+-		}
+-	}
+-	writeRange := fmt.Sprintf("%s!%s1:%s%d", ss.RegisterSheet.TabName, newLetter, newLetter, rowCount)
+-	if _, err := ss.Provider.Update(writeRange, &sheets.ValueRange{Values: values}); err != nil {
+-		return fmt.Errorf("could not write column %s: %w", newLetter, err)
+-	}
+-	return nil
+-}
+-
+-// DeleteRegisterColumn removes the sheet column at the given 1-based index.
+-func (ss *SheetsService) DeleteRegisterColumn(index int) error {
+-	deleteReq := sheets.BatchUpdateSpreadsheetRequest{
+-		Requests: []*sheets.Request{{
+-			DeleteDimension: &sheets.DeleteDimensionRequest{
+-				Range: &sheets.DimensionRange{
+-					SheetId:    ss.RegisterSheet.ID,
+-					Dimension:  "COLUMNS",
+-					StartIndex: int64(index - 1),
+-					EndIndex:   int64(index),
+-				},
+-			},
+-		}},
+-	}
+-	if _, err := ss.Provider.BatchUpdate(&deleteReq); err != nil {
+-		return fmt.Errorf("could not delete column %s: %w", models.ColumnLetter(index), err)
+-	}
+-	return nil
+-}
+-
+-// RenameRegisterColumnHeader rewrites the row-4 name cell of the column at
+-// the given 1-based index.
+-func (ss *SheetsService) RenameRegisterColumnHeader(index int, name string) error {
+-	_, err := ss.WriteCell(models.ColumnLetter(index)+"4", name)
+-	return err
+-}
+-
+-// readColumnFormulas returns the formulas of one sheet column, one entry per
+-// row ("" where the cell holds no formula).
+-func (ss *SheetsService) readColumnFormulas(letter string, rowCount int64) ([]string, error) {
+-	rng := fmt.Sprintf("%s!%s1:%s%d", ss.RegisterSheet.TabName, letter, letter, rowCount)
+-	resp, err := ss.Provider.GetFormula(rng)
+-	if err != nil {
+-		return nil, fmt.Errorf("could not read formulas from column %s: %w", letter, err)
+-	}
+-	formulas := make([]string, rowCount)
+-	for i, row := range resp.Values {
+-		if i >= int(rowCount) {
+-			break
+-		}
+-		if len(row) > 0 {
+-			if s, ok := row[0].(string); ok && strings.HasPrefix(s, "=") {
+-				formulas[i] = s
+-			}
+-		}
+-	}
+-	return formulas, nil
+-}
+-
+-var cellRefRegex = regexp.MustCompile(`\$?([A-Z]+)\$?(\d+)`)
+-
+-// shiftFormulaColumn rewrites a formula so references to fromLetter point
+-// at toLetter instead. Register totals formulas reference only their own
+-// column, so this moves a copied formula into its new column wholesale.
+-func shiftFormulaColumn(formula, fromLetter, toLetter string) string {
+-	return cellRefRegex.ReplaceAllStringFunc(formula, func(ref string) string {
+-		sub := cellRefRegex.FindStringSubmatch(ref)
+-		if sub[1] != fromLetter {
+-			return ref
+-		}
+-		return strings.Replace(ref, sub[1], toLetter, 1)
+-	})
+-}
+-
+-func (ss *SheetsService) UpdateRows(columns []models.Column, transNameToColName map[string]string, transactions []*models.Transaction) error {
+-	var requests []*sheets.Request
+-
+-	rows, err := ss.populateCells(columns, transNameToColName, transactions)
+-	if err != nil {
+-		return err
+-	}
+-
+-	gridCoordinate := ss.getGridCoordinate()
+-	updateCellsRequest := sheets.UpdateCellsRequest{
+-		Fields: "*",
+-		Rows:   rows,
+-		Start:  gridCoordinate,
+-	}
+-
+-	request := sheets.Request{
+-		UpdateCells: &updateCellsRequest,
+-	}
+-	requests = append(requests, &request)
+-
+-	batchUpdateRequest := sheets.BatchUpdateSpreadsheetRequest{
+-		Requests: requests,
+-	}
+-
+-	_, err = ss.Provider.BatchUpdate(&batchUpdateRequest)
+-	if err != nil {
+-		return err
+-	}
+-	return nil
+-}
+-
+-// Private methods
+-
+-func (ss *SheetsService) getGridCoordinate() *sheets.GridCoordinate {
+-	return &sheets.GridCoordinate{
+-		SheetId:     ss.RegisterSheet.ID,
+-		RowIndex:    ss.RegisterSheet.SheetCoords.FirstRowToUpdate,
+-		ColumnIndex: 0,
+-	}
+-}
+-
+-func (ss *SheetsService) populateCells(columns []models.Column, transNameToColName map[string]string, transactions []*models.Transaction) ([]*sheets.RowData, error) {
+-	var rows []*sheets.RowData
+-
+-	rowIndex := ss.RegisterSheet.SheetCoords.FirstRowToUpdate
+-	for _, trans := range transactions {
+-		var cells []*sheets.CellData
+-
+-		bgColor := getBackgroundColor(trans, ss.isIncomeName(trans.Name))
+-		cells, err := addSourceDateNameCells(cells, trans, bgColor)
+-		if err != nil {
+-			return nil, err
+-		}
+-		cells = addAmountCell(cells, trans, bgColor)
+-
+-		totalsFormulas, err := ss.readRangeFormulas(getRegisterToDeltaReadRange(rowIndex))
+-		if err != nil {
+-			return nil, err
+-		}
+-		if ss.isIncomeName(trans.Name) {
+-			cells = ss.addSalaryCells(cells, columns, totalsFormulas, ss.incomeFrequency(trans.Name))
+-		} else {
+-			cells = addCategoryCells(cells, trans, columns, transNameToColName, totalsFormulas)
+-		}
+-
+-		rows = append(rows, &sheets.RowData{Values: cells})
+-
+-		if hasNote(trans) {
+-			rows = append(rows, ss.makeNoteRow(trans.Note))
+-		} else {
+-			var emptyCells []*sheets.CellData
+-			rows = append(rows, &sheets.RowData{
+-				Values: emptyCells,
+-			})
+-		}
+-		rowIndex += 2
+-	}
+-	return rows, nil
+-}
+-
+-func (ss *SheetsService) makeNoteRow(note string) *sheets.RowData {
+-	var cells = make([]*sheets.CellData, 0, ss.RegisterSheet.SheetCoords.EndColumnIndex)
+-	for i := 1; i < 4; i++ {
+-		cells = append(cells, mkCellDataString("", "left", "lightgrey", false))
+-	}
+-	cells = append(cells, mkCellDataString(note, "left", "lightgrey", false))
+-	return &sheets.RowData{
+-		Values: cells,
+-	}
+-}
+-
+-// allocationFor returns a category's budgeted amount at the income source's
+-// cadence: "weekly" deposits allocate the Weekly amounts, "monthly" the
+-// Monthly ones. Any other frequency allocates nothing (visible zeros), so a
+-// misconfigured frequency is obvious rather than quietly wrong.
+-func allocationFor(entry *BudgetEntry, frequency string) float64 {
+-	if entry == nil {
+-		return 0
+-	}
+-	switch strings.ToLower(frequency) {
+-	case "weekly":
+-		return entry.Weekly
+-	case "monthly":
+-		return entry.Monthly
+-	}
+-	return 0
+-}
+-
+-func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []models.Column, totalsFormulas []string, frequency string) []*sheets.CellData {
+-	// Same placement rule as addCategoryCells: cells are positioned by each
+-	// column's own ColumnIndex, so a gap in the columns table leaves an empty
+-	// cell instead of shifting the amounts after it.
+-	nextIndex := BankRegister + 1 // 1-based index of the next cell to fill (8 = H)
+-	for _, col := range columns {
+-		if col.ColumnIndex < nextIndex {
+-			continue // part of the fixed A-G block, already appended
+-		}
+-		for ; nextIndex < col.ColumnIndex; nextIndex++ {
+-			cells = append(cells, mkCellDataDollars(0.00, "left", "", true))
+-		}
+-		// i is this column's offset within the category block (0 = H)
+-		i := col.ColumnIndex - BankRegister - 1
+-		entry := ss.BudgetSheet.CategoriesMap[col.Name]
+-
+-		if isRegisterClearedOrDeltaColumn(i) {
+-			// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here
+-			cells = append(cells, mkCellDataFormula(totalsFormulas[i], "right", col.Color, false))
+-		} else if isBudgetColumn(col.Name) && entry != nil {
+-			// enter the budgeted amount for this cadence in this category column
+-			cells = append(cells, mkCellDataDollars(allocationFor(entry, frequency), "left", col.Color, true))
+-		} else {
+-			// this cell doesn't apply. Just create an empty (opaque) cell.
+-			cells = append(cells, mkCellDataDollars(0.00, "left", col.Color, true))
+-		}
+-		nextIndex++
+-	}
+-	return cells
+-}
+ 
+ func (ss *SheetsService) isEmptyRow(values []interface{}) bool {
+ 	if getStringField(values, Date) == "" {
+diff --git a/api/services/sheets_service/register_write.go b/api/services/sheets_service/register_write.go
+new file mode 100644
+index 0000000..a50f0a1
+--- /dev/null
++++ b/api/services/sheets_service/register_write.go
+@@ -0,0 +1,150 @@
++package sheets_service
++
++// The register write path: turning transactions into sheet rows.
++
++import (
++	"strings"
++	"register/pkg/models"
++
++	"google.golang.org/api/sheets/v4"
++)
++
++
++func (ss *SheetsService) UpdateRows(columns []models.Column, transNameToColName map[string]string, transactions []*models.Transaction) error {
++	var requests []*sheets.Request
++
++	rows, err := ss.populateCells(columns, transNameToColName, transactions)
++	if err != nil {
++		return err
++	}
++
++	gridCoordinate := ss.getGridCoordinate()
++	updateCellsRequest := sheets.UpdateCellsRequest{
++		Fields: "*",
++		Rows:   rows,
++		Start:  gridCoordinate,
++	}
++
++	request := sheets.Request{
++		UpdateCells: &updateCellsRequest,
++	}
++	requests = append(requests, &request)
++
++	batchUpdateRequest := sheets.BatchUpdateSpreadsheetRequest{
++		Requests: requests,
++	}
++
++	_, err = ss.Provider.BatchUpdate(&batchUpdateRequest)
++	if err != nil {
++		return err
++	}
++	return nil
++}
++
++// Private methods
++
++func (ss *SheetsService) getGridCoordinate() *sheets.GridCoordinate {
++	return &sheets.GridCoordinate{
++		SheetId:     ss.RegisterSheet.ID,
++		RowIndex:    ss.RegisterSheet.SheetCoords.FirstRowToUpdate,
++		ColumnIndex: 0,
++	}
++}
++
++func (ss *SheetsService) populateCells(columns []models.Column, transNameToColName map[string]string, transactions []*models.Transaction) ([]*sheets.RowData, error) {
++	var rows []*sheets.RowData
++
++	rowIndex := ss.RegisterSheet.SheetCoords.FirstRowToUpdate
++	for _, trans := range transactions {
++		var cells []*sheets.CellData
++
++		bgColor := getBackgroundColor(trans, ss.isIncomeName(trans.Name))
++		cells, err := addSourceDateNameCells(cells, trans, bgColor)
++		if err != nil {
++			return nil, err
++		}
++		cells = addAmountCell(cells, trans, bgColor)
++
++		totalsFormulas, err := ss.readRangeFormulas(getRegisterToDeltaReadRange(rowIndex))
++		if err != nil {
++			return nil, err
++		}
++		if ss.isIncomeName(trans.Name) {
++			cells = ss.addSalaryCells(cells, columns, totalsFormulas, ss.incomeFrequency(trans.Name))
++		} else {
++			cells = addCategoryCells(cells, trans, columns, transNameToColName, totalsFormulas)
++		}
++
++		rows = append(rows, &sheets.RowData{Values: cells})
++
++		if hasNote(trans) {
++			rows = append(rows, ss.makeNoteRow(trans.Note))
++		} else {
++			var emptyCells []*sheets.CellData
++			rows = append(rows, &sheets.RowData{
++				Values: emptyCells,
++			})
++		}
++		rowIndex += 2
++	}
++	return rows, nil
++}
++
++func (ss *SheetsService) makeNoteRow(note string) *sheets.RowData {
++	var cells = make([]*sheets.CellData, 0, ss.RegisterSheet.SheetCoords.EndColumnIndex)
++	for i := 1; i < 4; i++ {
++		cells = append(cells, mkCellDataString("", "left", "lightgrey", false))
++	}
++	cells = append(cells, mkCellDataString(note, "left", "lightgrey", false))
++	return &sheets.RowData{
++		Values: cells,
++	}
++}
++
++// allocationFor returns a category's budgeted amount at the income source's
++// cadence: "weekly" deposits allocate the Weekly amounts, "monthly" the
++// Monthly ones. Any other frequency allocates nothing (visible zeros), so a
++// misconfigured frequency is obvious rather than quietly wrong.
++func allocationFor(entry *BudgetEntry, frequency string) float64 {
++	if entry == nil {
++		return 0
++	}
++	switch strings.ToLower(frequency) {
++	case "weekly":
++		return entry.Weekly
++	case "monthly":
++		return entry.Monthly
++	}
++	return 0
++}
++
++func (ss *SheetsService) addSalaryCells(cells []*sheets.CellData, columns []models.Column, totalsFormulas []string, frequency string) []*sheets.CellData {
++	// Same placement rule as addCategoryCells: cells are positioned by each
++	// column's own ColumnIndex, so a gap in the columns table leaves an empty
++	// cell instead of shifting the amounts after it.
++	nextIndex := BankRegister + 1 // 1-based index of the next cell to fill (8 = H)
++	for _, col := range columns {
++		if col.ColumnIndex < nextIndex {
++			continue // part of the fixed A-G block, already appended
++		}
++		for ; nextIndex < col.ColumnIndex; nextIndex++ {
++			cells = append(cells, mkCellDataDollars(0.00, "left", "", true))
++		}
++		// i is this column's offset within the category block (0 = H)
++		i := col.ColumnIndex - BankRegister - 1
++		entry := ss.BudgetSheet.CategoriesMap[col.Name]
++
++		if isRegisterClearedOrDeltaColumn(i) {
++			// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here
++			cells = append(cells, mkCellDataFormula(totalsFormulas[i], "right", col.Color, false))
++		} else if isBudgetColumn(col.Name) && entry != nil {
++			// enter the budgeted amount for this cadence in this category column
++			cells = append(cells, mkCellDataDollars(allocationFor(entry, frequency), "left", col.Color, true))
++		} else {
++			// this cell doesn't apply. Just create an empty (opaque) cell.
++			cells = append(cells, mkCellDataDollars(0.00, "left", col.Color, true))
++		}
++		nextIndex++
++	}
++	return cells
++}

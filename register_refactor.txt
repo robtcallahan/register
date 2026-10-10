@@ -61,7 +61,7 @@ Phase 6 — Column management CLI
 -----------------------------------------------------------------------------------------
 Phase 7 — Constants + readability
 - [X] 7.1 Move cell addresses, colors, magic values to constants.go or config
-- [ ] 7.2 Split register_service.go into focused functions
+- [X] 7.2 Split register_service.go into focused functions
 - [ ] 7.3 Split helpers.go into focused functions
 - [ ] 7.4 Split banking.go GetTransactions
 - [ ] 7.5 Go-idiom cleanup (boolean returns, *[]string, fmt.Errorf)
