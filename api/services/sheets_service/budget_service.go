@@ -3,6 +3,9 @@ package sheets_service
 import (
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"register/pkg/config"
 
@@ -99,4 +102,198 @@ func (ss *SheetsService) populateBudgetEntry(values []interface{}) (*BudgetEntry
 		Weekly:   weekly,
 		Monthly:  monthly,
 	}, nil
+}
+
+// --- Budget tab category surgery (Phase 6.5) -------------------------------
+// The columns CLI keeps the Budget tab in step with the Register columns:
+// the salary fan-out reads budget rows by name, so a register category with
+// no budget row silently stops receiving allocations.
+
+// budgetGroupName maps a register column color to the label of the Budget
+// group whose totals row ends its block.
+func budgetGroupName(color string) (string, bool) {
+	switch color {
+	case "green":
+		return "Discretionary", true
+	case "yellow":
+		return "Non-Discretionary", true
+	case "blue":
+		return "Savings Categories", true
+	}
+	return "", false
+}
+
+// BudgetRowFor returns the 1-based sheet row of the Budget category with
+// the given name, or false if the tab has no such row. Reads fresh: the
+// columns CLI is short-lived and the tab may have been edited by hand.
+func (ss *SheetsService) BudgetRowFor(name string) (int, bool, error) {
+	rng := fmt.Sprintf("%s!B%d:B%d", ss.BudgetSheet.TabName,
+		ss.BudgetSheet.SheetCoords.StartRow, ss.BudgetSheet.SheetCoords.EndRow)
+	resp, err := ss.Provider.GetValues(rng)
+	if err != nil {
+		return 0, false, fmt.Errorf("could not read budget categories: %w", err)
+	}
+	for i, row := range resp.Values {
+		if len(row) > 0 && strings.TrimSpace(fmt.Sprintf("%s", row[0])) == name {
+			return int(ss.BudgetSheet.SheetCoords.StartRow) + i, true, nil
+		}
+	}
+	return 0, false, nil
+}
+
+// BudgetEntryFor returns the Weekly/Monthly allocations of the named
+// Budget category.
+func (ss *SheetsService) BudgetEntryFor(name string) (*BudgetEntry, bool, error) {
+	row, found, err := ss.BudgetRowFor(name)
+	if err != nil || !found {
+		return nil, found, err
+	}
+	rng := fmt.Sprintf("%s!B%d:%s%d", ss.BudgetSheet.TabName, row,
+		ss.BudgetSheet.SheetCoords.EndColumnName, row)
+	resp, err := ss.Provider.GetValues(rng)
+	if err != nil {
+		return nil, false, fmt.Errorf("could not read budget row %d: %w", row, err)
+	}
+	if len(resp.Values) == 0 {
+		return nil, false, nil
+	}
+	values := resp.Values[0]
+	for len(values) < 7 { // short rows: trailing cells trimmed by the API
+		values = append(values, "")
+	}
+	entry, err := ss.populateBudgetEntry(values)
+	if err != nil {
+		return nil, false, err
+	}
+	return entry, true, nil
+}
+
+// RenameBudgetCategory renames the Budget row of a category. Reports
+// whether a row existed (payoff columns have none).
+func (ss *SheetsService) RenameBudgetCategory(oldName, newName string) (bool, error) {
+	row, found, err := ss.BudgetRowFor(oldName)
+	if err != nil || !found {
+		return found, err
+	}
+	rng := fmt.Sprintf("%s!B%d", ss.BudgetSheet.TabName, row)
+	if _, err := ss.Provider.Update(rng, &sheets.ValueRange{Values: [][]interface{}{{newName}}}); err != nil {
+		return false, fmt.Errorf("could not rename budget row %d: %w", row, err)
+	}
+	return true, nil
+}
+
+// InsertBudgetCategory adds a zeroed Budget row for a new register
+// category: inside its color group, just before the group's totals row,
+// with the totals formulas extended to cover the new row.
+func (ss *SheetsService) InsertBudgetCategory(name, color string) error {
+	group, ok := budgetGroupName(color)
+	if !ok {
+		return fmt.Errorf("no budget group for color %q", color)
+	}
+	totalsRow, found, err := ss.BudgetRowFor(group)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("budget tab has no %q totals row to insert before", group)
+	}
+
+	insertReq := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{{
+			InsertDimension: &sheets.InsertDimensionRequest{
+				Range: &sheets.DimensionRange{
+					SheetId:    ss.BudgetSheet.ID,
+					Dimension:  "ROWS",
+					StartIndex: int64(totalsRow - 1),
+					EndIndex:   int64(totalsRow),
+				},
+				InheritFromBefore: true,
+			},
+		}},
+	}
+	if _, err := ss.Provider.BatchUpdate(insertReq); err != nil {
+		return fmt.Errorf("could not insert budget row: %w", err)
+	}
+
+	// the new row sits at totalsRow; label it
+	rng := fmt.Sprintf("%s!B%d", ss.BudgetSheet.TabName, totalsRow)
+	if _, err := ss.Provider.Update(rng, &sheets.ValueRange{Values: [][]interface{}{{name}}}); err != nil {
+		return fmt.Errorf("could not label budget row %d: %w", totalsRow, err)
+	}
+
+	// The totals row moved to totalsRow+1. Extend any of its SUM ranges
+	// that ended at the group's old last row (totalsRow-1) to include
+	// the new row — Sheets does not widen a range for a row inserted
+	// immediately above its formula.
+	newTotalsRow := totalsRow + 1
+	frng := fmt.Sprintf("%s!B%d:H%d", ss.BudgetSheet.TabName, newTotalsRow, newTotalsRow)
+	resp, err := ss.Provider.GetFormula(frng)
+	if err != nil {
+		return fmt.Errorf("could not read budget totals row: %w", err)
+	}
+	if len(resp.Values) == 0 {
+		return nil
+	}
+	for j, cell := range resp.Values[0] {
+		formula, ok := cell.(string)
+		if !ok || !strings.HasPrefix(formula, "=") {
+			continue
+		}
+		extended, changed := extendRangeEnd(formula, totalsRow-1, totalsRow)
+		if !changed {
+			continue
+		}
+		cellRef := fmt.Sprintf("%s!%s%d", ss.BudgetSheet.TabName,
+			string(rune('B'+j)), newTotalsRow)
+		if _, err := ss.Provider.Update(cellRef, &sheets.ValueRange{Values: [][]interface{}{{extended}}}); err != nil {
+			return fmt.Errorf("could not extend budget totals formula at %s: %w", cellRef, err)
+		}
+	}
+	return nil
+}
+
+// DeleteBudgetCategory removes the Budget row of a category. Reports
+// whether a row existed. Deleting inside the group's SUM range is safe:
+// Sheets shrinks the range itself.
+func (ss *SheetsService) DeleteBudgetCategory(name string) (bool, error) {
+	row, found, err := ss.BudgetRowFor(name)
+	if err != nil || !found {
+		return found, err
+	}
+	deleteReq := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{{
+			DeleteDimension: &sheets.DeleteDimensionRequest{
+				Range: &sheets.DimensionRange{
+					SheetId:    ss.BudgetSheet.ID,
+					Dimension:  "ROWS",
+					StartIndex: int64(row - 1),
+					EndIndex:   int64(row),
+				},
+			},
+		}},
+	}
+	if _, err := ss.Provider.BatchUpdate(deleteReq); err != nil {
+		return false, fmt.Errorf("could not delete budget row %d: %w", row, err)
+	}
+	return true, nil
+}
+
+// rangeRef matches a cell range like D3:D8 or $D$3:$D$8 inside a formula.
+var rangeRef = regexp.MustCompile(`(\$?[A-Za-z]+\$?)(\d+):(\$?[A-Za-z]+\$?)(\d+)`)
+
+// extendRangeEnd rewrites every range in a formula whose end row is
+// oldEnd so it ends at newEnd instead — how a group totals formula grows
+// to include a freshly inserted category row.
+func extendRangeEnd(formula string, oldEnd, newEnd int) (string, bool) {
+	changed := false
+	out := rangeRef.ReplaceAllStringFunc(formula, func(m string) string {
+		parts := rangeRef.FindStringSubmatch(m)
+		end, err := strconv.Atoi(parts[4])
+		if err != nil || end != oldEnd {
+			return m
+		}
+		changed = true
+		return parts[1] + parts[2] + ":" + parts[3] + strconv.Itoa(newEnd)
+	})
+	return out, changed
 }

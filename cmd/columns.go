@@ -19,7 +19,9 @@ var columnsCmd = &cobra.Command{
 	Short: "Manage register category columns in the DB and the sheet",
 	Long: `List, add, rename, and delete register category columns. The columns
 table is the source of truth; add and delete keep the Register tab in step
-(insert/remove the sheet column, fill the running-total formulas).`,
+(insert/remove the sheet column, fill the running-total formulas) and keep
+the Budget tab in step too (rename moves the budget row, add creates one,
+delete removes it).`,
 }
 
 var columnsListCmd = &cobra.Command{
@@ -66,9 +68,10 @@ var columnsDeleteCmd = &cobra.Command{
 }
 
 var (
-	addColor  string
-	addAfter  string
-	deleteYes bool
+	addColor    string
+	addAfter    string
+	addNoBudget bool
+	deleteYes   bool
 )
 
 func init() {
@@ -81,6 +84,7 @@ func init() {
 
 	columnsAddCmd.Flags().StringVar(&addColor, "color", "", "column color: green, yellow, or blue (required)")
 	columnsAddCmd.Flags().StringVar(&addAfter, "after", "", "insert after this column (default: at the end)")
+	columnsAddCmd.Flags().BoolVar(&addNoBudget, "no-budget", false, "do not create a Budget tab row for the new category")
 	columnsDeleteCmd.Flags().BoolVar(&deleteYes, "yes", false, "skip the confirmation prompt")
 	_ = columnsAddCmd.MarkFlagRequired("color")
 }
@@ -111,6 +115,19 @@ func columnsSheetService(q *handler.Query) (*sheets_service.SheetsService, error
 	}
 	ss := sheets_service.New(provider)
 	if err := ss.NewRegisterSheet(config, columns); err != nil {
+		return nil, err
+	}
+	return ss, nil
+}
+
+// columnsBudgetSheetService is columnsSheetService plus the Budget tab
+// coordinates, for the commands that keep the Budget tab in step.
+func columnsBudgetSheetService(q *handler.Query) (*sheets_service.SheetsService, error) {
+	ss, err := columnsSheetService(q)
+	if err != nil {
+		return nil, err
+	}
+	if err := ss.NewBudgetSheet(config); err != nil {
 		return nil, err
 	}
 	return ss, nil
@@ -182,13 +199,19 @@ func addColumn(name string) error {
 		return err
 	}
 
-	ss, err := columnsSheetService(q)
+	ss, err := columnsBudgetSheetService(q)
 	if err != nil {
 		return err
 	}
 	if err := ss.InsertRegisterColumn(newIndex, name); err != nil {
 		return fmt.Errorf("%q is in the DB at %s (%d) but the sheet update failed: %w",
 			name, set.LetterFor(newIndex), newIndex, err)
+	}
+	if !addNoBudget {
+		if err := ss.InsertBudgetCategory(name, addColor); err != nil {
+			return fmt.Errorf("%q added at %s (%d) but the Budget row update failed: %w",
+				name, set.LetterFor(newIndex), newIndex, err)
+		}
 	}
 
 	fmt.Printf("Added %q at column %s (index %d)\n", name, set.LetterFor(newIndex), newIndex)
@@ -222,15 +245,22 @@ func renameColumn(oldName, newName string) error {
 		return err
 	}
 
-	ss, err := columnsSheetService(q)
+	ss, err := columnsBudgetSheetService(q)
 	if err != nil {
 		return err
 	}
 	if err := ss.RenameRegisterColumnHeader(index, newName); err != nil {
 		return fmt.Errorf("%q renamed in the DB but the sheet header update failed: %w", oldName, err)
 	}
+	budgetRenamed, err := ss.RenameBudgetCategory(oldName, newName)
+	if err != nil {
+		return fmt.Errorf("%q renamed but the Budget row update failed: %w", oldName, err)
+	}
 
 	fmt.Printf("Renamed %q to %q (column %s)\n", oldName, newName, set.LetterFor(index))
+	if budgetRenamed {
+		fmt.Println("Renamed the Budget row too.")
+	}
 	return nil
 }
 
@@ -253,6 +283,19 @@ func deleteColumn(name string) error {
 			name, models.FirstCategoryIndex-1)
 	}
 	col, _ := set.ByIndex(index)
+
+	ss, err := columnsBudgetSheetService(q)
+	if err != nil {
+		return err
+	}
+	budgetEntry, hasBudget, err := ss.BudgetEntryFor(name)
+	if err != nil {
+		return err
+	}
+	if hasBudget {
+		fmt.Printf("%q has a Budget row (Weekly $%.2f, Monthly $%.2f) that will be deleted with it.\n",
+			name, budgetEntry.Weekly, budgetEntry.Monthly)
+	}
 
 	merchants, err := q.GetMerchantsByColumn(col.ID)
 	if err != nil {
@@ -279,12 +322,13 @@ func deleteColumn(name string) error {
 		return err
 	}
 
-	ss, err := columnsSheetService(q)
-	if err != nil {
-		return err
-	}
 	if err := ss.DeleteRegisterColumn(index); err != nil {
 		return fmt.Errorf("%q is deleted from the DB but the sheet update failed: %w", name, err)
+	}
+	if hasBudget {
+		if _, err := ss.DeleteBudgetCategory(name); err != nil {
+			return fmt.Errorf("%q is deleted but its Budget row removal failed: %w", name, err)
+		}
 	}
 
 	fmt.Printf("Deleted %q (column %s, index %d)\n", name, set.LetterFor(index), index)

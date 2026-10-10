@@ -50,14 +50,14 @@ Phase 5 — Paycheck redesign
 - [X] 5.5 Remove ColumnIndex=42 magic number
 -----------------------------------------------------------------------------------------
 Phase 6 — Column management CLI
-[X] 6.1 ColumnSet + identity write path — done
-[X] finding #5 prompt fix — done
-[X] finding #6 cleanup — done
-[X] 6.2 columns CLI (list/add/rename/delete — first thing that ever writes the columns table)
-[X] 6.3 columns check (report-only)
-[ ] 6.4 positions derived everywhere
-[ ] 6.5 budget category names from the same source
-[ ] 6.6 config index cleanup
+- [X] 6.1 Make DB columns table the single source of truth (ColumnSet, identity-based cell placement, end column derived from DB — done 2026-10-09)
+- [X] finding #5 prompt fix — done
+- [X] finding #6 cleanup — done
+- [X] 6.2 columns CLI: Add register columns list|add|rename|delete commands (done 2026-10-09)
+- [X] 6.3 Add register columns check for sheet-vs-DB drift (done 2026-10-09 — caught the 7 mismatches, reconciled same day)
+- [X] 6.4 Retire the is_category flag; category-ness derived from position (done 2026-10-09)
+- [X] 6.5 Budget category names from the same source (the Budget-sync CLI work — patch delivered tonight, awaiting your apply)
+- [ ] 6.6 Config index cleanup (remove ColumnIndexes/RegisterCategoryEndColumn from config; RegisterIndexes already gone)
 -----------------------------------------------------------------------------------------
 Phase 7 — Constants + readability
 - [ ] 7.1 Move cell addresses, colors, magic values to constants.go or config
@@ -76,9 +76,10 @@ Phase 8 — Monthly summary correction
 - [ ] 8.5 Derive the summary formula range from the actual month count (hardcoded B:L = 11 months today) in addSummaryRows/addSummarySalaryRow
 - [ ] 8.6 Replace magic j := 10 start and cols[j].Name == "Credit Cards" check in Aggregate with category-driven iteration
 - [ ] 8.7 Normalize error wrapping in monthly_service.go to fmt.Errorf("...: %w") (drop "error: %s\n")
-- [ ] 8.8 Create a pie chart for monthy summar on a separate worksheet to the right of the register tab
+- [ ] 8.8 Create a pie chart for monthly summary on a separate worksheet to the right of the register tab
 -----------------------------------------------------------------------------------------
 Phase 9 — Miscellaneous fixes
 - [ ] 9.1 Add unique index on transactions.key so UpdateTransactionTables upserts instead of duplicating (empty the table once first; OnConflict UpdateAll already in place)
 - [ ] 9.2 Amazon ±1-day date drift can still mint a second key — handled by Phase 3 fuzzy matching (cross-reference, not a separate fix)
-- [ ] 9.3 Review all code tests to insure coverage
+- [ ] 9.3  Replace positional values[index] sheet/CSV reads with header-named row decoding (Budget first, then Register row-4 headers, then CSV header row); missing expected header errors loudly instead of reading the wrong column
+
