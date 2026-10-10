@@ -54,7 +54,7 @@ func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
 	range_ := fmt.Sprintf("%s!A%d:%s%d", ss.BudgetSheet.TabName, ss.BudgetSheet.SheetCoords.StartRow, ss.BudgetSheet.SheetCoords.EndColumnName, ss.BudgetSheet.SheetCoords.EndRow)
 	resp, err := ss.Provider.GetValues(range_)
 	if err != nil {
-		return nil, fmt.Errorf("could not get sheet values: %s\n", err.Error())
+		return nil, fmt.Errorf("could not get sheet values: %w\n", err)
 	}
 	if len(resp.Values) == 0 {
 		return nil, errors.New("no values found")
@@ -79,10 +79,7 @@ func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
 }
 
 func (ss *SheetsService) isEmptyBudgetRow(values []interface{}) bool {
-	if len(values) < 7 || ss.getBudgetCategory(values) == "" {
-		return true
-	}
-	return false
+	return len(values) < 7 || ss.getBudgetCategory(values) == ""
 }
 
 func (ss *SheetsService) getBudgetCategory(values []interface{}) string {

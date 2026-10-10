@@ -633,7 +633,7 @@ func readInt(prompt string) (int, error) {
 	v = strings.TrimSuffix(v, "\n")
 	i, err := strconv.Atoi(v)
 	if err != nil {
-		return 0, fmt.Errorf("could not convert %s to an int: %s", v, err.Error())
+		return 0, fmt.Errorf("could not convert %s to an int: %w", v, err)
 	}
 	return i, nil
 }

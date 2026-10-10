@@ -34,7 +34,7 @@ func readDollarsValue(value interface{}) (float64, error) {
 
 	f, err := strconv.ParseFloat(dollars, 64)
 	if err != nil {
-		return 0, fmt.Errorf("parseFloat error: %s", err.Error())
+		return 0, fmt.Errorf("parseFloat error: %w", err)
 	}
 	return f, nil
 }

@@ -226,7 +226,7 @@ func getCellDataDate(dateString, align, colorName string, borders bool) (*sheets
 	dateString = formatYear(dateString)
 	csvTime, err := time.Parse("01/02/06", dateString)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse date string: %s: %s", dateString, err.Error())
+		return nil, fmt.Errorf("could not parse date string: %s: %w", dateString, err)
 	}
 
 	serialTime, _ := time.Parse("01/02/2006", "12/30/1899")

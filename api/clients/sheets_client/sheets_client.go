@@ -50,7 +50,7 @@ func (c *clientStruct) Update(ssService *sheets.Service, spreadsheetId string, w
 	call.ValueInputOption("USER_ENTERED")
 	resp, err := call.Do()
 	if err != nil {
-		return resp, fmt.Errorf("unable to write cell data: %s", err.Error())
+		return resp, fmt.Errorf("unable to write cell data: %w", err)
 	}
 	return resp, err
 }

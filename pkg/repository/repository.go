@@ -32,10 +32,10 @@ type QueryRepo interface {
 	PrintTable(table string) error
 }
 
-func ColumnNames(cats []models.Column) *[]string {
+func ColumnNames(cats []models.Column) []string {
 	names := make([]string, 0, len(cats))
 	for _, c := range cats {
 		names = append(names, c.Name)
 	}
-	return &names
+	return names
 }

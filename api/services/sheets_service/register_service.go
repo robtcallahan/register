@@ -98,7 +98,7 @@ func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
 	var readRange = ss.getReadRange()
 	resp, err := ss.Provider.GetValues(readRange)
 	if err != nil {
-		return nil, fmt.Errorf("could not get sheet values: %s\n", err.Error())
+		return nil, fmt.Errorf("could not get sheet values: %w\n", err)
 	}
 	if len(resp.Values) == 0 {
 		return nil, fmt.Errorf("no data found for read range: %s", ss.getReadRange())
@@ -225,7 +225,7 @@ func (ss *SheetsService) WriteCell(cell string, value interface{}) (*sheets.Upda
 	}
 	resp, err := ss.Provider.Update(writeRange, vRange)
 	if err != nil {
-		return nil, fmt.Errorf("unable to write cell data: %s", err.Error())
+		return nil, fmt.Errorf("unable to write cell data: %w", err)
 	}
 	return resp, nil
 }

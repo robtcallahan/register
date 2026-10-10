@@ -95,7 +95,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 				fmt.Printf("    Fidelity\n")
 				trans, err := c.readFidelityCSV()
 				if err != nil {
-					return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+					return nil, fmt.Errorf("could not read CSV file: %w", err)
 				}
 				csvTrans = append(csvTrans, trans...)
 			}
@@ -104,7 +104,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 				fmt.Printf("    Wells Fargo\n")
 				trans, err := c.readWellsFargoCSV()
 				if err != nil {
-					return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+					return nil, fmt.Errorf("could not read CSV file: %w", err)
 				}
 				csvTrans = append(csvTrans, trans...)
 			}
@@ -113,7 +113,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 				fmt.Printf("    Chase\n")
 				trans, err := c.readChaseCSV()
 				if err != nil {
-					return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+					return nil, fmt.Errorf("could not read CSV file: %w", err)
 				}
 				csvTrans = append(csvTrans, trans...)
 			}
@@ -122,7 +122,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 				fmt.Printf("    Bank of America\n")
 				trans, err := c.readBankOfAmericaCSV()
 				if err != nil {
-					return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
+					return nil, fmt.Errorf("could not read CSV file: %w", err)
 				}
 				csvTrans = append(csvTrans, trans...)
 			}
@@ -142,7 +142,7 @@ func (c *Client) readWellsFargoCSV() ([]*models.Transaction, error) {
 	if !doWellsFargoHeadsExist(fileBytes) {
 		err = addWellsFargoHeads(csvFile, fileBytes)
 		if err != nil {
-			return nil, fmt.Errorf("could not write csv file: %s", err.Error())
+			return nil, fmt.Errorf("could not write csv file: %w", err)
 		}
 	}
 
@@ -170,13 +170,13 @@ func (c *Client) readBankOfAmericaCSV() ([]*models.Transaction, error) {
 func readWellsFargoCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
 	csvFilePtr, err := os.Open(csvFile)
 	if err != nil {
-		return nil, fmt.Errorf("could not open file %s: %s", csvFile, err.Error())
+		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)
 	}
 	defer csvFilePtr.Close()
 
 	var wellsFargo []*WellsFargo
 	if err := gocsv.UnmarshalFile(csvFilePtr, &wellsFargo); err != nil {
-		return nil, fmt.Errorf("could not unmarshal CSV file %s: %s", csvFile, err.Error())
+		return nil, fmt.Errorf("could not unmarshal CSV file %s: %w", csvFile, err)
 	}
 	return processWellsFargoData(wellsFargo, bankId), nil
 }
@@ -232,7 +232,7 @@ func addWellsFargoHeads(fileName string, fileBytes []byte) error {
 	fileBytes = append(headerBytes, fileBytes...)
 	err := os.WriteFile(fileName, fileBytes, os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("could not write csv file: %s", err.Error())
+		return fmt.Errorf("could not write csv file: %w", err)
 	}
 	return nil
 }
@@ -240,13 +240,13 @@ func addWellsFargoHeads(fileName string, fileBytes []byte) error {
 func readFidelityCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
 	csvFilePtr, err := os.Open(csvFile)
 	if err != nil {
-		return nil, fmt.Errorf("could not open file %s: %s", csvFile, err.Error())
+		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)
 	}
 	defer csvFilePtr.Close()
 
 	var fidelity []*FidelityVisa
 	if err := gocsv.UnmarshalFile(csvFilePtr, &fidelity); err != nil {
-		return nil, fmt.Errorf("could not unmarshal CSV file %s: %s", csvFile, err.Error())
+		return nil, fmt.Errorf("could not unmarshal CSV file %s: %w", csvFile, err)
 	}
 
 	return processFidelityData(fidelity, bankId), nil
@@ -273,13 +273,13 @@ func processFidelityData(fidelity []*FidelityVisa, bankId string) []*models.Tran
 func readChaseCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
 	csvFilePtr, err := os.Open(csvFile)
 	if err != nil {
-		return nil, fmt.Errorf("could not open file %s: %s", csvFile, err.Error())
+		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)
 	}
 	defer csvFilePtr.Close()
 
 	var chase []*ChaseVisa
 	if err := gocsv.UnmarshalFile(csvFilePtr, &chase); err != nil {
-		return nil, fmt.Errorf("could not unmarshal CSV file %s: %s", csvFile, err.Error())
+		return nil, fmt.Errorf("could not unmarshal CSV file %s: %w", csvFile, err)
 	}
 	return processChaseData(chase, bankId), nil
 }
@@ -311,13 +311,13 @@ func processChaseData(chase []*ChaseVisa, bankId string) []*models.Transaction {
 func readBankOfAmericaCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
 	csvFilePtr, err := os.Open(csvFile)
 	if err != nil {
-		return nil, fmt.Errorf("could not open file %s: %s", csvFile, err.Error())
+		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)
 	}
 	defer csvFilePtr.Close()
 
 	var boa []*BankOfAmerica
 	if err := gocsv.UnmarshalFile(csvFilePtr, &boa); err != nil {
-		return nil, fmt.Errorf("could not unmarshal CSV file %s: %s", csvFile, err.Error())
+		return nil, fmt.Errorf("could not unmarshal CSV file %s: %w", csvFile, err)
 	}
 
 	return processBankOfAmericaData(boa, bankId), nil

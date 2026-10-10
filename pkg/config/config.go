@@ -84,13 +84,13 @@ type IncomeSource struct {
 func ReadConfig(file string) (*Config, error) {
 	contents, err := os.ReadFile(file)
 	if err != nil {
-		return nil, fmt.Errorf("could not read config file: %s", err.Error())
+		return nil, fmt.Errorf("could not read config file: %w", err)
 	}
 
 	var config = Config{}
 	err = json.Unmarshal(contents, &config)
 	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal config file: %s", err.Error())
+		return nil, fmt.Errorf("could not unmarshal config file: %w", err)
 	}
 	return &config, nil
 }

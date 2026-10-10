@@ -88,7 +88,7 @@ func (c *Client) getPlaidTransactions(bankConfig config.Bank, startDate, endDate
 		if err2 != nil {
 			return nil, err2
 		}
-		return nil, fmt.Errorf("%s\n%s", err.Error(), buf.String())
+		return nil, fmt.Errorf("%w\n%s", err, buf.String())
 	}
 	return resp.Transactions, nil
 

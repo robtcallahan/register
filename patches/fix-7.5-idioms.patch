@@ -1,0 +1,530 @@
+diff --git a/api/clients/sheets_client/sheets_client.go b/api/clients/sheets_client/sheets_client.go
+index 1f01dde..d947fd2 100644
+--- a/api/clients/sheets_client/sheets_client.go
++++ b/api/clients/sheets_client/sheets_client.go
+@@ -50,7 +50,7 @@ func (c *clientStruct) Update(ssService *sheets.Service, spreadsheetId string, w
+ 	call.ValueInputOption("USER_ENTERED")
+ 	resp, err := call.Do()
+ 	if err != nil {
+-		return resp, fmt.Errorf("unable to write cell data: %s", err.Error())
++		return resp, fmt.Errorf("unable to write cell data: %w", err)
+ 	}
+ 	return resp, err
+ }
+diff --git a/api/services/sheets_service/budget_service.go b/api/services/sheets_service/budget_service.go
+index d466d50..1adc9cf 100644
+--- a/api/services/sheets_service/budget_service.go
++++ b/api/services/sheets_service/budget_service.go
+@@ -54,7 +54,7 @@ func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
+ 	range_ := fmt.Sprintf("%s!A%d:%s%d", ss.BudgetSheet.TabName, ss.BudgetSheet.SheetCoords.StartRow, ss.BudgetSheet.SheetCoords.EndColumnName, ss.BudgetSheet.SheetCoords.EndRow)
+ 	resp, err := ss.Provider.GetValues(range_)
+ 	if err != nil {
+-		return nil, fmt.Errorf("could not get sheet values: %s\n", err.Error())
++		return nil, fmt.Errorf("could not get sheet values: %w\n", err)
+ 	}
+ 	if len(resp.Values) == 0 {
+ 		return nil, errors.New("no values found")
+@@ -79,10 +79,7 @@ func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
+ }
+ 
+ func (ss *SheetsService) isEmptyBudgetRow(values []interface{}) bool {
+-	if len(values) < 7 || ss.getBudgetCategory(values) == "" {
+-		return true
+-	}
+-	return false
++	return len(values) < 7 || ss.getBudgetCategory(values) == ""
+ }
+ 
+ func (ss *SheetsService) getBudgetCategory(values []interface{}) string {
+diff --git a/api/services/sheets_service/cells.go b/api/services/sheets_service/cells.go
+index 8422cff..b0d0d2a 100644
+--- a/api/services/sheets_service/cells.go
++++ b/api/services/sheets_service/cells.go
+@@ -226,7 +226,7 @@ func getCellDataDate(dateString, align, colorName string, borders bool) (*sheets
+ 	dateString = formatYear(dateString)
+ 	csvTime, err := time.Parse("01/02/06", dateString)
+ 	if err != nil {
+-		return nil, fmt.Errorf("could not parse date string: %s: %s", dateString, err.Error())
++		return nil, fmt.Errorf("could not parse date string: %s: %w", dateString, err)
+ 	}
+ 
+ 	serialTime, _ := time.Parse("01/02/2006", "12/30/1899")
+diff --git a/api/services/sheets_service/helpers.go b/api/services/sheets_service/helpers.go
+index df1a9a7..887bfe3 100644
+--- a/api/services/sheets_service/helpers.go
++++ b/api/services/sheets_service/helpers.go
+@@ -4,15 +4,13 @@ import (
+ 	"encoding/json"
+ 	"fmt"
+ 	"os"
++	"slices"
+ 	"sort"
+ 	"register/pkg/models"
+ )
+ 
+ func hasNote(trans *models.Transaction) bool {
+-	if trans.Note != "" {
+-		return true
+-	}
+-	return false
++	return trans.Note != ""
+ }
+ 
+ func getRegisterToDeltaReadRange(i int64) string {
+@@ -20,68 +18,43 @@ func getRegisterToDeltaReadRange(i int64) string {
+ }
+ 
+ func isCheckingAccount(trans *models.Transaction) bool {
+-	if trans.Source == CheckingAccountSourceName || trans.IsCheck {
+-		return true
+-	}
+-	return false
++	return trans.Source == CheckingAccountSourceName || trans.IsCheck
+ }
+ 
+ func isBudgetColumn(colName string) bool {
+-	if colName != "" && colName != CreditCardColumnName {
+-		return true
+-	}
+-	return false
++	return colName != "" && colName != CreditCardColumnName
+ }
+ 
+ func isCorrectBudgetColumn(transName, colName string, transNameToColName map[string]string) bool {
+-	if _, ok := transNameToColName[transName]; ok {
+-		if colName == transNameToColName[transName] {
+-			return true
+-		}
+-	}
+-	return false
++	col, ok := transNameToColName[transName]
++	return ok && colName == col
+ }
+ 
+-func intInSlice(a int, list []int) bool {
+-	for _, b := range list {
+-		if b == a {
+-			return true
+-		}
+-	}
+-	return false
+-}
+-
+-func sortAggregateMapKeys(aggMap *map[string]map[string]float64) *[]string {
+-	keys := make([]string, 0, len(*aggMap))
+-	for k := range *aggMap {
++func sortAggregateMapKeys(aggMap map[string]map[string]float64) []string {
++	keys := make([]string, 0, len(aggMap))
++	for k := range aggMap {
+ 		keys = append(keys, k)
+ 	}
+ 	sort.Strings(keys)
+-	return &keys
++	return keys
+ }
+ 
+ func isCreditCardTransaction(source, colName string) bool {
+-	if source != CheckingAccountSourceName && colName == CreditCardColumnName {
+-		return true
+-	}
+-	return false
++	return source != CheckingAccountSourceName && colName == CreditCardColumnName
+ }
+ 
+ func isRegisterClearedOrDeltaColumn(i int) bool {
+-	if ok := intInSlice(i, []int{0, 1, 2}); ok {
+-		return true
+-	}
+-	return false
++	return slices.Contains([]int{0, 1, 2}, i)
+ }
+ 
+ func WriteJSONFile(fileName string, data interface{}) error {
+ 	j, err := json.Marshal(data)
+ 	if err != nil {
+-		return fmt.Errorf("error: %s\n", err.Error())
++		return fmt.Errorf("error: %w\n", err)
+ 	}
+ 	err = os.WriteFile(fileName, j, 0644)
+ 	if err != nil {
+-		return fmt.Errorf("error: %s\n", err.Error())
++		return fmt.Errorf("error: %w\n", err)
+ 	}
+ 	return nil
+ }
+diff --git a/api/services/sheets_service/monthly_service.go b/api/services/sheets_service/monthly_service.go
+index 7eef4f9..96865f9 100644
+--- a/api/services/sheets_service/monthly_service.go
++++ b/api/services/sheets_service/monthly_service.go
+@@ -13,7 +13,7 @@ func (ss *SheetsService) UpdateMonthlyCategories(tabName string, catAgg map[stri
+ 	rows := populateMonthlyCategories(catAgg, columns)
+ 	props, err := ss.getSheetProperties(tabName)
+ 	if err != nil {
+-		return fmt.Errorf("error: %s\n", err.Error())
++		return fmt.Errorf("error: %w\n", err)
+ 	}
+ 	return ss.updateMonthly(props.SheetId, rows)
+ }
+@@ -26,7 +26,7 @@ func (ss *SheetsService) UpdateMonthlyPayees(tabName string, catAgg map[string]m
+ 	rows := populateMonthlyPayees(catAgg, incomeNames)
+ 	props, err := ss.getSheetProperties(tabName)
+ 	if err != nil {
+-		return fmt.Errorf("error: %s\n", err.Error())
++		return fmt.Errorf("error: %w\n", err)
+ 	}
+ 	return ss.updateMonthly(props.SheetId, rows)
+ }
+@@ -57,7 +57,7 @@ func (ss *SheetsService) updateMonthly(sheetID int64, rows []*sheets.RowData) er
+ 	// execute the request
+ 	_, err := ss.Provider.BatchUpdate(&batchUpdateRequest)
+ 	if err != nil {
+-		return fmt.Errorf("error: %s\n", err.Error())
++		return fmt.Errorf("error: %w\n", err)
+ 	}
+ 	return nil
+ }
+@@ -108,7 +108,7 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
+ func populateMonthlyCategories(catAgg map[string]map[string]float64, cats []models.Column) []*sheets.RowData {
+ 	var rows []*sheets.RowData
+ 
+-	months := sortAggregateMapKeys(&catAgg)
++	months := sortAggregateMapKeys(catAgg)
+ 
+ 	row := addSummaryTopRow(months)
+ 	rows = append(rows, row)
+@@ -126,14 +126,14 @@ func populateMonthlyPayees(payeeAgg map[string]map[string]float64, incomeNames [
+ 	var rows []*sheets.RowData
+ 
+ 	// sort the months
+-	months := sortAggregateMapKeys(&payeeAgg)
++	months := sortAggregateMapKeys(payeeAgg)
+ 
+ 	// add the top row of months
+ 	row := addSummaryTopRow(months)
+ 	rows = append(rows, row)
+ 
+ 	// make a has of payees and sort
+-	payees := sortAggregateMapKeys(&payeeAgg)
++	payees := sortAggregateMapKeys(payeeAgg)
+ 
+ 	// now all the payee rows
+ 	rows = addSummaryRows(rows, payeeAgg, months, payees, incomeNames)
+@@ -141,13 +141,13 @@ func populateMonthlyPayees(payeeAgg map[string]map[string]float64, incomeNames [
+ 	return rows
+ }
+ 
+-func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float64, months, cats *[]string, incomeNames []string) []*sheets.RowData {
++func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float64, months, cats []string, incomeNames []string) []*sheets.RowData {
+ 	r := 2
+ 	d := 10
+-	numCats := len(*cats) - d
++	numCats := len(cats) - d
+ 
+ 	for i := 0; i < numCats; i++ {
+-		c := (*cats)[d]
++		c := cats[d]
+ 		var cells []*sheets.CellData
+ 
+ 		// getOddOrEvenRowColor(rowIndex, even_color, odd_color)
+@@ -157,8 +157,8 @@ func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float6
+ 		cells = append(cells, mkBoldFormat(c, "left", bgColor, false))
+ 
+ 		// remaining columns: $value for each month
+-		for j := 0; j < len(*months); j++ {
+-			m := (*months)[j]
++		for j := 0; j < len(months); j++ {
++			m := months[j]
+ 			cells = append(cells, mkCellDataDollars(aggData[m][c], "right", bgColor, false))
+ 		}
+ 
+@@ -196,7 +196,7 @@ func aggDataHasName(aggData map[string]map[string]float64, name string) bool {
+ 	return false
+ }
+ 
+-func addSummaryTopRow(months *[]string) *sheets.RowData {
++func addSummaryTopRow(months []string) *sheets.RowData {
+ 	bgColor := "grey"
+ 
+ 	// create first row of months
+@@ -206,8 +206,8 @@ func addSummaryTopRow(months *[]string) *sheets.RowData {
+ 	cells = append(cells, mkBoldFormat("Category", "left", bgColor, false))
+ 
+ 	// the rest of the months on the top row
+-	for i := 0; i < len(*months); i++ {
+-		m := (*months)[i]
++	for i := 0; i < len(months); i++ {
++		m := months[i]
+ 		cells = append(cells, mkBoldFormat(m, "center", bgColor, false))
+ 	}
+ 	// summary columns
+@@ -218,7 +218,7 @@ func addSummaryTopRow(months *[]string) *sheets.RowData {
+ 	return &sheets.RowData{Values: cells}
+ }
+ 
+-func addSummarySalaryRow(name string, rNum int, months *[]string, aggData map[string]map[string]float64) *sheets.RowData {
++func addSummarySalaryRow(name string, rNum int, months []string, aggData map[string]map[string]float64) *sheets.RowData {
+ 	bgColor := "grey"
+ 	var cells []*sheets.CellData
+ 
+@@ -226,8 +226,8 @@ func addSummarySalaryRow(name string, rNum int, months *[]string, aggData map[st
+ 	cells = append(cells, mkBoldFormat(name, "left", bgColor, false))
+ 
+ 	// remaining columns: $value for each month
+-	for i := 0; i < len(*months); i++ {
+-		m := (*months)[i]
++	for i := 0; i < len(months); i++ {
++		m := months[i]
+ 		cells = append(cells, mkCellDataDollars(aggData[m][name], "right", bgColor, false))
+ 	}
+ 
+diff --git a/api/services/sheets_service/register_service.go b/api/services/sheets_service/register_service.go
+index d122fec..b33c9f9 100644
+--- a/api/services/sheets_service/register_service.go
++++ b/api/services/sheets_service/register_service.go
+@@ -98,7 +98,7 @@ func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
+ 	var readRange = ss.getReadRange()
+ 	resp, err := ss.Provider.GetValues(readRange)
+ 	if err != nil {
+-		return nil, fmt.Errorf("could not get sheet values: %s\n", err.Error())
++		return nil, fmt.Errorf("could not get sheet values: %w\n", err)
+ 	}
+ 	if len(resp.Values) == 0 {
+ 		return nil, fmt.Errorf("no data found for read range: %s", ss.getReadRange())
+@@ -225,7 +225,7 @@ func (ss *SheetsService) WriteCell(cell string, value interface{}) (*sheets.Upda
+ 	}
+ 	resp, err := ss.Provider.Update(writeRange, vRange)
+ 	if err != nil {
+-		return nil, fmt.Errorf("unable to write cell data: %s", err.Error())
++		return nil, fmt.Errorf("unable to write cell data: %w", err)
+ 	}
+ 	return resp, nil
+ }
+diff --git a/api/services/sheets_service/values.go b/api/services/sheets_service/values.go
+index 77312a0..ee1d2d8 100644
+--- a/api/services/sheets_service/values.go
++++ b/api/services/sheets_service/values.go
+@@ -34,7 +34,7 @@ func readDollarsValue(value interface{}) (float64, error) {
+ 
+ 	f, err := strconv.ParseFloat(dollars, 64)
+ 	if err != nil {
+-		return 0, fmt.Errorf("parseFloat error: %s", err.Error())
++		return 0, fmt.Errorf("parseFloat error: %w", err)
+ 	}
+ 	return f, nil
+ }
+diff --git a/cmd/update.go b/cmd/update.go
+index 3284007..8f2151b 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -633,7 +633,7 @@ func readInt(prompt string) (int, error) {
+ 	v = strings.TrimSuffix(v, "\n")
+ 	i, err := strconv.Atoi(v)
+ 	if err != nil {
+-		return 0, fmt.Errorf("could not convert %s to an int: %s", v, err.Error())
++		return 0, fmt.Errorf("could not convert %s to an int: %w", v, err)
+ 	}
+ 	return i, nil
+ }
+diff --git a/pkg/banking/banking.go b/pkg/banking/banking.go
+index 456c8a9..884fcda 100644
+--- a/pkg/banking/banking.go
++++ b/pkg/banking/banking.go
+@@ -121,7 +121,7 @@ func (c *Client) GetAccounts(accessToken string, ctx context.Context) ([]plaid.A
+ 		if err2 != nil {
+ 			return nil, err2
+ 		}
+-		return nil, fmt.Errorf("%s\n: %s", err.Error(), buf.Bytes())
++		return nil, fmt.Errorf("%w\n: %s", err, buf.Bytes())
+ 	}
+ 	return accountsGetResponse.GetAccounts(), err
+ }
+@@ -176,7 +176,7 @@ func (c *Client) GetBalance(accessToken string, bankID string, ctx context.Conte
+ 		if err2 != nil {
+ 			return nil, err2
+ 		}
+-		return nil, fmt.Errorf("error with %s\n%s: %s", bankID, err.Error(), buf.Bytes())
++		return nil, fmt.Errorf("error with %s\n%s: %w", bankID, err, buf.Bytes())
+ 	}
+ 	nullFloat64 := balancesGetResp.Accounts[0].Balances.Current
+ 	if !nullFloat64.IsSet() {
+@@ -201,7 +201,7 @@ func (c *Client) GetBankStatus(bankID string) (*plaid.Institution, error) {
+ 		if err2 != nil {
+ 			return nil, err2
+ 		}
+-		return nil, fmt.Errorf("%s\n%s", err.Error(), buf.String())
++		return nil, fmt.Errorf("%w\n%s", err, buf.String())
+ 	}
+ 	return &resp.Institution, nil
+ }
+diff --git a/pkg/banking/transactions.go b/pkg/banking/transactions.go
+index 480f1df..b5c40dc 100644
+--- a/pkg/banking/transactions.go
++++ b/pkg/banking/transactions.go
+@@ -88,7 +88,7 @@ func (c *Client) getPlaidTransactions(bankConfig config.Bank, startDate, endDate
+ 		if err2 != nil {
+ 			return nil, err2
+ 		}
+-		return nil, fmt.Errorf("%s\n%s", err.Error(), buf.String())
++		return nil, fmt.Errorf("%w\n%s", err, buf.String())
+ 	}
+ 	return resp.Transactions, nil
+ 
+diff --git a/pkg/config/config.go b/pkg/config/config.go
+index 701321a..b30d69c 100644
+--- a/pkg/config/config.go
++++ b/pkg/config/config.go
+@@ -84,13 +84,13 @@ type IncomeSource struct {
+ func ReadConfig(file string) (*Config, error) {
+ 	contents, err := os.ReadFile(file)
+ 	if err != nil {
+-		return nil, fmt.Errorf("could not read config file: %s", err.Error())
++		return nil, fmt.Errorf("could not read config file: %w", err)
+ 	}
+ 
+ 	var config = Config{}
+ 	err = json.Unmarshal(contents, &config)
+ 	if err != nil {
+-		return nil, fmt.Errorf("could not unmarshal config file: %s", err.Error())
++		return nil, fmt.Errorf("could not unmarshal config file: %w", err)
+ 	}
+ 	return &config, nil
+ }
+diff --git a/pkg/csv/csv.go b/pkg/csv/csv.go
+index df1f63d..86e33b4 100644
+--- a/pkg/csv/csv.go
++++ b/pkg/csv/csv.go
+@@ -95,7 +95,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
+ 				fmt.Printf("    Fidelity\n")
+ 				trans, err := c.readFidelityCSV()
+ 				if err != nil {
+-					return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
++					return nil, fmt.Errorf("could not read CSV file: %w", err)
+ 				}
+ 				csvTrans = append(csvTrans, trans...)
+ 			}
+@@ -104,7 +104,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
+ 				fmt.Printf("    Wells Fargo\n")
+ 				trans, err := c.readWellsFargoCSV()
+ 				if err != nil {
+-					return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
++					return nil, fmt.Errorf("could not read CSV file: %w", err)
+ 				}
+ 				csvTrans = append(csvTrans, trans...)
+ 			}
+@@ -113,7 +113,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
+ 				fmt.Printf("    Chase\n")
+ 				trans, err := c.readChaseCSV()
+ 				if err != nil {
+-					return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
++					return nil, fmt.Errorf("could not read CSV file: %w", err)
+ 				}
+ 				csvTrans = append(csvTrans, trans...)
+ 			}
+@@ -122,7 +122,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
+ 				fmt.Printf("    Bank of America\n")
+ 				trans, err := c.readBankOfAmericaCSV()
+ 				if err != nil {
+-					return nil, fmt.Errorf("could not read CSV file: %s", err.Error())
++					return nil, fmt.Errorf("could not read CSV file: %w", err)
+ 				}
+ 				csvTrans = append(csvTrans, trans...)
+ 			}
+@@ -142,7 +142,7 @@ func (c *Client) readWellsFargoCSV() ([]*models.Transaction, error) {
+ 	if !doWellsFargoHeadsExist(fileBytes) {
+ 		err = addWellsFargoHeads(csvFile, fileBytes)
+ 		if err != nil {
+-			return nil, fmt.Errorf("could not write csv file: %s", err.Error())
++			return nil, fmt.Errorf("could not write csv file: %w", err)
+ 		}
+ 	}
+ 
+@@ -170,13 +170,13 @@ func (c *Client) readBankOfAmericaCSV() ([]*models.Transaction, error) {
+ func readWellsFargoCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
+ 	csvFilePtr, err := os.Open(csvFile)
+ 	if err != nil {
+-		return nil, fmt.Errorf("could not open file %s: %s", csvFile, err.Error())
++		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)
+ 	}
+ 	defer csvFilePtr.Close()
+ 
+ 	var wellsFargo []*WellsFargo
+ 	if err := gocsv.UnmarshalFile(csvFilePtr, &wellsFargo); err != nil {
+-		return nil, fmt.Errorf("could not unmarshal CSV file %s: %s", csvFile, err.Error())
++		return nil, fmt.Errorf("could not unmarshal CSV file %s: %w", csvFile, err)
+ 	}
+ 	return processWellsFargoData(wellsFargo, bankId), nil
+ }
+@@ -232,7 +232,7 @@ func addWellsFargoHeads(fileName string, fileBytes []byte) error {
+ 	fileBytes = append(headerBytes, fileBytes...)
+ 	err := os.WriteFile(fileName, fileBytes, os.ModePerm)
+ 	if err != nil {
+-		return fmt.Errorf("could not write csv file: %s", err.Error())
++		return fmt.Errorf("could not write csv file: %w", err)
+ 	}
+ 	return nil
+ }
+@@ -240,13 +240,13 @@ func addWellsFargoHeads(fileName string, fileBytes []byte) error {
+ func readFidelityCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
+ 	csvFilePtr, err := os.Open(csvFile)
+ 	if err != nil {
+-		return nil, fmt.Errorf("could not open file %s: %s", csvFile, err.Error())
++		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)
+ 	}
+ 	defer csvFilePtr.Close()
+ 
+ 	var fidelity []*FidelityVisa
+ 	if err := gocsv.UnmarshalFile(csvFilePtr, &fidelity); err != nil {
+-		return nil, fmt.Errorf("could not unmarshal CSV file %s: %s", csvFile, err.Error())
++		return nil, fmt.Errorf("could not unmarshal CSV file %s: %w", csvFile, err)
+ 	}
+ 
+ 	return processFidelityData(fidelity, bankId), nil
+@@ -273,13 +273,13 @@ func processFidelityData(fidelity []*FidelityVisa, bankId string) []*models.Tran
+ func readChaseCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
+ 	csvFilePtr, err := os.Open(csvFile)
+ 	if err != nil {
+-		return nil, fmt.Errorf("could not open file %s: %s", csvFile, err.Error())
++		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)
+ 	}
+ 	defer csvFilePtr.Close()
+ 
+ 	var chase []*ChaseVisa
+ 	if err := gocsv.UnmarshalFile(csvFilePtr, &chase); err != nil {
+-		return nil, fmt.Errorf("could not unmarshal CSV file %s: %s", csvFile, err.Error())
++		return nil, fmt.Errorf("could not unmarshal CSV file %s: %w", csvFile, err)
+ 	}
+ 	return processChaseData(chase, bankId), nil
+ }
+@@ -311,13 +311,13 @@ func processChaseData(chase []*ChaseVisa, bankId string) []*models.Transaction {
+ func readBankOfAmericaCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
+ 	csvFilePtr, err := os.Open(csvFile)
+ 	if err != nil {
+-		return nil, fmt.Errorf("could not open file %s: %s", csvFile, err.Error())
++		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)
+ 	}
+ 	defer csvFilePtr.Close()
+ 
+ 	var boa []*BankOfAmerica
+ 	if err := gocsv.UnmarshalFile(csvFilePtr, &boa); err != nil {
+-		return nil, fmt.Errorf("could not unmarshal CSV file %s: %s", csvFile, err.Error())
++		return nil, fmt.Errorf("could not unmarshal CSV file %s: %w", csvFile, err)
+ 	}
+ 
+ 	return processBankOfAmericaData(boa, bankId), nil
+diff --git a/pkg/repository/repository.go b/pkg/repository/repository.go
+index 27616d2..776719a 100644
+--- a/pkg/repository/repository.go
++++ b/pkg/repository/repository.go
+@@ -32,10 +32,10 @@ type QueryRepo interface {
+ 	PrintTable(table string) error
+ }
+ 
+-func ColumnNames(cats []models.Column) *[]string {
++func ColumnNames(cats []models.Column) []string {
+ 	names := make([]string, 0, len(cats))
+ 	for _, c := range cats {
+ 		names = append(names, c.Name)
+ 	}
+-	return &names
++	return names
+ }

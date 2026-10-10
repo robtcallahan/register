@@ -121,7 +121,7 @@ func (c *Client) GetAccounts(accessToken string, ctx context.Context) ([]plaid.A
 		if err2 != nil {
 			return nil, err2
 		}
-		return nil, fmt.Errorf("%s\n: %s", err.Error(), buf.Bytes())
+		return nil, fmt.Errorf("%w\n: %s", err, buf.Bytes())
 	}
 	return accountsGetResponse.GetAccounts(), err
 }
@@ -176,7 +176,7 @@ func (c *Client) GetBalance(accessToken string, bankID string, ctx context.Conte
 		if err2 != nil {
 			return nil, err2
 		}
-		return nil, fmt.Errorf("error with %s\n%s: %s", bankID, err.Error(), buf.Bytes())
+		return nil, fmt.Errorf("error with %s\n%s: %w", bankID, err, buf.Bytes())
 	}
 	nullFloat64 := balancesGetResp.Accounts[0].Balances.Current
 	if !nullFloat64.IsSet() {
@@ -201,7 +201,7 @@ func (c *Client) GetBankStatus(bankID string) (*plaid.Institution, error) {
 		if err2 != nil {
 			return nil, err2
 		}
-		return nil, fmt.Errorf("%s\n%s", err.Error(), buf.String())
+		return nil, fmt.Errorf("%w\n%s", err, buf.String())
 	}
 	return &resp.Institution, nil
 }
