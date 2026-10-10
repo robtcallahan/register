@@ -78,10 +78,17 @@ func (r *mysqlQueryRepo) GetMerchants() ([]models.Merchant, error) {
 
 // CreateMerchant ...
 func (r *mysqlQueryRepo) CreateMerchant(m *models.Merchant) error {
+	pattern := m.Pattern
+	if pattern == "" {
+		pattern = m.BankName
+	}
 	result := r.Conn.Create(&models.Merchant{
-		Name:     m.Name,
-		BankName: m.BankName,
-		ColumnID: m.ColumnID,
+		Name:      m.Name,
+		BankName:  m.BankName,
+		ColumnID:  m.ColumnID,
+		Priority:  m.Priority,
+		MatchType: m.MatchType,
+		Pattern:   pattern,
 	})
 	if result.Error != nil {
 		return fmt.Errorf("unable to create merchant: %w", result.Error)
@@ -110,6 +117,7 @@ func (r *mysqlQueryRepo) GetLookupData() ([]*models.DataRow, error) {
 			TaxDeductible: m.TaxDeductible,
 			Priority:      m.Priority,
 			MatchType:     m.MatchType,
+			Pattern:       m.Pattern,
 		})
 	}
 	return data, nil

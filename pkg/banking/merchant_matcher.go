@@ -12,8 +12,17 @@ import (
 // merchantRule is one compiled matching rule from the merchants table.
 type merchantRule struct {
 	row     *models.DataRow
-	pattern string         // upper-cased BankName, for substring/exact rules
+	pattern string         // upper-cased match pattern, for substring/exact rules
 	re      *regexp.Regexp // set only for regex rules
+}
+
+// effectivePattern is the string a rule matches against: the match_pattern
+// column, falling back to the raw bank name for rows predating the column.
+func effectivePattern(r *models.DataRow) string {
+	if r.Pattern != "" {
+		return r.Pattern
+	}
+	return r.BankName
 }
 
 // MerchantMatcher matches bank transaction names against merchant rules
@@ -39,11 +48,12 @@ func NewMerchantMatcher(rows []*models.DataRow) (*MerchantMatcher, error) {
 
 	m := &MerchantMatcher{rules: make([]merchantRule, 0, len(sorted))}
 	for _, r := range sorted {
-		rule := merchantRule{row: r, pattern: strings.ToUpper(r.BankName)}
+		pat := effectivePattern(r)
+		rule := merchantRule{row: r, pattern: strings.ToUpper(pat)}
 		if r.MatchType == "regex" {
-			re, err := regexp.Compile(r.BankName)
+			re, err := regexp.Compile(pat)
 			if err != nil {
-				return nil, fmt.Errorf("merchant rule %q: bad regex: %w", r.BankName, err)
+				return nil, fmt.Errorf("merchant rule %q: bad regex: %w", pat, err)
 			}
 			rule.re = re
 		}
@@ -81,7 +91,7 @@ func (m *MerchantMatcher) Match(bankName string) (*models.DataRow, bool) {
 // (folded case), whether it would win a match or not.
 func (m *MerchantMatcher) FindByBankPattern(pattern string) (*models.DataRow, bool) {
 	for _, rule := range m.rules {
-		if strings.EqualFold(rule.row.BankName, pattern) {
+		if strings.EqualFold(effectivePattern(rule.row), pattern) {
 			return rule.row, true
 		}
 	}

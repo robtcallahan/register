@@ -1,0 +1,131 @@
+diff --git a/cmd/update.go b/cmd/update.go
+index c8dacb7..ba3cb26 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -571,8 +571,9 @@ func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*mode
+ 					break
+ 				}
+ 			}
+-			// the rule's pattern: the full bank name, or a shorter
+-			// substring that catches every variant of this merchant
++			// the match pattern: the full bank name, or a shorter
++			// substring that catches every variant of this merchant.
++			// the raw bank name is stored separately on the rule.
+ 			pattern := t.BankName
+ 			if matchType == "substring" {
+ 				if sub := readString(fmt.Sprintf("         Substring [%s]: ", t.BankName)); sub != "" {
+@@ -592,9 +593,10 @@ func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*mode
+ 
+ 			if err := db.CreateMerchant(&models.Merchant{
+ 				Name:      trans[i].Name,
+-				BankName:   pattern,
+-				ColumnID:   columnID,
+-				MatchType:  matchType,
++				BankName:  t.BankName,
++				ColumnID:  columnID,
++				MatchType: matchType,
++				Pattern:   pattern,
+ 			}); err != nil {
+ 				return false, nil, err
+ 			}
+diff --git a/pkg/banking/merchant_matcher.go b/pkg/banking/merchant_matcher.go
+index e2951fc..2b57555 100644
+--- a/pkg/banking/merchant_matcher.go
++++ b/pkg/banking/merchant_matcher.go
+@@ -12,10 +12,19 @@ import (
+ // merchantRule is one compiled matching rule from the merchants table.
+ type merchantRule struct {
+ 	row     *models.DataRow
+-	pattern string         // upper-cased BankName, for substring/exact rules
++	pattern string         // upper-cased match pattern, for substring/exact rules
+ 	re      *regexp.Regexp // set only for regex rules
+ }
+ 
++// effectivePattern is the string a rule matches against: the match_pattern
++// column, falling back to the raw bank name for rows predating the column.
++func effectivePattern(r *models.DataRow) string {
++	if r.Pattern != "" {
++		return r.Pattern
++	}
++	return r.BankName
++}
++
+ // MerchantMatcher matches bank transaction names against merchant rules
+ // deterministically: rules are tried highest-priority first (lowest merchant
+ // ID wins a tie) and the first match wins. It replaces the old pair of
+@@ -39,11 +48,12 @@ func NewMerchantMatcher(rows []*models.DataRow) (*MerchantMatcher, error) {
+ 
+ 	m := &MerchantMatcher{rules: make([]merchantRule, 0, len(sorted))}
+ 	for _, r := range sorted {
+-		rule := merchantRule{row: r, pattern: strings.ToUpper(r.BankName)}
++		pat := effectivePattern(r)
++		rule := merchantRule{row: r, pattern: strings.ToUpper(pat)}
+ 		if r.MatchType == "regex" {
+-			re, err := regexp.Compile(r.BankName)
++			re, err := regexp.Compile(pat)
+ 			if err != nil {
+-				return nil, fmt.Errorf("merchant rule %q: bad regex: %w", r.BankName, err)
++				return nil, fmt.Errorf("merchant rule %q: bad regex: %w", pat, err)
+ 			}
+ 			rule.re = re
+ 		}
+@@ -81,7 +91,7 @@ func (m *MerchantMatcher) Match(bankName string) (*models.DataRow, bool) {
+ // (folded case), whether it would win a match or not.
+ func (m *MerchantMatcher) FindByBankPattern(pattern string) (*models.DataRow, bool) {
+ 	for _, rule := range m.rules {
+-		if strings.EqualFold(rule.row.BankName, pattern) {
++		if strings.EqualFold(effectivePattern(rule.row), pattern) {
+ 			return rule.row, true
+ 		}
+ 	}
+diff --git a/pkg/models/models.go b/pkg/models/models.go
+index cfb6830..d40fa78 100644
+--- a/pkg/models/models.go
++++ b/pkg/models/models.go
+@@ -37,6 +37,7 @@ type Merchant struct {
+ 	TaxDeductible bool
+ 	Priority      int    // when several rules match, the highest priority wins
+ 	MatchType     string // "exact", "substring", or "regex"; "" is treated as "substring" (pre-Phase-4 rows)
++	Pattern       string // what the matcher compares; BankName stays the raw observed name
+ }
+ 
+ // Column ...
+@@ -84,4 +85,5 @@ type DataRow struct {
+ 	TaxDeductible bool
+ 	Priority      int
+ 	MatchType     string
++	Pattern       string
+ }
+diff --git a/pkg/repository/mysql/mysql.go b/pkg/repository/mysql/mysql.go
+index 68239b0..6e7c859 100644
+--- a/pkg/repository/mysql/mysql.go
++++ b/pkg/repository/mysql/mysql.go
+@@ -78,10 +78,17 @@ func (r *mysqlQueryRepo) GetMerchants() ([]models.Merchant, error) {
+ 
+ // CreateMerchant ...
+ func (r *mysqlQueryRepo) CreateMerchant(m *models.Merchant) error {
++	pattern := m.Pattern
++	if pattern == "" {
++		pattern = m.BankName
++	}
+ 	result := r.Conn.Create(&models.Merchant{
+-		Name:     m.Name,
+-		BankName: m.BankName,
+-		ColumnID: m.ColumnID,
++		Name:      m.Name,
++		BankName:  m.BankName,
++		ColumnID:  m.ColumnID,
++		Priority:  m.Priority,
++		MatchType: m.MatchType,
++		Pattern:   pattern,
+ 	})
+ 	if result.Error != nil {
+ 		return fmt.Errorf("unable to create merchant: %w", result.Error)
+@@ -110,6 +117,7 @@ func (r *mysqlQueryRepo) GetLookupData() ([]*models.DataRow, error) {
+ 			TaxDeductible: m.TaxDeductible,
+ 			Priority:      m.Priority,
+ 			MatchType:     m.MatchType,
++			Pattern:       m.Pattern,
+ 		})
+ 	}
+ 	return data, nil

@@ -571,8 +571,9 @@ func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*mode
 					break
 				}
 			}
-			// the rule's pattern: the full bank name, or a shorter
-			// substring that catches every variant of this merchant
+			// the match pattern: the full bank name, or a shorter
+			// substring that catches every variant of this merchant.
+			// the raw bank name is stored separately on the rule.
 			pattern := t.BankName
 			if matchType == "substring" {
 				if sub := readString(fmt.Sprintf("         Substring [%s]: ", t.BankName)); sub != "" {
@@ -592,9 +593,10 @@ func readFromUser(db *handler.Query, trans []*models.Transaction) (bool, []*mode
 
 			if err := db.CreateMerchant(&models.Merchant{
 				Name:      trans[i].Name,
-				BankName:   pattern,
-				ColumnID:   columnID,
-				MatchType:  matchType,
+				BankName:  t.BankName,
+				ColumnID:  columnID,
+				MatchType: matchType,
+				Pattern:   pattern,
 			}); err != nil {
 				return false, nil, err
 			}
