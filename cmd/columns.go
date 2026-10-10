@@ -21,7 +21,7 @@ var columnsCmd = &cobra.Command{
 table is the source of truth; add and delete keep the Register tab in step
 (insert/remove the sheet column, fill the running-total formulas) and keep
 the Budget tab in step too (rename moves the budget row, add creates one,
-delete removes it).`,
+delete removes it, move repositions it inside its color group).`,
 }
 
 var columnsListCmd = &cobra.Command{
@@ -50,6 +50,19 @@ var columnsRenameCmd = &cobra.Command{
 	},
 }
 
+var columnsMoveCmd = &cobra.Command{
+	Use:   "move <name>",
+	Short: "Move a register column to after another column",
+	Long: `Reposition a category column (DB, Register tab, and its Budget row
+move together). The destination must stay inside the column's color
+group — crossing a group boundary is refused, so the Budget tab's
+group totals keep summing the same categories.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return moveColumn(args[0])
+	},
+}
+
 var columnsCheckCmd = &cobra.Command{
 	Use:   "check",
 	Short: "Report drift between the columns table and the Register sheet (read-only)",
@@ -72,6 +85,7 @@ var (
 	addAfter    string
 	addNoBudget bool
 	deleteYes   bool
+	moveAfter   string
 )
 
 func init() {
@@ -80,12 +94,14 @@ func init() {
 	columnsCmd.AddCommand(columnsAddCmd)
 	columnsCmd.AddCommand(columnsRenameCmd)
 	columnsCmd.AddCommand(columnsDeleteCmd)
+	columnsCmd.AddCommand(columnsMoveCmd)
 	columnsCmd.AddCommand(columnsCheckCmd)
 
 	columnsAddCmd.Flags().StringVar(&addColor, "color", "", "column color: green, yellow, or blue (required)")
 	columnsAddCmd.Flags().StringVar(&addAfter, "after", "", "insert after this column (default: at the end)")
 	columnsAddCmd.Flags().BoolVar(&addNoBudget, "no-budget", false, "do not create a Budget tab row for the new category")
 	columnsDeleteCmd.Flags().BoolVar(&deleteYes, "yes", false, "skip the confirmation prompt")
+	columnsMoveCmd.Flags().StringVar(&moveAfter, "after", "", "move after this column (default: to the end)")
 	_ = columnsAddCmd.MarkFlagRequired("color")
 }
 
@@ -332,6 +348,109 @@ func deleteColumn(name string) error {
 	}
 
 	fmt.Printf("Deleted %q (column %s, index %d)\n", name, set.LetterFor(index), index)
+	return nil
+}
+
+func moveColumn(name string) error {
+	q, err := columnsQuery()
+	if err != nil {
+		return err
+	}
+	columns, err := q.GetColumns()
+	if err != nil {
+		return err
+	}
+	set := models.NewColumnSet(columns)
+	from, ok := set.IndexFor(name)
+	if !ok {
+		return fmt.Errorf("no column named %q", name)
+	}
+	after := 0
+	if moveAfter != "" {
+		idx, ok := set.IndexFor(moveAfter)
+		if !ok {
+			return fmt.Errorf("no column named %q", moveAfter)
+		}
+		after = idx
+	}
+	to, changed, err := sheets_service.PlanColumnMove(columns, from, after)
+	if err != nil {
+		return err
+	}
+	col, _ := set.ByIndex(from)
+	if !changed {
+		fmt.Printf("%q is already at column %s (index %d)\n", name, set.LetterFor(from), from)
+		return nil
+	}
+
+	ss, err := columnsBudgetSheetService(q)
+	if err != nil {
+		return err
+	}
+	_, hasBudget, err := ss.BudgetRowFor(name)
+	if err != nil {
+		return err
+	}
+
+	// Budget mirror: the category's row stays behind the nearest
+	// same-group category that precedes it in the NEW register order
+	// (or ahead of the nearest one that follows). Register-only
+	// columns (Credit Cards, AppleCard, Taxes) have no row to move,
+	// and moving one never rearranges anyone's budget.
+	budgetNote := ""
+	if hasBudget {
+		final := sheets_service.ApplyColumnMove(columns, from, to)
+		before, following := "", ""
+		seen := false
+		for _, c := range final {
+			if c.Name == name {
+				seen = true
+				continue
+			}
+			if c.Color != col.Color {
+				continue
+			}
+			if _, ok, err := ss.BudgetRowFor(c.Name); err != nil {
+				return err
+			} else if !ok {
+				continue
+			}
+			if !seen {
+				before = c.Name
+			} else if following == "" {
+				following = c.Name
+			}
+		}
+		switch {
+		case before != "":
+			if err := ss.MoveBudgetCategoryAfter(name, before); err != nil {
+				return fmt.Errorf("Budget row move for %q failed (nothing else changed yet): %w", name, err)
+			}
+			budgetNote = " Budget row moved with it."
+		case following != "":
+			if err := ss.MoveBudgetCategoryBefore(name, following); err != nil {
+				return fmt.Errorf("Budget row move for %q failed (nothing else changed yet): %w", name, err)
+			}
+			budgetNote = " Budget row moved with it."
+		}
+	}
+
+	if err := q.MoveColumn(col.ID, to); err != nil {
+		return err
+	}
+	// MoveDimension counts the destination in pre-move coordinates:
+	// "after column N" is destination N, and "to the end" is the old
+	// last index when moving left-to-right past it.
+	destAfter := after
+	if after == 0 {
+		destAfter = len(columns)
+	}
+	if err := ss.MoveRegisterColumn(from, destAfter); err != nil {
+		return fmt.Errorf("%q moved to %s (%d) in the DB but the sheet move failed: %w",
+			name, set.LetterFor(to), to, err)
+	}
+
+	fmt.Printf("Moved %q to column %s (index %d).%s\n", name, set.LetterFor(to), to, budgetNote)
 	return nil
 }
 

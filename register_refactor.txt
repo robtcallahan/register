@@ -58,6 +58,7 @@ Phase 6 — Column management CLI
 - [X] 6.4 Retire the is_category flag; category-ness derived from position (done 2026-10-09)
 - [X] 6.5 Budget category names from the same source (the Budget-sync CLI work — patch delivered tonight, awaiting your apply)
 - [X] 6.6 Config index cleanup (remove ColumnIndexes/RegisterCategoryEndColumn from config; RegisterIndexes already gone)
+- [X] 6.7 Implement register columns move CLI command
 -----------------------------------------------------------------------------------------
 Phase 7 — Constants + readability
 - [X] 7.1 Move cell addresses, colors, magic values to constants.go or config

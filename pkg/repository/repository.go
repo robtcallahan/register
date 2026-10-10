@@ -14,6 +14,7 @@ type QueryRepo interface {
 	AddColumn(col *models.Column) error
 	RenameColumn(id int, name string) error
 	DeleteColumn(id int) error
+	MoveColumn(id int, newIndex int) error
 	GetMerchantsByColumn(columnID int) ([]models.Merchant, error)
 
 	GetMerchants() ([]models.Merchant, error)

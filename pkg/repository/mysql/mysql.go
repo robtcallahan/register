@@ -196,6 +196,58 @@ func (r *mysqlQueryRepo) DeleteColumn(id int) error {
 	})
 }
 
+// MoveColumn repositions a column to newIndex, shifting the columns
+// between its old and new indexes one step toward the vacated slot. One
+// transaction: column_index is UNIQUE, so the moved row is parked above
+// every live index first, keeping each intermediate state collision-free.
+func (r *mysqlQueryRepo) MoveColumn(id int, newIndex int) error {
+	if newIndex < models.FirstCategoryIndex {
+		return fmt.Errorf("cannot move a column to index %d: indexes 1-%d are the fixed register block",
+			newIndex, models.FirstCategoryIndex-1)
+	}
+	return r.Conn.Transaction(func(tx *gorm.DB) error {
+		var col models.Column
+		if err := tx.First(&col, id).Error; err != nil {
+			return fmt.Errorf("unable to find column %d: %w", id, err)
+		}
+		old := col.ColumnIndex
+		if newIndex == old {
+			return nil
+		}
+		var maxIndex int
+		if err := tx.Model(&models.Column{}).Select("COALESCE(MAX(column_index), 0)").Scan(&maxIndex).Error; err != nil {
+			return fmt.Errorf("unable to find max column index: %w", err)
+		}
+		if newIndex > maxIndex {
+			return fmt.Errorf("cannot move column %s to index %d: last column is %d", col.Name, newIndex, maxIndex)
+		}
+		if err := tx.Model(&models.Column{}).Where("id = ?", id).
+			Update("column_index", maxIndex+1).Error; err != nil {
+			return fmt.Errorf("unable to park column %s: %w", col.Name, err)
+		}
+		lo, hi, delta, order := old+1, newIndex, -1, "column_index asc"
+		if newIndex < old {
+			lo, hi, delta, order = newIndex, old-1, 1, "column_index desc"
+		}
+		var shifting []models.Column
+		if err := tx.Where("column_index >= ? AND column_index <= ?", lo, hi).
+			Order(order).Find(&shifting).Error; err != nil {
+			return fmt.Errorf("unable to shift columns: %w", err)
+		}
+		for i := range shifting {
+			if err := tx.Model(&models.Column{}).Where("id = ?", shifting[i].ID).
+				Update("column_index", shifting[i].ColumnIndex+delta).Error; err != nil {
+				return fmt.Errorf("unable to shift column %s: %w", shifting[i].Name, err)
+			}
+		}
+		if err := tx.Model(&models.Column{}).Where("id = ?", id).
+			Update("column_index", newIndex).Error; err != nil {
+			return fmt.Errorf("unable to place column %s: %w", col.Name, err)
+		}
+		return nil
+	})
+}
+
 // GetMerchantsByColumn ...
 func (r *mysqlQueryRepo) GetMerchantsByColumn(columnID int) ([]models.Merchant, error) {
 	var merchants []models.Merchant

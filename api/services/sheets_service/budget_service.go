@@ -279,6 +279,75 @@ func (ss *SheetsService) DeleteBudgetCategory(name string) (bool, error) {
 	return true, nil
 }
 
+// MoveBudgetCategoryAfter moves the Budget row of name so it sits
+// immediately after the Budget row of afterName. The caller is
+// responsible for keeping the row inside its color group.
+func (ss *SheetsService) MoveBudgetCategoryAfter(name, afterName string) error {
+	row, found, err := ss.BudgetRowFor(name)
+	if err != nil || !found {
+		if !found {
+			return fmt.Errorf("no budget row for %q", name)
+		}
+		return err
+	}
+	afterRow, found, err := ss.BudgetRowFor(afterName)
+	if err != nil || !found {
+		if !found {
+			return fmt.Errorf("no budget row for %q", afterName)
+		}
+		return err
+	}
+	if row == afterRow+1 {
+		return nil // already there
+	}
+	return ss.moveBudgetRow(row, afterRow)
+}
+
+// MoveBudgetCategoryBefore moves the Budget row of name so it sits
+// immediately above the Budget row of beforeName.
+func (ss *SheetsService) MoveBudgetCategoryBefore(name, beforeName string) error {
+	row, found, err := ss.BudgetRowFor(name)
+	if err != nil || !found {
+		if !found {
+			return fmt.Errorf("no budget row for %q", name)
+		}
+		return err
+	}
+	beforeRow, found, err := ss.BudgetRowFor(beforeName)
+	if err != nil || !found {
+		if !found {
+			return fmt.Errorf("no budget row for %q", beforeName)
+		}
+		return err
+	}
+	if row == beforeRow-1 {
+		return nil // already there
+	}
+	return ss.moveBudgetRow(row, beforeRow-1)
+}
+
+// moveBudgetRow relocates the 1-based Budget row to the given
+// MoveDimension destination (pre-removal coordinates).
+func (ss *SheetsService) moveBudgetRow(row, destinationIndex int) error {
+	moveReq := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{{
+			MoveDimension: &sheets.MoveDimensionRequest{
+				Source: &sheets.DimensionRange{
+					SheetId:    ss.BudgetSheet.ID,
+					Dimension:  "ROWS",
+					StartIndex: int64(row - 1),
+					EndIndex:   int64(row),
+				},
+				DestinationIndex: int64(destinationIndex),
+			},
+		}},
+	}
+	if _, err := ss.Provider.BatchUpdate(moveReq); err != nil {
+		return fmt.Errorf("could not move budget row %d: %w", row, err)
+	}
+	return nil
+}
+
 // rangeRef matches a cell range like D3:D8 or $D$3:$D$8 inside a formula.
 var rangeRef = regexp.MustCompile(`(\$?[A-Za-z]+\$?)(\d+):(\$?[A-Za-z]+\$?)(\d+)`)
 

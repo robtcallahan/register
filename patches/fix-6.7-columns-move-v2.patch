@@ -1,0 +1,557 @@
+diff --git a/api/services/sheets_service/budget_service.go b/api/services/sheets_service/budget_service.go
+index c5bf2b2..357eed2 100644
+--- a/api/services/sheets_service/budget_service.go
++++ b/api/services/sheets_service/budget_service.go
+@@ -279,6 +279,75 @@ func (ss *SheetsService) DeleteBudgetCategory(name string) (bool, error) {
+ 	return true, nil
+ }
+ 
++// MoveBudgetCategoryAfter moves the Budget row of name so it sits
++// immediately after the Budget row of afterName. The caller is
++// responsible for keeping the row inside its color group.
++func (ss *SheetsService) MoveBudgetCategoryAfter(name, afterName string) error {
++	row, found, err := ss.BudgetRowFor(name)
++	if err != nil || !found {
++		if !found {
++			return fmt.Errorf("no budget row for %q", name)
++		}
++		return err
++	}
++	afterRow, found, err := ss.BudgetRowFor(afterName)
++	if err != nil || !found {
++		if !found {
++			return fmt.Errorf("no budget row for %q", afterName)
++		}
++		return err
++	}
++	if row == afterRow+1 {
++		return nil // already there
++	}
++	return ss.moveBudgetRow(row, afterRow)
++}
++
++// MoveBudgetCategoryBefore moves the Budget row of name so it sits
++// immediately above the Budget row of beforeName.
++func (ss *SheetsService) MoveBudgetCategoryBefore(name, beforeName string) error {
++	row, found, err := ss.BudgetRowFor(name)
++	if err != nil || !found {
++		if !found {
++			return fmt.Errorf("no budget row for %q", name)
++		}
++		return err
++	}
++	beforeRow, found, err := ss.BudgetRowFor(beforeName)
++	if err != nil || !found {
++		if !found {
++			return fmt.Errorf("no budget row for %q", beforeName)
++		}
++		return err
++	}
++	if row == beforeRow-1 {
++		return nil // already there
++	}
++	return ss.moveBudgetRow(row, beforeRow-1)
++}
++
++// moveBudgetRow relocates the 1-based Budget row to the given
++// MoveDimension destination (pre-removal coordinates).
++func (ss *SheetsService) moveBudgetRow(row, destinationIndex int) error {
++	moveReq := &sheets.BatchUpdateSpreadsheetRequest{
++		Requests: []*sheets.Request{{
++			MoveDimension: &sheets.MoveDimensionRequest{
++				Source: &sheets.DimensionRange{
++					SheetId:    ss.BudgetSheet.ID,
++					Dimension:  "ROWS",
++					StartIndex: int64(row - 1),
++					EndIndex:   int64(row),
++				},
++				DestinationIndex: int64(destinationIndex),
++			},
++		}},
++	}
++	if _, err := ss.Provider.BatchUpdate(moveReq); err != nil {
++		return fmt.Errorf("could not move budget row %d: %w", row, err)
++	}
++	return nil
++}
++
+ // rangeRef matches a cell range like D3:D8 or $D$3:$D$8 inside a formula.
+ var rangeRef = regexp.MustCompile(`(\$?[A-Za-z]+\$?)(\d+):(\$?[A-Za-z]+\$?)(\d+)`)
+ 
+diff --git a/api/services/sheets_service/register_columns.go b/api/services/sheets_service/register_columns.go
+index 4f7c41e..da7a716 100644
+--- a/api/services/sheets_service/register_columns.go
++++ b/api/services/sheets_service/register_columns.go
+@@ -138,6 +138,136 @@ func (ss *SheetsService) DeleteRegisterColumn(index int) error {
+ 	return nil
+ }
+ 
++// MoveRegisterColumn moves the sheet column at fromIndex (1-based) so it
++// ends up immediately after the column currently at afterIndex (1-based),
++// carrying the column's values, formulas, and header color with it.
++// MoveDimension's DestinationIndex counts positions in pre-removal
++// coordinates, which is exactly what "after column N" means here.
++func (ss *SheetsService) MoveRegisterColumn(fromIndex, afterIndex int) error {
++	moveReq := sheets.BatchUpdateSpreadsheetRequest{
++		Requests: []*sheets.Request{{
++			MoveDimension: &sheets.MoveDimensionRequest{
++				Source: &sheets.DimensionRange{
++					SheetId:    ss.RegisterSheet.ID,
++					Dimension:  "COLUMNS",
++					StartIndex: int64(fromIndex - 1),
++					EndIndex:   int64(fromIndex),
++				},
++				DestinationIndex: int64(afterIndex),
++			},
++		}},
++	}
++	if _, err := ss.Provider.BatchUpdate(&moveReq); err != nil {
++		return fmt.Errorf("could not move column %s: %w", models.ColumnLetter(fromIndex), err)
++	}
++	return nil
++}
++
++// PlanColumnMove works out where the column at index `from` lands when
++// moved to just after index `after` (after == 0 means "to the end"), and
++// whether the move is allowed: a color-group crossing — landing outside
++// the moved column's own color run, or splitting another color's run —
++// is refused, because both the Register's grouping and the Budget tab's
++// group totals depend on colors staying in contiguous runs. changed is
++// false for a no-op move. Columns must be ordered by ColumnIndex.
++func PlanColumnMove(columns []models.Column, from, after int) (to int, changed bool, err error) {
++	byIndex := make(map[int]models.Column, len(columns))
++	for _, c := range columns {
++		byIndex[c.ColumnIndex] = c
++	}
++	moved, ok := byIndex[from]
++	if !ok {
++		return 0, false, fmt.Errorf("no column at index %d", from)
++	}
++	if from < models.FirstCategoryIndex {
++		return 0, false, fmt.Errorf("cannot move %q: indexes 1-%d are the fixed register block",
++			moved.Name, models.FirstCategoryIndex-1)
++	}
++	to = len(columns)
++	if after != 0 {
++		if _, ok := byIndex[after]; !ok {
++			return 0, false, fmt.Errorf("no column at index %d", after)
++		}
++		if after == from {
++			return 0, false, fmt.Errorf("cannot move %q after itself", moved.Name)
++		}
++		if after < models.FirstCategoryIndex-1 {
++			return 0, false, fmt.Errorf("cannot move %q after %q: that lands in the fixed register block",
++				moved.Name, byIndex[after].Name)
++		}
++		to = after
++		if from > after {
++			to = after + 1
++		}
++	}
++	changed = to != from
++	if !changed {
++		return to, false, nil
++	}
++	final := ApplyColumnMove(columns, from, to)
++	for color := range colorsPresent(columns) {
++		if contiguous(final, color) || !contiguous(columns, color) {
++			continue
++		}
++		return 0, false, fmt.Errorf("moving %q to index %d would break up the %s color group — columns stay inside their color group so the Budget totals keep meaning the same thing",
++			moved.Name, to, colorOrNone(color))
++	}
++	return to, true, nil
++}
++
++func colorOrNone(color string) string {
++	if color == "" {
++		return "uncolored"
++	}
++	return color
++}
++
++func colorsPresent(columns []models.Column) map[string]bool {
++	present := make(map[string]bool, 4)
++	for _, c := range columns {
++		present[c.Color] = true
++	}
++	return present
++}
++
++// contiguous reports whether every column of the given color sits in one
++// uninterrupted run of the (index-ordered) slice.
++func contiguous(columns []models.Column, color string) bool {
++	first, last, count := -1, -1, 0
++	for i, c := range columns {
++		if c.Color != color {
++			continue
++		}
++		if first < 0 {
++			first = i
++		}
++		last, count = i, count+1
++	}
++	return count == 0 || last-first+1 == count
++}
++
++// ApplyColumnMove returns the ordering that results from moving the
++// column at 1-based index `from` to 1-based index `to`.
++func ApplyColumnMove(columns []models.Column, from, to int) []models.Column {
++	out := make([]models.Column, 0, len(columns))
++	var moved models.Column
++	for _, c := range columns {
++		if c.ColumnIndex == from {
++			moved = c
++			continue
++		}
++		out = append(out, c)
++	}
++	pos := to - 1 // 0-based slot in the shrunk list
++	if pos > len(out) {
++		pos = len(out)
++	}
++	out = append(out, models.Column{})
++	copy(out[pos+1:], out[pos:])
++	out[pos] = moved
++	return out
++}
++
+ // RenameRegisterColumnHeader rewrites the row-4 name cell of the column at
+ // the given 1-based index.
+ func (ss *SheetsService) RenameRegisterColumnHeader(index int, name string) error {
+diff --git a/api/services/sheets_service/register_columns_test.go b/api/services/sheets_service/register_columns_test.go
+new file mode 100644
+index 0000000..3722487
+--- /dev/null
++++ b/api/services/sheets_service/register_columns_test.go
+@@ -0,0 +1,73 @@
++package sheets_service
++
++import (
++	"testing"
++
++	"register/pkg/models"
++)
++
++// fixed block (1-10), then green 11-14, yellow 15-17, black 18-19
++// (the card payoff columns), blue 20-24 — Taxes is a savings column.
++func moveTestColumns() []models.Column {
++	mk := func(i int, name, color string) models.Column {
++		return models.Column{ID: i, Name: name, Color: color, ColumnIndex: i}
++	}
++	cols := []models.Column{}
++	for i := 1; i <= 10; i++ {
++		cols = append(cols, mk(i, "", ""))
++	}
++	cols = append(cols,
++		mk(11, "Cash", models.ColorGreen), mk(12, "Dining", models.ColorGreen),
++		mk(13, "Grocery", models.ColorGreen), mk(14, "Misc", models.ColorGreen),
++		mk(15, "Rent", models.ColorYellow), mk(16, "Electric", models.ColorYellow),
++		mk(17, "ISP", models.ColorYellow),
++		mk(18, "Credit Cards", models.ColorBlack), mk(19, "AppleCard", models.ColorBlack),
++		mk(20, "Savings", models.ColorBlue), mk(21, "Gifts", models.ColorBlue),
++		mk(22, "Medical", models.ColorBlue), mk(23, "Emergency Fund", models.ColorBlue),
++		mk(24, "Taxes", models.ColorBlue),
++	)
++	return cols
++}
++
++func TestPlanColumnMove(t *testing.T) {
++	cols := moveTestColumns()
++	cases := []struct {
++		name        string
++		from, after int
++		wantTo      int
++		wantChanged bool
++		wantErr     bool
++	}{
++		{"within group, moving left", 13, 11, 12, true, false},
++		{"within group, moving right", 12, 14, 14, true, false},
++		{"already after target", 13, 12, 13, false, false},
++		{"move self is an error", 13, 13, 0, false, true},
++		{"green into yellow refused", 13, 16, 0, false, true},
++		{"yellow into green refused", 15, 12, 0, false, true},
++		{"fixed block cannot move", 5, 13, 0, false, true},
++		{"after a fixed column refused", 13, 9, 0, false, true},
++		{"blue moves within savings", 24, 22, 23, true, false},
++		{"black leaving the payoff block refused", 19, 0, 0, false, true},
++		{"black splitting blue refused", 18, 21, 0, false, true},
++		{"category to the end refused (leaves its group)", 13, 0, 0, false, true},
++		{"unknown from index", 99, 11, 0, false, true},
++	}
++	for _, tc := range cases {
++		t.Run(tc.name, func(t *testing.T) {
++			to, changed, err := PlanColumnMove(cols, tc.from, tc.after)
++			if tc.wantErr {
++				if err == nil {
++					t.Fatalf("PlanColumnMove(%d, %d) = (%d, %v, nil), want error", tc.from, tc.after, to, changed)
++				}
++				return
++			}
++			if err != nil {
++				t.Fatalf("PlanColumnMove(%d, %d) error: %v", tc.from, tc.after, err)
++			}
++			if to != tc.wantTo || changed != tc.wantChanged {
++				t.Errorf("PlanColumnMove(%d, %d) = (%d, %v), want (%d, %v)",
++					tc.from, tc.after, to, changed, tc.wantTo, tc.wantChanged)
++			}
++		})
++	}
++}
+diff --git a/cmd/columns.go b/cmd/columns.go
+index c24cdb8..a83d95d 100644
+--- a/cmd/columns.go
++++ b/cmd/columns.go
+@@ -21,7 +21,7 @@ var columnsCmd = &cobra.Command{
+ table is the source of truth; add and delete keep the Register tab in step
+ (insert/remove the sheet column, fill the running-total formulas) and keep
+ the Budget tab in step too (rename moves the budget row, add creates one,
+-delete removes it).`,
++delete removes it, move repositions it inside its color group).`,
+ }
+ 
+ var columnsListCmd = &cobra.Command{
+@@ -50,6 +50,19 @@ var columnsRenameCmd = &cobra.Command{
+ 	},
+ }
+ 
++var columnsMoveCmd = &cobra.Command{
++	Use:   "move <name>",
++	Short: "Move a register column to after another column",
++	Long: `Reposition a category column (DB, Register tab, and its Budget row
++move together). The destination must stay inside the column's color
++group — crossing a group boundary is refused, so the Budget tab's
++group totals keep summing the same categories.`,
++	Args: cobra.ExactArgs(1),
++	RunE: func(cmd *cobra.Command, args []string) error {
++		return moveColumn(args[0])
++	},
++}
++
+ var columnsCheckCmd = &cobra.Command{
+ 	Use:   "check",
+ 	Short: "Report drift between the columns table and the Register sheet (read-only)",
+@@ -72,6 +85,7 @@ var (
+ 	addAfter    string
+ 	addNoBudget bool
+ 	deleteYes   bool
++	moveAfter   string
+ )
+ 
+ func init() {
+@@ -80,12 +94,14 @@ func init() {
+ 	columnsCmd.AddCommand(columnsAddCmd)
+ 	columnsCmd.AddCommand(columnsRenameCmd)
+ 	columnsCmd.AddCommand(columnsDeleteCmd)
++	columnsCmd.AddCommand(columnsMoveCmd)
+ 	columnsCmd.AddCommand(columnsCheckCmd)
+ 
+ 	columnsAddCmd.Flags().StringVar(&addColor, "color", "", "column color: green, yellow, or blue (required)")
+ 	columnsAddCmd.Flags().StringVar(&addAfter, "after", "", "insert after this column (default: at the end)")
+ 	columnsAddCmd.Flags().BoolVar(&addNoBudget, "no-budget", false, "do not create a Budget tab row for the new category")
+ 	columnsDeleteCmd.Flags().BoolVar(&deleteYes, "yes", false, "skip the confirmation prompt")
++	columnsMoveCmd.Flags().StringVar(&moveAfter, "after", "", "move after this column (default: to the end)")
+ 	_ = columnsAddCmd.MarkFlagRequired("color")
+ }
+ 
+@@ -335,6 +351,109 @@ func deleteColumn(name string) error {
+ 	return nil
+ }
+ 
++func moveColumn(name string) error {
++	q, err := columnsQuery()
++	if err != nil {
++		return err
++	}
++	columns, err := q.GetColumns()
++	if err != nil {
++		return err
++	}
++	set := models.NewColumnSet(columns)
++	from, ok := set.IndexFor(name)
++	if !ok {
++		return fmt.Errorf("no column named %q", name)
++	}
++	after := 0
++	if moveAfter != "" {
++		idx, ok := set.IndexFor(moveAfter)
++		if !ok {
++			return fmt.Errorf("no column named %q", moveAfter)
++		}
++		after = idx
++	}
++	to, changed, err := sheets_service.PlanColumnMove(columns, from, after)
++	if err != nil {
++		return err
++	}
++	col, _ := set.ByIndex(from)
++	if !changed {
++		fmt.Printf("%q is already at column %s (index %d)\n", name, set.LetterFor(from), from)
++		return nil
++	}
++
++	ss, err := columnsBudgetSheetService(q)
++	if err != nil {
++		return err
++	}
++	_, hasBudget, err := ss.BudgetRowFor(name)
++	if err != nil {
++		return err
++	}
++
++	// Budget mirror: the category's row stays behind the nearest
++	// same-group category that precedes it in the NEW register order
++	// (or ahead of the nearest one that follows). Register-only
++	// columns (Credit Cards, AppleCard, Taxes) have no row to move,
++	// and moving one never rearranges anyone's budget.
++	budgetNote := ""
++	if hasBudget {
++		final := sheets_service.ApplyColumnMove(columns, from, to)
++		before, following := "", ""
++		seen := false
++		for _, c := range final {
++			if c.Name == name {
++				seen = true
++				continue
++			}
++			if c.Color != col.Color {
++				continue
++			}
++			if _, ok, err := ss.BudgetRowFor(c.Name); err != nil {
++				return err
++			} else if !ok {
++				continue
++			}
++			if !seen {
++				before = c.Name
++			} else if following == "" {
++				following = c.Name
++			}
++		}
++		switch {
++		case before != "":
++			if err := ss.MoveBudgetCategoryAfter(name, before); err != nil {
++				return fmt.Errorf("Budget row move for %q failed (nothing else changed yet): %w", name, err)
++			}
++			budgetNote = " Budget row moved with it."
++		case following != "":
++			if err := ss.MoveBudgetCategoryBefore(name, following); err != nil {
++				return fmt.Errorf("Budget row move for %q failed (nothing else changed yet): %w", name, err)
++			}
++			budgetNote = " Budget row moved with it."
++		}
++	}
++
++	if err := q.MoveColumn(col.ID, to); err != nil {
++		return err
++	}
++	// MoveDimension counts the destination in pre-move coordinates:
++	// "after column N" is destination N, and "to the end" is the old
++	// last index when moving left-to-right past it.
++	destAfter := after
++	if after == 0 {
++		destAfter = len(columns)
++	}
++	if err := ss.MoveRegisterColumn(from, destAfter); err != nil {
++		return fmt.Errorf("%q moved to %s (%d) in the DB but the sheet move failed: %w",
++			name, set.LetterFor(to), to, err)
++	}
++
++	fmt.Printf("Moved %q to column %s (index %d).%s\n", name, set.LetterFor(to), to, budgetNote)
++	return nil
++}
++
+ func checkColumns() error {
+ 	q, err := columnsQuery()
+ 	if err != nil {
+diff --git a/pkg/handler/handler.go b/pkg/handler/handler.go
+index fdbf8ae..37af598 100644
+--- a/pkg/handler/handler.go
++++ b/pkg/handler/handler.go
+@@ -57,6 +57,11 @@ func (q *Query) DeleteColumn(id int) error {
+ 	return q.repo.DeleteColumn(id)
+ }
+ 
++// MoveColumn repositions a column, shifting the ones in between
++func (q *Query) MoveColumn(id int, newIndex int) error {
++	return q.repo.MoveColumn(id, newIndex)
++}
++
+ // GetMerchantsByColumn lists the merchant rules pointing at a column
+ func (q *Query) GetMerchantsByColumn(columnID int) ([]models.Merchant, error) {
+ 	return q.repo.GetMerchantsByColumn(columnID)
+diff --git a/pkg/repository/mysql/mysql.go b/pkg/repository/mysql/mysql.go
+index 02479d2..68239b0 100644
+--- a/pkg/repository/mysql/mysql.go
++++ b/pkg/repository/mysql/mysql.go
+@@ -196,6 +196,58 @@ func (r *mysqlQueryRepo) DeleteColumn(id int) error {
+ 	})
+ }
+ 
++// MoveColumn repositions a column to newIndex, shifting the columns
++// between its old and new indexes one step toward the vacated slot. One
++// transaction: column_index is UNIQUE, so the moved row is parked above
++// every live index first, keeping each intermediate state collision-free.
++func (r *mysqlQueryRepo) MoveColumn(id int, newIndex int) error {
++	if newIndex < models.FirstCategoryIndex {
++		return fmt.Errorf("cannot move a column to index %d: indexes 1-%d are the fixed register block",
++			newIndex, models.FirstCategoryIndex-1)
++	}
++	return r.Conn.Transaction(func(tx *gorm.DB) error {
++		var col models.Column
++		if err := tx.First(&col, id).Error; err != nil {
++			return fmt.Errorf("unable to find column %d: %w", id, err)
++		}
++		old := col.ColumnIndex
++		if newIndex == old {
++			return nil
++		}
++		var maxIndex int
++		if err := tx.Model(&models.Column{}).Select("COALESCE(MAX(column_index), 0)").Scan(&maxIndex).Error; err != nil {
++			return fmt.Errorf("unable to find max column index: %w", err)
++		}
++		if newIndex > maxIndex {
++			return fmt.Errorf("cannot move column %s to index %d: last column is %d", col.Name, newIndex, maxIndex)
++		}
++		if err := tx.Model(&models.Column{}).Where("id = ?", id).
++			Update("column_index", maxIndex+1).Error; err != nil {
++			return fmt.Errorf("unable to park column %s: %w", col.Name, err)
++		}
++		lo, hi, delta, order := old+1, newIndex, -1, "column_index asc"
++		if newIndex < old {
++			lo, hi, delta, order = newIndex, old-1, 1, "column_index desc"
++		}
++		var shifting []models.Column
++		if err := tx.Where("column_index >= ? AND column_index <= ?", lo, hi).
++			Order(order).Find(&shifting).Error; err != nil {
++			return fmt.Errorf("unable to shift columns: %w", err)
++		}
++		for i := range shifting {
++			if err := tx.Model(&models.Column{}).Where("id = ?", shifting[i].ID).
++				Update("column_index", shifting[i].ColumnIndex+delta).Error; err != nil {
++				return fmt.Errorf("unable to shift column %s: %w", shifting[i].Name, err)
++			}
++		}
++		if err := tx.Model(&models.Column{}).Where("id = ?", id).
++			Update("column_index", newIndex).Error; err != nil {
++			return fmt.Errorf("unable to place column %s: %w", col.Name, err)
++		}
++		return nil
++	})
++}
++
+ // GetMerchantsByColumn ...
+ func (r *mysqlQueryRepo) GetMerchantsByColumn(columnID int) ([]models.Merchant, error) {
+ 	var merchants []models.Merchant
+diff --git a/pkg/repository/repository.go b/pkg/repository/repository.go
+index 5c72cbc..8842880 100644
+--- a/pkg/repository/repository.go
++++ b/pkg/repository/repository.go
+@@ -14,6 +14,7 @@ type QueryRepo interface {
+ 	AddColumn(col *models.Column) error
+ 	RenameColumn(id int, name string) error
+ 	DeleteColumn(id int) error
++	MoveColumn(id int, newIndex int) error
+ 	GetMerchantsByColumn(columnID int) ([]models.Merchant, error)
+ 
+ 	GetMerchants() ([]models.Merchant, error)

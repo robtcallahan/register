@@ -57,6 +57,11 @@ func (q *Query) DeleteColumn(id int) error {
 	return q.repo.DeleteColumn(id)
 }
 
+// MoveColumn repositions a column, shifting the ones in between
+func (q *Query) MoveColumn(id int, newIndex int) error {
+	return q.repo.MoveColumn(id, newIndex)
+}
+
 // GetMerchantsByColumn lists the merchant rules pointing at a column
 func (q *Query) GetMerchantsByColumn(columnID int) ([]models.Merchant, error) {
 	return q.repo.GetMerchantsByColumn(columnID)

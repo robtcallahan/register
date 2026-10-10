@@ -138,6 +138,136 @@ func (ss *SheetsService) DeleteRegisterColumn(index int) error {
 	return nil
 }
 
+// MoveRegisterColumn moves the sheet column at fromIndex (1-based) so it
+// ends up immediately after the column currently at afterIndex (1-based),
+// carrying the column's values, formulas, and header color with it.
+// MoveDimension's DestinationIndex counts positions in pre-removal
+// coordinates, which is exactly what "after column N" means here.
+func (ss *SheetsService) MoveRegisterColumn(fromIndex, afterIndex int) error {
+	moveReq := sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{{
+			MoveDimension: &sheets.MoveDimensionRequest{
+				Source: &sheets.DimensionRange{
+					SheetId:    ss.RegisterSheet.ID,
+					Dimension:  "COLUMNS",
+					StartIndex: int64(fromIndex - 1),
+					EndIndex:   int64(fromIndex),
+				},
+				DestinationIndex: int64(afterIndex),
+			},
+		}},
+	}
+	if _, err := ss.Provider.BatchUpdate(&moveReq); err != nil {
+		return fmt.Errorf("could not move column %s: %w", models.ColumnLetter(fromIndex), err)
+	}
+	return nil
+}
+
+// PlanColumnMove works out where the column at index `from` lands when
+// moved to just after index `after` (after == 0 means "to the end"), and
+// whether the move is allowed: a color-group crossing — landing outside
+// the moved column's own color run, or splitting another color's run —
+// is refused, because both the Register's grouping and the Budget tab's
+// group totals depend on colors staying in contiguous runs. changed is
+// false for a no-op move. Columns must be ordered by ColumnIndex.
+func PlanColumnMove(columns []models.Column, from, after int) (to int, changed bool, err error) {
+	byIndex := make(map[int]models.Column, len(columns))
+	for _, c := range columns {
+		byIndex[c.ColumnIndex] = c
+	}
+	moved, ok := byIndex[from]
+	if !ok {
+		return 0, false, fmt.Errorf("no column at index %d", from)
+	}
+	if from < models.FirstCategoryIndex {
+		return 0, false, fmt.Errorf("cannot move %q: indexes 1-%d are the fixed register block",
+			moved.Name, models.FirstCategoryIndex-1)
+	}
+	to = len(columns)
+	if after != 0 {
+		if _, ok := byIndex[after]; !ok {
+			return 0, false, fmt.Errorf("no column at index %d", after)
+		}
+		if after == from {
+			return 0, false, fmt.Errorf("cannot move %q after itself", moved.Name)
+		}
+		if after < models.FirstCategoryIndex-1 {
+			return 0, false, fmt.Errorf("cannot move %q after %q: that lands in the fixed register block",
+				moved.Name, byIndex[after].Name)
+		}
+		to = after
+		if from > after {
+			to = after + 1
+		}
+	}
+	changed = to != from
+	if !changed {
+		return to, false, nil
+	}
+	final := ApplyColumnMove(columns, from, to)
+	for color := range colorsPresent(columns) {
+		if contiguous(final, color) || !contiguous(columns, color) {
+			continue
+		}
+		return 0, false, fmt.Errorf("moving %q to index %d would break up the %s color group — columns stay inside their color group so the Budget totals keep meaning the same thing",
+			moved.Name, to, colorOrNone(color))
+	}
+	return to, true, nil
+}
+
+func colorOrNone(color string) string {
+	if color == "" {
+		return "uncolored"
+	}
+	return color
+}
+
+func colorsPresent(columns []models.Column) map[string]bool {
+	present := make(map[string]bool, 4)
+	for _, c := range columns {
+		present[c.Color] = true
+	}
+	return present
+}
+
+// contiguous reports whether every column of the given color sits in one
+// uninterrupted run of the (index-ordered) slice.
+func contiguous(columns []models.Column, color string) bool {
+	first, last, count := -1, -1, 0
+	for i, c := range columns {
+		if c.Color != color {
+			continue
+		}
+		if first < 0 {
+			first = i
+		}
+		last, count = i, count+1
+	}
+	return count == 0 || last-first+1 == count
+}
+
+// ApplyColumnMove returns the ordering that results from moving the
+// column at 1-based index `from` to 1-based index `to`.
+func ApplyColumnMove(columns []models.Column, from, to int) []models.Column {
+	out := make([]models.Column, 0, len(columns))
+	var moved models.Column
+	for _, c := range columns {
+		if c.ColumnIndex == from {
+			moved = c
+			continue
+		}
+		out = append(out, c)
+	}
+	pos := to - 1 // 0-based slot in the shrunk list
+	if pos > len(out) {
+		pos = len(out)
+	}
+	out = append(out, models.Column{})
+	copy(out[pos+1:], out[pos:])
+	out[pos] = moved
+	return out
+}
+
 // RenameRegisterColumnHeader rewrites the row-4 name cell of the column at
 // the given 1-based index.
 func (ss *SheetsService) RenameRegisterColumnHeader(index int, name string) error {
