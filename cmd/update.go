@@ -383,7 +383,12 @@ func dashes(count int) string {
 }
 
 func printBalances(balances map[string]banking.Balance) {
-	fmt.Printf("    Wells Fargo: $%8.2f\n", balances[banking.WellsFargoID].Amount)
+	b := balances[banking.WellsFargoID]
+	if b.Error != nil {
+		fmt.Printf("    Wells Fargo: balance unavailable: %v\n", b.Error)
+		return
+	}
+	fmt.Printf("    Wells Fargo: $%8.2f\n", b.Amount)
 }
 
 func getTransactions(client *Client, bankIDs []string) ([]*models.Transaction, error) {
