@@ -90,11 +90,13 @@ func (ss *SheetsService) getBudgetCategory(values []interface{}) string {
 }
 
 func (ss *SheetsService) populateBudgetEntry(values []interface{}) (*BudgetEntry, error) {
-	weekly, err := readDollarsValue(values[2])
+	// Sheet layout, counted from the B-anchored read range:
+	// B=Category, C=Weekly, D=Monthly
+	weekly, err := readDollarsValue(values[1])
 	if err != nil {
 		return nil, err
 	}
-	monthly, err := readDollarsValue(values[3])
+	monthly, err := readDollarsValue(values[2])
 	if err != nil {
 		return nil, err
 	}
