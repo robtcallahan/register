@@ -67,7 +67,7 @@ func hasNote(trans *models.Transaction) bool {
 }
 
 func getRegisterToDeltaReadRange(i int64) string {
-	return fmt.Sprintf("%s!%s%d:%s%d", "Register", RegisterColumn, i+1, DeltaColumn, i+1)
+	return fmt.Sprintf("%s!%s%d:%s%d", RegisterTabName, RegisterColumn, i+1, DeltaColumn, i+1)
 }
 
 func getBackgroundColor(trans *models.Transaction, income bool) string {

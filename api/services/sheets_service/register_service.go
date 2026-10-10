@@ -65,7 +65,7 @@ func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.C
 		}
 	}
 	ss.RegisterSheet = &RegisterSheet{
-		TabName: "Register",
+		TabName: RegisterTabName,
 		SheetCoords: SheetCoords{
 			StartRow:       cfg.RegisterStartRow,
 			EndRow:         cfg.RegisterEndRow,
@@ -74,7 +74,7 @@ func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.C
 		},
 	}
 
-	props, err := ss.getSheetProperties("Register")
+	props, err := ss.getSheetProperties(RegisterTabName)
 	if err != nil {
 		return err
 	}

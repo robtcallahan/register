@@ -350,10 +350,10 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
 	}
 
 	lastRowUpdated := sheetsService.RegisterSheet.SheetCoords.FirstRowToUpdate + int64(len(transactions)*2) + 1
-	if _, err := sheetsService.WriteCell("F1", time.Now().Format("01/02/2006")); err != nil {
+	if _, err := sheetsService.WriteCell(sheets_service.LastUpdateCell, time.Now().Format("01/02/2006")); err != nil {
 		return err
 	}
-	if _, err := sheetsService.WriteCell("G2", fmt.Sprintf("=SUM(G1-I%d)", lastRowUpdated)); err != nil {
+	if _, err := sheetsService.WriteCell(sheets_service.CheckingDeltaCell, fmt.Sprintf("=SUM(%s-I%d)", sheets_service.CheckingBalanceCell, lastRowUpdated)); err != nil {
 		return err
 	}
 
@@ -371,7 +371,7 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
 
 func updateBalances(sheetsService *sheets_service.SheetsService, balances map[string]banking.Balance) error {
 	if balances[banking.WellsFargoID].Error == nil {
-		if _, err := sheetsService.WriteCell("G1", balances[banking.WellsFargoID].Amount); err != nil {
+		if _, err := sheetsService.WriteCell(sheets_service.CheckingBalanceCell, balances[banking.WellsFargoID].Amount); err != nil {
 			return err
 		}
 	}

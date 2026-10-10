@@ -1,0 +1,103 @@
+diff --git a/api/services/sheets_service/budget_service.go b/api/services/sheets_service/budget_service.go
+index 70722fe..197d377 100644
+--- a/api/services/sheets_service/budget_service.go
++++ b/api/services/sheets_service/budget_service.go
+@@ -33,7 +33,7 @@ type BudgetSheet struct {
+ 
+ func (ss *SheetsService) NewBudgetSheet(cfg *config.Config) error {
+ 	ss.BudgetSheet = &BudgetSheet{
+-		TabName: "Budget",
++		TabName: BudgetTabName,
+ 		SheetCoords: SheetCoords{
+ 			StartRow:       cfg.BudgetStartRow,
+ 			EndRow:         cfg.BudgetEndRow,
+@@ -41,7 +41,7 @@ func (ss *SheetsService) NewBudgetSheet(cfg *config.Config) error {
+ 			EndColumnIndex: 9,
+ 		},
+ 	}
+-	props, err := ss.getSheetProperties("Budget")
++	props, err := ss.getSheetProperties(BudgetTabName)
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/api/services/sheets_service/helpers.go b/api/services/sheets_service/helpers.go
+index fe95102..cf651f8 100644
+--- a/api/services/sheets_service/helpers.go
++++ b/api/services/sheets_service/helpers.go
+@@ -67,7 +67,7 @@ func hasNote(trans *models.Transaction) bool {
+ }
+ 
+ func getRegisterToDeltaReadRange(i int64) string {
+-	return fmt.Sprintf("%s!%s%d:%s%d", "Register", RegisterColumn, i+1, DeltaColumn, i+1)
++	return fmt.Sprintf("%s!%s%d:%s%d", RegisterTabName, RegisterColumn, i+1, DeltaColumn, i+1)
+ }
+ 
+ func getBackgroundColor(trans *models.Transaction, income bool) string {
+diff --git a/api/services/sheets_service/register_service.go b/api/services/sheets_service/register_service.go
+index b79688b..6058b0f 100644
+--- a/api/services/sheets_service/register_service.go
++++ b/api/services/sheets_service/register_service.go
+@@ -65,7 +65,7 @@ func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.C
+ 		}
+ 	}
+ 	ss.RegisterSheet = &RegisterSheet{
+-		TabName: "Register",
++		TabName: RegisterTabName,
+ 		SheetCoords: SheetCoords{
+ 			StartRow:       cfg.RegisterStartRow,
+ 			EndRow:         cfg.RegisterEndRow,
+@@ -74,7 +74,7 @@ func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.C
+ 		},
+ 	}
+ 
+-	props, err := ss.getSheetProperties("Register")
++	props, err := ss.getSheetProperties(RegisterTabName)
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/api/services/sheets_service/sheets_service.go b/api/services/sheets_service/sheets_service.go
+index 48c3893..0e2911e 100644
+--- a/api/services/sheets_service/sheets_service.go
++++ b/api/services/sheets_service/sheets_service.go
+@@ -23,6 +23,15 @@ const (
+ 	RegisterColumn            = "H"
+ 	DeltaColumn               = "J"
+ 
++	// Spreadsheet tab names.
++	RegisterTabName = "Register"
++	BudgetTabName   = "Budget"
++
++	// Summary cells at the top of the Register tab.
++	LastUpdateCell      = "F1" // date stamp of the last update run
++	CheckingBalanceCell = "G1" // Wells Fargo ending balance
++	CheckingDeltaCell   = "G2" // running check: balance minus cleared total
++
+ 	CellDataString  = 1
+ 	CellDataDollars = 2
+ 	CellDataFormula = 3
+diff --git a/cmd/update.go b/cmd/update.go
+index f341eb6..52520e2 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -350,10 +350,10 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
+ 	}
+ 
+ 	lastRowUpdated := sheetsService.RegisterSheet.SheetCoords.FirstRowToUpdate + int64(len(transactions)*2) + 1
+-	if _, err := sheetsService.WriteCell("F1", time.Now().Format("01/02/2006")); err != nil {
++	if _, err := sheetsService.WriteCell(sheets_service.LastUpdateCell, time.Now().Format("01/02/2006")); err != nil {
+ 		return err
+ 	}
+-	if _, err := sheetsService.WriteCell("G2", fmt.Sprintf("=SUM(G1-I%d)", lastRowUpdated)); err != nil {
++	if _, err := sheetsService.WriteCell(sheets_service.CheckingDeltaCell, fmt.Sprintf("=SUM(%s-I%d)", sheets_service.CheckingBalanceCell, lastRowUpdated)); err != nil {
+ 		return err
+ 	}
+ 
+@@ -371,7 +371,7 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
+ 
+ func updateBalances(sheetsService *sheets_service.SheetsService, balances map[string]banking.Balance) error {
+ 	if balances[banking.WellsFargoID].Error == nil {
+-		if _, err := sheetsService.WriteCell("G1", balances[banking.WellsFargoID].Amount); err != nil {
++		if _, err := sheetsService.WriteCell(sheets_service.CheckingBalanceCell, balances[banking.WellsFargoID].Amount); err != nil {
+ 			return err
+ 		}
+ 	}

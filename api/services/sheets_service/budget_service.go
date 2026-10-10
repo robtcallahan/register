@@ -33,7 +33,7 @@ type BudgetSheet struct {
 
 func (ss *SheetsService) NewBudgetSheet(cfg *config.Config) error {
 	ss.BudgetSheet = &BudgetSheet{
-		TabName: "Budget",
+		TabName: BudgetTabName,
 		SheetCoords: SheetCoords{
 			StartRow:       cfg.BudgetStartRow,
 			EndRow:         cfg.BudgetEndRow,
@@ -41,7 +41,7 @@ func (ss *SheetsService) NewBudgetSheet(cfg *config.Config) error {
 			EndColumnIndex: 9,
 		},
 	}
-	props, err := ss.getSheetProperties("Budget")
+	props, err := ss.getSheetProperties(BudgetTabName)
 	if err != nil {
 		return err
 	}

@@ -60,7 +60,7 @@ Phase 6 — Column management CLI
 - [X] 6.6 Config index cleanup (remove ColumnIndexes/RegisterCategoryEndColumn from config; RegisterIndexes already gone)
 -----------------------------------------------------------------------------------------
 Phase 7 — Constants + readability
-- [ ] 7.1 Move cell addresses, colors, magic values to constants.go or config
+- [X] 7.1 Move cell addresses, colors, magic values to constants.go or config
 - [ ] 7.2 Split register_service.go into focused functions
 - [ ] 7.3 Split helpers.go into focused functions
 - [ ] 7.4 Split banking.go GetTransactions

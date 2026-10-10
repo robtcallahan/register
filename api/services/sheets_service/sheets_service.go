@@ -23,6 +23,15 @@ const (
 	RegisterColumn            = "H"
 	DeltaColumn               = "J"
 
+	// Spreadsheet tab names.
+	RegisterTabName = "Register"
+	BudgetTabName   = "Budget"
+
+	// Summary cells at the top of the Register tab.
+	LastUpdateCell      = "F1" // date stamp of the last update run
+	CheckingBalanceCell = "G1" // Wells Fargo ending balance
+	CheckingDeltaCell   = "G2" // running check: balance minus cleared total
+
 	CellDataString  = 1
 	CellDataDollars = 2
 	CellDataFormula = 3
