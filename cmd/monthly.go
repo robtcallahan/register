@@ -90,5 +90,8 @@ func monthly() error {
 	if err := sheetsService.UpdateMonthlyPayees("MonthlyPayees", payeeAgg); err != nil {
 		return fmt.Errorf("monthly payees: %w", err)
 	}
+	if err := sheetsService.UpdateYearlySummary("YearlySummary", catAgg, cols); err != nil {
+		return fmt.Errorf("yearly summary: %w", err)
+	}
 	return nil
 }

@@ -1,0 +1,98 @@
+diff --git a/api/services/sheets_service/monthly_service.go b/api/services/sheets_service/monthly_service.go
+index c07694a..07abc5b 100644
+--- a/api/services/sheets_service/monthly_service.go
++++ b/api/services/sheets_service/monthly_service.go
+@@ -262,3 +262,80 @@ func addSummarySalaryRow(name string, rNum int, months []string, aggData map[str
+ 	// add the cells to the row
+ 	return &sheets.RowData{Values: cells}
+ }
++
++func (ss *SheetsService) UpdateYearlySummary(tabName string, catAgg map[string]map[string]float64, columns []models.Column) error {
++	incomeNames := make([]string, len(ss.IncomeSources))
++	for i, s := range ss.IncomeSources {
++		incomeNames[i] = s.Name
++	}
++	rows := populateYearlySummary(catAgg, columns, incomeNames)
++	props, err := ss.getSheetProperties(tabName)
++	if err != nil {
++		return fmt.Errorf("error: %w\n", err)
++	}
++	return ss.updateMonthly(props.SheetId, rows)
++}
++
++// populateYearlySummary renders the aggregate as months-as-rows,
++// categories-as-columns: the transpose of the monthly tabs.
++func populateYearlySummary(catAgg map[string]map[string]float64, cols []models.Column, incomeNames []string) []*sheets.RowData {
++	var rows []*sheets.RowData
++
++	months := sortAggregateMapKeys(catAgg)
++
++	// data columns: categories in sheet order, then income
++	var headers []string
++	for _, col := range cols {
++		if col.IsCategory() {
++			headers = append(headers, col.Name)
++		}
++	}
++	headers = append(headers, incomeNames...)
++
++	rows = append(rows, addYearlyTopRow(headers))
++
++	r := 2
++	for i, m := range months {
++		bgColor := getOddOrEvenRowColor(i, "white", "lightgrey")
++		var cells []*sheets.CellData
++		cells = append(cells, mkBoldFormat(m, "left", bgColor, false))
++		for _, h := range headers {
++			cells = append(cells, mkCellDataDollars(catAgg[m][h], "right", bgColor, false))
++		}
++		endCol := models.ColumnLetter(len(headers) + 1) // B is 1-based index 2
++		f := mkCellDataFormula(fmt.Sprintf("=SUM(B%d:%s%d)", r, endCol, r), "right", bgColor, false)
++		f.UserEnteredFormat.TextFormat.Bold = true
++		cells = append(cells, f)
++		rows = append(rows, &sheets.RowData{Values: cells})
++		r++
++	}
++
++	// totals row
++	bgColor := "grey"
++	var cells []*sheets.CellData
++	cells = append(cells, mkBoldFormat("Total", "left", bgColor, false))
++	for j := range headers {
++		colLetter := models.ColumnLetter(j + 2)
++		f := mkCellDataFormula(fmt.Sprintf("=SUM(%s2:%s%d)", colLetter, colLetter, r-1), "right", bgColor, false)
++		f.UserEnteredFormat.TextFormat.Bold = true
++		cells = append(cells, f)
++	}
++	endCol := models.ColumnLetter(len(headers) + 1)
++	f := mkCellDataFormula(fmt.Sprintf("=SUM(B%d:%s%d)", r, endCol, r), "right", bgColor, false)
++	f.UserEnteredFormat.TextFormat.Bold = true
++	cells = append(cells, f)
++	rows = append(rows, &sheets.RowData{Values: cells})
++
++	return rows
++}
++
++func addYearlyTopRow(headers []string) *sheets.RowData {
++	bgColor := "grey"
++	var cells []*sheets.CellData
++	cells = append(cells, mkBoldFormat("Month", "left", bgColor, false))
++	for _, h := range headers {
++		cells = append(cells, mkBoldFormat(h, "center", bgColor, false))
++	}
++	cells = append(cells, mkBoldFormat("Total", "center", bgColor, false))
++	return &sheets.RowData{Values: cells}
++}
+diff --git a/cmd/monthly.go b/cmd/monthly.go
+index 2a154f0..ddba3c6 100644
+--- a/cmd/monthly.go
++++ b/cmd/monthly.go
+@@ -90,5 +90,8 @@ func monthly() error {
+ 	if err := sheetsService.UpdateMonthlyPayees("MonthlyPayees", payeeAgg); err != nil {
+ 		return fmt.Errorf("monthly payees: %w", err)
+ 	}
++	if err := sheetsService.UpdateYearlySummary("YearlySummary", catAgg, cols); err != nil {
++		return fmt.Errorf("yearly summary: %w", err)
++	}
+ 	return nil
+ }
