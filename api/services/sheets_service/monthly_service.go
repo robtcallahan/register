@@ -2,9 +2,11 @@ package sheets_service
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
+
 	"register/pkg/models"
-	repo "register/pkg/repository"
 
 	"google.golang.org/api/sheets/v4"
 )
@@ -120,11 +122,16 @@ func populateMonthlyCategories(catAgg map[string]map[string]float64, cats []mode
 	row := addSummaryTopRow(months)
 	rows = append(rows, row)
 
-	// make a hash of column names
-	cNames := repo.ColumnNames(cats)
+	// category names only: the fixed A-J block has no place in the summary
+	var names []string
+	for _, col := range cats {
+		if col.IsCategory() {
+			names = append(names, col.Name)
+		}
+	}
 
 	// now all the category rows
-	rows = addSummaryRows(rows, catAgg, months, cNames, nil)
+	rows = addSummaryRows(rows, catAgg, months, names, nil)
 
 	return rows
 }
@@ -139,8 +146,14 @@ func populateMonthlyPayees(payeeAgg map[string]map[string]float64, incomeNames [
 	row := addSummaryTopRow(months)
 	rows = append(rows, row)
 
-	// make a has of payees and sort
-	payees := sortAggregateMapKeys(payeeAgg)
+	// collect every payee seen in any month
+	payeeSet := make(map[string]bool)
+	for _, byPayee := range payeeAgg {
+		for payee := range byPayee {
+			payeeSet[payee] = true
+		}
+	}
+	payees := slices.Sorted(maps.Keys(payeeSet))
 
 	// now all the payee rows
 	rows = addSummaryRows(rows, payeeAgg, months, payees, incomeNames)
@@ -148,13 +161,10 @@ func populateMonthlyPayees(payeeAgg map[string]map[string]float64, incomeNames [
 	return rows
 }
 
-func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float64, months, cats []string, incomeNames []string) []*sheets.RowData {
+func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float64, months, names []string, incomeNames []string) []*sheets.RowData {
 	r := 2
-	d := 10
-	numCats := len(cats) - d
 
-	for i := 0; i < numCats; i++ {
-		c := cats[d]
+	for i, c := range names {
 		var cells []*sheets.CellData
 
 		// getOddOrEvenRowColor(rowIndex, even_color, odd_color)
@@ -178,7 +188,6 @@ func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float6
 		cells = append(cells, f)
 
 		r++
-		d++
 
 		// add the cells to the row
 		row := &sheets.RowData{Values: cells}

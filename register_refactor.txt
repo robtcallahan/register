@@ -71,7 +71,7 @@ Phase 7 — Constants + readability
 -----------------------------------------------------------------------------------------
 Phase 8 — Monthly summary correction
 - [X] 8.1 Fix Aggregate's category read: correct the 1-based ColumnIndex into the 0-based row slice (currently reads one column right); replace magic j := 10 and hardcoded cols[j].Name == "Credit Cards" with ColumnSet-driven iteration (FirstCategoryIndex for the start, color for skipping payoff columns)
-- [ ] 8.2 Fix populateMonthlyPayees: build the payee list from the inner map keys (currently month keys → month labels and zeros); stop addSummaryRows from skipping 10 entries for payees
+- [X] 8.2 Fix populateMonthlyPayees: build the payee list from the inner map keys (currently month keys → month labels and zeros); stop addSummaryRows from skipping 10 entries for payees
 - [ ] 8.3 Derive the summary formula range from the actual month count (hardcoded B:L = 11 months today) in addSummaryRows/addSummarySalaryRow
 - [ ] 8.4 Return errors from UpdateMonthlyCategories/UpdateMonthlyPayees in monthly() instead of swallowing them (monthly() always returns nil today)
 - [ ] 8.5 Remove dead if err != nil after sheets_service.New() in monthly() (New returns no error; it re-checks the provider's)
