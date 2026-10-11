@@ -1,0 +1,18 @@
+diff --git a/api/services/sheets_service/monthly_service.go b/api/services/sheets_service/monthly_service.go
+index aebaaff..2d4601c 100644
+--- a/api/services/sheets_service/monthly_service.go
++++ b/api/services/sheets_service/monthly_service.go
+@@ -77,10 +77,11 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
+ 
+ 	rangeValues := ss.RegisterSheet.RangeValues
+ 	for i, r := range ss.RegisterSheet.Register {
+-		re := regexp.MustCompile(`(\d\d)/\d\d/20`)
++		// r.Date is MM/DD/YY (readDateValue emits a 2-digit year)
++		re := regexp.MustCompile(`(\d\d)/\d\d/(\d\d)`)
+ 		m := re.FindStringSubmatch(r.Date)
+ 		if len(m) > 0 {
+-			k := m[1] + "/20"
++			k := m[1] + "/" + m[2]
+ 			if _, ok := payeeAgg[k]; !ok {
+ 				payeeAgg[k] = make(map[string]float64)
+ 			}

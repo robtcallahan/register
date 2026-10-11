@@ -17,7 +17,7 @@ func (ss *SheetsService) UpdateMonthlyCategories(tabName string, catAgg map[stri
 	if err != nil {
 		return fmt.Errorf("error: %w\n", err)
 	}
-	return ss.updateMonthly(props.SheetId, rows)
+	return ss.updateMonthly(tabName, props.SheetId, rows)
 }
 
 func (ss *SheetsService) UpdateMonthlyPayees(tabName string, catAgg map[string]map[string]float64) error {
@@ -30,10 +30,14 @@ func (ss *SheetsService) UpdateMonthlyPayees(tabName string, catAgg map[string]m
 	if err != nil {
 		return fmt.Errorf("error: %w\n", err)
 	}
-	return ss.updateMonthly(props.SheetId, rows)
+	return ss.updateMonthly(tabName, props.SheetId, rows)
 }
 
-func (ss *SheetsService) updateMonthly(sheetID int64, rows []*sheets.RowData) error {
+func (ss *SheetsService) updateMonthly(tabName string, sheetID int64, rows []*sheets.RowData) error {
+	// clear the tab first so stale rows/columns from a previous run don't linger
+	if err := ss.Provider.ClearValues(tabName); err != nil {
+		return fmt.Errorf("error: %w\n", err)
+	}
 	gc := &sheets.GridCoordinate{
 		SheetId:     sheetID,
 		RowIndex:    0,
@@ -73,10 +77,11 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 
 	rangeValues := ss.RegisterSheet.RangeValues
 	for i, r := range ss.RegisterSheet.Register {
-		re := regexp.MustCompile(`(\d\d)/\d\d/20`)
+		// r.Date is MM/DD/YY (readDateValue emits a 2-digit year)
+		re := regexp.MustCompile(`(\d\d)/\d\d/(\d\d)`)
 		m := re.FindStringSubmatch(r.Date)
 		if len(m) > 0 {
-			k := m[1] + "/20"
+			k := m[1] + "/" + m[2]
 			if _, ok := payeeAgg[k]; !ok {
 				payeeAgg[k] = make(map[string]float64)
 			}
@@ -273,7 +278,40 @@ func (ss *SheetsService) UpdateYearlySummary(tabName string, catAgg map[string]m
 	if err != nil {
 		return fmt.Errorf("error: %w\n", err)
 	}
-	return ss.updateMonthly(props.SheetId, rows)
+	// a fresh tab only has 26 columns; the yearly table is wider
+	if err := ss.ensureColumnCount(props, int64(len(rows[0].Values))); err != nil {
+		return fmt.Errorf("error: %w\n", err)
+	}
+	return ss.updateMonthly(tabName, props.SheetId, rows)
+}
+
+// ensureColumnCount widens the tab when the table needs more columns
+// than the sheet currently has.
+func (ss *SheetsService) ensureColumnCount(props *sheets.SheetProperties, need int64) error {
+	have := int64(26)
+	if props.GridProperties != nil {
+		have = props.GridProperties.ColumnCount
+	}
+	if have >= need {
+		return nil
+	}
+	req := &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{
+			{
+				UpdateSheetProperties: &sheets.UpdateSheetPropertiesRequest{
+					Properties: &sheets.SheetProperties{
+						SheetId: props.SheetId,
+						GridProperties: &sheets.GridProperties{
+							ColumnCount: need,
+						},
+					},
+					Fields: "gridProperties.columnCount",
+				},
+			},
+		},
+	}
+	_, err := ss.Provider.BatchUpdate(req)
+	return err
 }
 
 // populateYearlySummary renders the aggregate as months-as-rows,

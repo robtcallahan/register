@@ -21,6 +21,7 @@ type SheetsProviderInterface interface {
 	GetSpreadsheet() (*sheets.Spreadsheet, error)
 	BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error)
 	Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error)
+	ClearValues(range_ string) error
 }
 
 type SheetsProvider struct {
@@ -97,4 +98,9 @@ func (p *SheetsProvider) Update(writeRange string, vRange *sheets.ValueRange) (*
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (p *SheetsProvider) ClearValues(range_ string) error {
+	_, err := p.service.Spreadsheets.Values.Clear(p.spreadsheetID, range_, &sheets.ClearValuesRequest{}).Do()
+	return err
 }

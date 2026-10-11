@@ -1,0 +1,47 @@
+diff --git a/api/services/sheets_service/monthly_service.go b/api/services/sheets_service/monthly_service.go
+index 07abc5b..267434f 100644
+--- a/api/services/sheets_service/monthly_service.go
++++ b/api/services/sheets_service/monthly_service.go
+@@ -273,9 +273,42 @@ func (ss *SheetsService) UpdateYearlySummary(tabName string, catAgg map[string]m
+ 	if err != nil {
+ 		return fmt.Errorf("error: %w\n", err)
+ 	}
++	// a fresh tab only has 26 columns; the yearly table is wider
++	if err := ss.ensureColumnCount(props, int64(len(rows[0].Values))); err != nil {
++		return fmt.Errorf("error: %w\n", err)
++	}
+ 	return ss.updateMonthly(props.SheetId, rows)
+ }
+ 
++// ensureColumnCount widens the tab when the table needs more columns
++// than the sheet currently has.
++func (ss *SheetsService) ensureColumnCount(props *sheets.SheetProperties, need int64) error {
++	have := int64(26)
++	if props.GridProperties != nil {
++		have = props.GridProperties.ColumnCount
++	}
++	if have >= need {
++		return nil
++	}
++	req := &sheets.BatchUpdateSpreadsheetRequest{
++		Requests: []*sheets.Request{
++			{
++				UpdateSheetProperties: &sheets.UpdateSheetPropertiesRequest{
++					Properties: &sheets.SheetProperties{
++						SheetId: props.SheetId,
++						GridProperties: &sheets.GridProperties{
++							ColumnCount: need,
++						},
++					},
++					Fields: "gridProperties.columnCount",
++				},
++			},
++		},
++	}
++	_, err := ss.Provider.BatchUpdate(req)
++	return err
++}
++
+ // populateYearlySummary renders the aggregate as months-as-rows,
+ // categories-as-columns: the transpose of the monthly tabs.
+ func populateYearlySummary(catAgg map[string]map[string]float64, cols []models.Column, incomeNames []string) []*sheets.RowData {
