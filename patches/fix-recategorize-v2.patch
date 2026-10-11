@@ -1,0 +1,269 @@
+diff --git a/api/services/sheets_service/register_write.go b/api/services/sheets_service/register_write.go
+index b26128e..69aca88 100644
+--- a/api/services/sheets_service/register_write.go
++++ b/api/services/sheets_service/register_write.go
+@@ -3,6 +3,7 @@ package sheets_service
+ // The register write path: turning transactions into sheet rows.
+ 
+ import (
++	"fmt"
+ 	"strings"
+ 	"register/pkg/models"
+ 
+@@ -234,3 +235,119 @@ func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, colum
+ 	}
+ 	return cells
+ }
++
++// CategoryMove relocates one row's category amount to another category column.
++type CategoryMove struct {
++	Key       string  // transaction key, for the companion DB update
++	RowID     int64   // 1-based sheet row of the transaction's data row
++	FromIndex int     // 1-based column index being vacated
++	ToIndex   int     // 1-based column index receiving the amount
++	Value     float64 // the amount to move, as read from the sheet
++	Color     string  // background color for the receiving cell
++}
++
++// PlanCategoryMoves scans the register sheet for data rows whose description
++// contains any of the match strings (case-insensitive) and plans moving each
++// row's category amount into the target column. Rows with no (or ambiguous)
++// category amounts are reported in notes and left alone.
++func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Column, cols []models.Column) ([]CategoryMove, []string) {
++	var moves []CategoryMove
++	var notes []string
++
++	lowered := make([]string, len(matches))
++	for i, m := range matches {
++		lowered[i] = strings.ToLower(m)
++	}
++
++	startRow := ss.RegisterSheet.SheetCoords.StartRow
++	for _, e := range ss.RegisterSheet.Register {
++		matched := false
++		name := strings.ToLower(e.Name)
++		for _, m := range lowered {
++			if strings.Contains(name, m) {
++				matched = true
++				break
++			}
++		}
++		if !matched {
++			continue
++		}
++
++		idx := e.RowID - startRow
++		rowVals := getRowValues(ss.RegisterSheet.RangeValues, int(idx*2))
++
++		var fromIndex int
++		var value float64
++		hits := 0
++		for _, col := range cols {
++			if !col.IsCategory() {
++				continue
++			}
++			v, err := getDollarsCellByIndex(rowVals, col.ColumnIndex-1)
++			if err != nil {
++				continue
++			}
++			if v != 0 {
++				hits++
++				fromIndex = col.ColumnIndex
++				value = v
++			}
++		}
++
++		desc := fmt.Sprintf("row %d (%s %s)", e.RowID, e.Date, e.Name)
++		switch {
++		case hits == 0:
++			notes = append(notes, desc+": no category amount found, skipping")
++		case hits > 1:
++			notes = append(notes, desc+": multiple category amounts, skipping")
++		case fromIndex == target.ColumnIndex:
++			notes = append(notes, desc+": already in "+target.Name+", skipping")
++		default:
++			moves = append(moves, CategoryMove{
++				Key:       e.Key,
++				RowID:     e.RowID,
++				FromIndex: fromIndex,
++				ToIndex:   target.ColumnIndex,
++				Value:     value,
++				Color:     target.Color,
++			})
++		}
++	}
++	return moves, notes
++}
++
++// MoveCategoryCells executes planned category moves in a single batch update:
++// each amount is written into its new column and cleared from the old one.
++func (ss *SheetsService) MoveCategoryCells(moves []CategoryMove) error {
++	var requests []*sheets.Request
++	for _, m := range moves {
++		write := &sheets.UpdateCellsRequest{
++			Fields: "*",
++			Start: &sheets.GridCoordinate{
++				SheetId:     ss.RegisterSheet.ID,
++				RowIndex:    m.RowID - 1,
++				ColumnIndex: int64(m.ToIndex - 1),
++			},
++			Rows: []*sheets.RowData{
++				{Values: []*sheets.CellData{mkCellDataDollars(m.Value, "right", m.Color, false)}},
++			},
++		}
++		requests = append(requests, &sheets.Request{UpdateCells: write})
++
++		clear := &sheets.UpdateCellsRequest{
++			Fields: "*",
++			Start: &sheets.GridCoordinate{
++				SheetId:     ss.RegisterSheet.ID,
++				RowIndex:    m.RowID - 1,
++				ColumnIndex: int64(m.FromIndex - 1),
++			},
++			Rows: []*sheets.RowData{
++				{Values: []*sheets.CellData{{}}},
++			},
++		}
++		requests = append(requests, &sheets.Request{UpdateCells: clear})
++	}
++
++	_, err := ss.Provider.BatchUpdate(&sheets.BatchUpdateSpreadsheetRequest{Requests: requests})
++	return err
++}
+diff --git a/cmd/recategorize.go b/cmd/recategorize.go
+new file mode 100644
+index 0000000..b07b8e3
+--- /dev/null
++++ b/cmd/recategorize.go
+@@ -0,0 +1,131 @@
++package cmd
++
++import (
++	"fmt"
++
++	"register/api/providers/sheets_provider"
++	"register/api/services/sheets_service"
++	"register/pkg/driver"
++	"register/pkg/models"
++	"register/pkg/repository/mysql"
++
++	"github.com/spf13/cobra"
++)
++
++// recategorizeCmd moves transactions between category columns, in the sheet
++// and (best-effort) in the DB. The sheet leads: rows are found by matching
++// the Description column, and each row's category amount is relocated.
++var recategorizeCmd = &cobra.Command{
++	Use:   "recategorize",
++	Short: "Move transactions to a different category column",
++	Long: `Move transactions to a different category column, in the register sheet
++and in the transactions table. Rows are found by case-insensitive substring
++match on the Description column (--match may be repeated). Honors --dry-run.`,
++	RunE: func(cmd *cobra.Command, args []string) error {
++		return recategorize()
++	},
++}
++
++var recategorizeTo string
++var recategorizeMatches []string
++
++func init() {
++	recategorizeCmd.Flags().StringVar(&recategorizeTo, "to", "", "target category column name (required)")
++	recategorizeCmd.Flags().StringSliceVar(&recategorizeMatches, "match", nil, "case-insensitive substring to match on Description (repeatable, required)")
++	_ = recategorizeCmd.MarkFlagRequired("to")
++	_ = recategorizeCmd.MarkFlagRequired("match")
++	rootCmd.AddCommand(recategorizeCmd)
++}
++
++func recategorize() error {
++	conn, err := driver.ConnectSQL(&driver.ConnectParams{
++		DBType: driver.DBType(config.DB.Type),
++		Host:   config.DB.Host,
++		Port:   config.DB.Port,
++		DBName: config.DB.Name,
++		User:   config.DB.Username,
++		Pass:   config.DB.Password,
++	})
++	if err != nil {
++		return err
++	}
++	qHandler := mysql.NewMySQLQueryRepo(conn.SQL)
++
++	cols, err := qHandler.GetColumns()
++	if err != nil {
++		return err
++	}
++	var target *models.Column
++	for i := range cols {
++		if cols[i].Name == recategorizeTo {
++			target = &cols[i]
++			break
++		}
++	}
++	if target == nil {
++		return fmt.Errorf("no column named %q", recategorizeTo)
++	}
++	if !target.IsCategory() {
++		return fmt.Errorf("column %q is not a category", recategorizeTo)
++	}
++
++	sheetsProvider, err := sheets_provider.New(options.SpreadsheetID, config)
++	if err != nil {
++		return err
++	}
++	sheetsService := sheets_service.New(sheetsProvider)
++	if err := sheetsService.NewRegisterSheet(config, cols); err != nil {
++		return err
++	}
++	if _, err := sheetsService.ReadRegisterSheet(); err != nil {
++		return err
++	}
++
++	moves, notes := sheetsService.PlanCategoryMoves(recategorizeMatches, *target, cols)
++	for _, n := range notes {
++		fmt.Println("note:", n)
++	}
++	if len(moves) == 0 {
++		fmt.Println("nothing to move")
++		return nil
++	}
++	for _, m := range moves {
++		fmt.Printf("move row %d: %.2f from column %d to %s\n", m.RowID, m.Value, m.FromIndex, target.Name)
++	}
++	if options.DryRun {
++		fmt.Println("dry run: no changes made")
++		return nil
++	}
++
++	if err := sheetsService.MoveCategoryCells(moves); err != nil {
++		return fmt.Errorf("sheet move failed: %w", err)
++	}
++
++	// best-effort DB update so the transactions table agrees with the sheet
++	all, err := qHandler.GetTransactions()
++	if err != nil {
++		return fmt.Errorf("sheet updated, but could not read transactions for the DB update: %w", err)
++	}
++	byKey := make(map[string]*models.Transaction)
++	for i := range all {
++		byKey[all[i].Key] = &all[i]
++	}
++	var dbUpdates []*models.Transaction
++	for _, m := range moves {
++		t, ok := byKey[m.Key]
++		if !ok {
++			fmt.Printf("note: row %d has no matching DB transaction, DB left as-is\n", m.RowID)
++			continue
++		}
++		t.ColumnIndex = target.ColumnIndex
++		t.Color = target.Color
++		dbUpdates = append(dbUpdates, t)
++	}
++	if len(dbUpdates) > 0 {
++		if err := qHandler.UpdateTransactionTables(dbUpdates); err != nil {
++			return fmt.Errorf("sheet updated, but DB update failed: %w", err)
++		}
++	}
++	fmt.Printf("moved %d transaction(s) to %s\n", len(moves), target.Name)
++	return nil
++}
