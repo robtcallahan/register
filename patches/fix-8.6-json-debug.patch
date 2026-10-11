@@ -1,0 +1,28 @@
+diff --git a/cmd/monthly.go b/cmd/monthly.go
+index 78c0db6..2a154f0 100644
+--- a/cmd/monthly.go
++++ b/cmd/monthly.go
+@@ -42,11 +42,6 @@ func init() {
+ 	rootCmd.AddCommand(monthlyCmd)
+ }
+ 
+-const (
+-// jsonDir = "/Users/rob/ws/go/src/register/services/sheets_service/json"
+-// jsonDir = "/Users/rcallahan/workspace/go/src/register/services/sheets_service/json"
+-)
+-
+ func monthly() error {
+ 	conn, err := driver.ConnectSQL(&driver.ConnectParams{
+ 		DBType: driver.DBType(config.DB.Type),
+@@ -88,11 +83,6 @@ func monthly() error {
+ 		return err
+ 	}
+ 
+-	//sheets_service.WriteJSONFile(jsonDir+"columns.json", cols)
+-	//sheets_service.WriteJSONFile(jsonDir+"register.json", sheetsService.RegisterSheet.Register)
+-	//sheets_service.WriteJSONFile(jsonDir+"cat_agg.json", catAgg)
+-	//sheets_service.WriteJSONFile(jsonDir+"payee_agg.json", payeeAgg)
+-	/**/
+ 	fmt.Println("Updating...")
+ 	if err := sheetsService.UpdateMonthlyCategories("MonthlyCategories", catAgg, cols); err != nil {
+ 		return fmt.Errorf("monthly categories: %w", err)
