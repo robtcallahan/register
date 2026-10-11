@@ -74,7 +74,7 @@ Phase 8 — Monthly summary correction
 - [X] 8.2 Fix populateMonthlyPayees: build the payee list from the inner map keys (currently month keys → month labels and zeros); stop addSummaryRows from skipping 10 entries for payees
 - [X] 8.3 Derive the summary formula range from the actual month count (hardcoded B:L = 11 months today) in addSummaryRows/addSummarySalaryRow
 - [X] 8.4 Return errors from UpdateMonthlyCategories/UpdateMonthlyPayees in monthly() instead of swallowing them (monthly() always returns nil today)
-- [ ] 8.5 Remove dead if err != nil after sheets_service.New() in monthly() (New returns no error; it re-checks the provider's)
+- [X] 8.5 Remove dead if err != nil after sheets_service.New() in monthly() (New returns no error; it re-checks the provider's)
 - [ ] 8.6 Remove commented-out JSON debug block + dead jsonDir const in monthly.go
 - [ ] 8.7 Create a pie chart for monthly summary on a separate worksheet to the right of the register tab
 -----------------------------------------------------------------------------------------

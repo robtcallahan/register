@@ -1,0 +1,14 @@
+diff --git a/cmd/monthly.go b/cmd/monthly.go
+index 89c62e1..78c0db6 100644
+--- a/cmd/monthly.go
++++ b/cmd/monthly.go
+@@ -67,9 +67,6 @@ func monthly() error {
+ 	}
+ 	sheetsService := sheets_service.New(sheetsProvider)
+ 	sheetsService.IncomeSources = config.IncomeSources
+-	if err != nil {
+-		return err
+-	}
+ 	cols, err := qHandler.GetColumns()
+ 	if err != nil {
+ 		return err

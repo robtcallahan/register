@@ -67,9 +67,6 @@ func monthly() error {
 	}
 	sheetsService := sheets_service.New(sheetsProvider)
 	sheetsService.IncomeSources = config.IncomeSources
-	if err != nil {
-		return err
-	}
 	cols, err := qHandler.GetColumns()
 	if err != nil {
 		return err
