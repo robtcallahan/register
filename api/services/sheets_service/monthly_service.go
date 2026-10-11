@@ -179,11 +179,13 @@ func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float6
 			cells = append(cells, mkCellDataDollars(aggData[m][c], "right", bgColor, false))
 		}
 
-		// add the totals and average in last 2 columns
-		f := mkCellDataFormula(fmt.Sprintf("=SUM(B%d:L%d) * -1", r, r), "right", bgColor, false)
+		// add the totals and average in last 2 columns; the month block
+		// runs B..endCol, derived from the actual month count
+		endCol := models.ColumnLetter(len(months) + 1) // B is 1-based index 2
+		f := mkCellDataFormula(fmt.Sprintf("=SUM(B%d:%s%d) * -1", r, endCol, r), "right", bgColor, false)
 		f.UserEnteredFormat.TextFormat.Bold = true
 		cells = append(cells, f)
-		f = mkCellDataFormula(fmt.Sprintf("=AVERAGE(B%d:L%d) * -1", r, r), "right", bgColor, false)
+		f = mkCellDataFormula(fmt.Sprintf("=AVERAGE(B%d:%s%d) * -1", r, endCol, r), "right", bgColor, false)
 		f.UserEnteredFormat.TextFormat.Bold = true
 		cells = append(cells, f)
 
@@ -247,11 +249,13 @@ func addSummarySalaryRow(name string, rNum int, months []string, aggData map[str
 		cells = append(cells, mkCellDataDollars(aggData[m][name], "right", bgColor, false))
 	}
 
-	// add the totals and average in last 2 columns
-	f := mkCellDataFormula(fmt.Sprintf("=SUM(B%d:L%d) * -1", rNum, rNum), "right", bgColor, false)
+	// add the totals and average in last 2 columns; the month block
+	// runs B..endCol, derived from the actual month count
+	endCol := models.ColumnLetter(len(months) + 1) // B is 1-based index 2
+	f := mkCellDataFormula(fmt.Sprintf("=SUM(B%d:%s%d) * -1", rNum, endCol, rNum), "right", bgColor, false)
 	f.UserEnteredFormat.TextFormat.Bold = true
 	cells = append(cells, f)
-	f = mkCellDataFormula(fmt.Sprintf("=AVERAGE(B%d:L%d) * -1", rNum, rNum), "right", bgColor, false)
+	f = mkCellDataFormula(fmt.Sprintf("=AVERAGE(B%d:%s%d) * -1", rNum, endCol, rNum), "right", bgColor, false)
 	f.UserEnteredFormat.TextFormat.Bold = true
 	cells = append(cells, f)
 
