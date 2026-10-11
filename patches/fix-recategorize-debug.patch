@@ -1,0 +1,29 @@
+diff --git a/api/services/sheets_service/register_write.go b/api/services/sheets_service/register_write.go
+index ab393e7..4f8c4d5 100644
+--- a/api/services/sheets_service/register_write.go
++++ b/api/services/sheets_service/register_write.go
+@@ -279,6 +279,7 @@ func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Colum
+ 		var fromIndex int
+ 		var value float64
+ 		hits := 0
++		var hitDesc []string
+ 		for _, col := range cols {
+ 			if !col.IsCategory() {
+ 				continue
+@@ -291,6 +292,7 @@ func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Colum
+ 				hits++
+ 				fromIndex = col.ColumnIndex
+ 				value = v
++				hitDesc = append(hitDesc, fmt.Sprintf("%s(%.2f)", col.Name, v))
+ 			}
+ 		}
+ 
+@@ -299,7 +301,7 @@ func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Colum
+ 		case hits == 0:
+ 			notes = append(notes, desc+": no category amount found, skipping")
+ 		case hits > 1:
+-			notes = append(notes, desc+": multiple category amounts, skipping")
++			notes = append(notes, desc+": multiple category amounts "+strings.Join(hitDesc, ",")+", skipping")
+ 		case fromIndex == target.ColumnIndex:
+ 			notes = append(notes, desc+": already in "+target.Name+", skipping")
+ 		default:

@@ -1,0 +1,54 @@
+diff --git a/api/services/sheets_service/monthly_service.go b/api/services/sheets_service/monthly_service.go
+index 372f8e2..d49ead5 100644
+--- a/api/services/sheets_service/monthly_service.go
++++ b/api/services/sheets_service/monthly_service.go
+@@ -96,7 +96,7 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
+ 				// categories only: the fixed A-J block isn't spending, and
+ 				// the black payoff columns accumulate card balances rather
+ 				// than monthly spend
+-				if !col.IsCategory() || col.Color == models.ColorBlack {
++				if !col.IsCategory() || col.Color == models.ColorGrey {
+ 					continue
+ 				}
+ 				if r.Deposit != 0 {
+diff --git a/api/services/sheets_service/register_write.go b/api/services/sheets_service/register_write.go
+index e621f8d..75adf8e 100644
+--- a/api/services/sheets_service/register_write.go
++++ b/api/services/sheets_service/register_write.go
+@@ -213,7 +213,7 @@ func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Colum
+ 		for _, col := range cols {
+ 			// categories only, and not the black payoff columns: those
+ 			// accumulate card balances, not spend (mirrors Aggregate)
+-			if !col.IsCategory() || col.Color == models.ColorBlack {
++			if !col.IsCategory() || col.Color == models.ColorGrey {
+ 				continue
+ 			}
+ 			v, err := getDollarsCellByIndex(rowVals, col.ColumnIndex-1)
+diff --git a/cmd/columns.go b/cmd/columns.go
+index bf8026a..78ac5aa 100644
+--- a/cmd/columns.go
++++ b/cmd/columns.go
+@@ -176,7 +176,7 @@ func addColumn(name string) error {
+ 	switch addColor {
+ 	case models.ColorGreen, models.ColorYellow, models.ColorBlue:
+ 	default:
+-		return fmt.Errorf("--color must be green, yellow, or blue (black is reserved for the payoff columns)")
++		return fmt.Errorf("--color must be green, yellow, or blue (grey is reserved for the payoff columns)")
+ 	}
+ 	if strings.TrimSpace(name) == "" {
+ 		return fmt.Errorf("column name must not be empty")
+diff --git a/pkg/models/models.go b/pkg/models/models.go
+index d40fa78..e1a0162 100644
+--- a/pkg/models/models.go
++++ b/pkg/models/models.go
+@@ -61,8 +61,8 @@ func (c Column) IsCategory() bool {
+ }
+ 
+ // Column colors: stored on each columns row, and the names of the cell
+-// background palette. Black is reserved for the payoff columns (Credit
+-// Cards, AppleCard, IRS) and is never offered for a new category.
++// background palette. Grey is reserved for the payoff columns (Credit
++// Cards, AppleCard) and is never offered for a new category.
+ const (
+ 	ColorBlack     = "black"
+ 	ColorWhite     = "white"

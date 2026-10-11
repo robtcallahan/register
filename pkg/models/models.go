@@ -61,8 +61,8 @@ func (c Column) IsCategory() bool {
 }
 
 // Column colors: stored on each columns row, and the names of the cell
-// background palette. Black is reserved for the payoff columns (Credit
-// Cards, AppleCard, IRS) and is never offered for a new category.
+// background palette. Grey is reserved for the payoff columns (Credit
+// Cards, AppleCard) and is never offered for a new category.
 const (
 	ColorBlack     = "black"
 	ColorWhite     = "white"

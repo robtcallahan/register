@@ -1,0 +1,24 @@
+diff --git a/api/services/sheets_service/register_write.go b/api/services/sheets_service/register_write.go
+index 69aca88..ab393e7 100644
+--- a/api/services/sheets_service/register_write.go
++++ b/api/services/sheets_service/register_write.go
+@@ -259,7 +259,6 @@ func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Colum
+ 		lowered[i] = strings.ToLower(m)
+ 	}
+ 
+-	startRow := ss.RegisterSheet.SheetCoords.StartRow
+ 	for _, e := range ss.RegisterSheet.Register {
+ 		matched := false
+ 		name := strings.ToLower(e.Name)
+@@ -273,8 +272,9 @@ func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Colum
+ 			continue
+ 		}
+ 
+-		idx := e.RowID - startRow
+-		rowVals := getRowValues(ss.RegisterSheet.RangeValues, int(idx*2))
++		// RowID = StartRow + offset, so the offset indexes RangeValues
++		// directly: the two-rows-per-entry stepping is already in RowID.
++		rowVals := getRowValues(ss.RegisterSheet.RangeValues, int(e.RowID-ss.RegisterSheet.SheetCoords.StartRow))
+ 
+ 		var fromIndex int
+ 		var value float64

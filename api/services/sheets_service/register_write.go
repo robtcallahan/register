@@ -189,7 +189,6 @@ func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Colum
 		lowered[i] = strings.ToLower(m)
 	}
 
-	startRow := ss.RegisterSheet.SheetCoords.StartRow
 	for _, e := range ss.RegisterSheet.Register {
 		matched := false
 		name := strings.ToLower(e.Name)
@@ -203,14 +202,17 @@ func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Colum
 			continue
 		}
 
-		idx := e.RowID - startRow
-		rowVals := getRowValues(ss.RegisterSheet.RangeValues, int(idx*2))
+		// RowID = StartRow + offset, so the offset indexes RangeValues
+		// directly: the two-rows-per-entry stepping is already in RowID.
+		rowVals := getRowValues(ss.RegisterSheet.RangeValues, int(e.RowID-ss.RegisterSheet.SheetCoords.StartRow))
 
 		var fromIndex int
 		var value float64
 		hits := 0
 		for _, col := range cols {
-			if !col.IsCategory() {
+			// categories only, and not the black payoff columns: those
+			// accumulate card balances, not spend (mirrors Aggregate)
+			if !col.IsCategory() || col.Color == models.ColorGrey {
 				continue
 			}
 			v, err := getDollarsCellByIndex(rowVals, col.ColumnIndex-1)

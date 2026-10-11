@@ -96,7 +96,7 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 				// categories only: the fixed A-J block isn't spending, and
 				// the black payoff columns accumulate card balances rather
 				// than monthly spend
-				if !col.IsCategory() || col.Color == models.ColorBlack {
+				if !col.IsCategory() || col.Color == models.ColorGrey {
 					continue
 				}
 				if r.Deposit != 0 {

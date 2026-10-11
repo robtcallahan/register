@@ -1,0 +1,15 @@
+diff --git a/api/services/sheets_service/register_write.go b/api/services/sheets_service/register_write.go
+index 4f8c4d5..5488f23 100644
+--- a/api/services/sheets_service/register_write.go
++++ b/api/services/sheets_service/register_write.go
+@@ -281,7 +281,9 @@ func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Colum
+ 		hits := 0
+ 		var hitDesc []string
+ 		for _, col := range cols {
+-			if !col.IsCategory() {
++			// categories only, and not the black payoff columns: those
++			// accumulate card balances, not spend (mirrors Aggregate)
++			if !col.IsCategory() || col.Color == models.ColorBlack {
+ 				continue
+ 			}
+ 			v, err := getDollarsCellByIndex(rowVals, col.ColumnIndex-1)
