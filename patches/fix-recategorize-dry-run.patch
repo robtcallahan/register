@@ -1,0 +1,12 @@
+diff --git a/cmd/recategorize.go b/cmd/recategorize.go
+index b07b8e3..a874c45 100644
+--- a/cmd/recategorize.go
++++ b/cmd/recategorize.go
+@@ -32,6 +32,7 @@ var recategorizeMatches []string
+ func init() {
+ 	recategorizeCmd.Flags().StringVar(&recategorizeTo, "to", "", "target category column name (required)")
+ 	recategorizeCmd.Flags().StringSliceVar(&recategorizeMatches, "match", nil, "case-insensitive substring to match on Description (repeatable, required)")
++	recategorizeCmd.Flags().BoolVar(&options.DryRun, "dry-run", false, "Print-only run: no DB or spreadsheet updates performed")
+ 	_ = recategorizeCmd.MarkFlagRequired("to")
+ 	_ = recategorizeCmd.MarkFlagRequired("match")
+ 	rootCmd.AddCommand(recategorizeCmd)
