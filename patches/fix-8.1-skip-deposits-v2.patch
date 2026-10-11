@@ -1,20 +1,21 @@
 diff --git a/api/services/sheets_service/monthly_service.go b/api/services/sheets_service/monthly_service.go
-index 2d4601c..7402227 100644
+index cf759bd..7402227 100644
 --- a/api/services/sheets_service/monthly_service.go
 +++ b/api/services/sheets_service/monthly_service.go
-@@ -77,6 +77,11 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
+@@ -77,9 +77,9 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
  
  	rangeValues := ss.RegisterSheet.RangeValues
  	for i, r := range ss.RegisterSheet.Register {
+-		// skip fund reallocations: they move money between categories
+-		// but aren't spending
+-		if r.Name == "Reallocation" {
 +		// skip fund reallocations and deposits/transfers: they move money
 +		// between categories or into the account, but aren't spending
 +		if r.Name == "Reallocation" || r.Deposit != 0 {
-+			continue
-+		}
+ 			continue
+ 		}
  		// r.Date is MM/DD/YY (readDateValue emits a 2-digit year)
- 		re := regexp.MustCompile(`(\d\d)/\d\d/(\d\d)`)
- 		m := re.FindStringSubmatch(r.Date)
-@@ -104,9 +109,6 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
+@@ -109,9 +109,6 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
  				if !col.IsCategory() || col.Color == models.ColorGrey {
  					continue
  				}

@@ -77,9 +77,9 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 
 	rangeValues := ss.RegisterSheet.RangeValues
 	for i, r := range ss.RegisterSheet.Register {
-		// skip fund reallocations: they move money between categories
-		// but aren't spending
-		if r.Name == "Reallocation" {
+		// skip fund reallocations and deposits/transfers: they move money
+		// between categories or into the account, but aren't spending
+		if r.Name == "Reallocation" || r.Deposit != 0 {
 			continue
 		}
 		// r.Date is MM/DD/YY (readDateValue emits a 2-digit year)
@@ -107,9 +107,6 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 				// the black payoff columns accumulate card balances rather
 				// than monthly spend
 				if !col.IsCategory() || col.Color == models.ColorGrey {
-					continue
-				}
-				if r.Deposit != 0 {
 					continue
 				}
 				// ColumnIndex is 1-based (the sheet); the row slice is 0-based
