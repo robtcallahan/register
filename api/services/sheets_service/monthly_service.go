@@ -90,15 +90,22 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 			}
 
 			row := getRowValues(rangeValues, i*2)
-			for j := 10; j < len(row); j++ {
-				if cols[j].Name == "Credit Cards" || r.Deposit != 0 {
+			for _, col := range cols {
+				// categories only: the fixed A-J block isn't spending, and
+				// the black payoff columns accumulate card balances rather
+				// than monthly spend
+				if !col.IsCategory() || col.Color == models.ColorBlack {
 					continue
 				}
-				f32, err := getDollarsCellByIndex(row, cols[j].ColumnIndex)
+				if r.Deposit != 0 {
+					continue
+				}
+				// ColumnIndex is 1-based (the sheet); the row slice is 0-based
+				f32, err := getDollarsCellByIndex(row, col.ColumnIndex-1)
 				if err != nil {
 					return nil, nil, err
 				}
-				catAgg[k][cols[j].Name] = catAgg[k][cols[j].Name] + f32
+				catAgg[k][col.Name] = catAgg[k][col.Name] + f32
 			}
 		}
 	}
