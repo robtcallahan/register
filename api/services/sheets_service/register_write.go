@@ -3,6 +3,7 @@ package sheets_service
 // The register write path: turning transactions into sheet rows.
 
 import (
+	"fmt"
 	"strings"
 	"register/pkg/models"
 
@@ -163,4 +164,120 @@ func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, colum
 		nextIndex++
 	}
 	return cells
+}
+
+// CategoryMove relocates one row's category amount to another category column.
+type CategoryMove struct {
+	Key       string  // transaction key, for the companion DB update
+	RowID     int64   // 1-based sheet row of the transaction's data row
+	FromIndex int     // 1-based column index being vacated
+	ToIndex   int     // 1-based column index receiving the amount
+	Value     float64 // the amount to move, as read from the sheet
+	Color     string  // background color for the receiving cell
+}
+
+// PlanCategoryMoves scans the register sheet for data rows whose description
+// contains any of the match strings (case-insensitive) and plans moving each
+// row's category amount into the target column. Rows with no (or ambiguous)
+// category amounts are reported in notes and left alone.
+func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Column, cols []models.Column) ([]CategoryMove, []string) {
+	var moves []CategoryMove
+	var notes []string
+
+	lowered := make([]string, len(matches))
+	for i, m := range matches {
+		lowered[i] = strings.ToLower(m)
+	}
+
+	startRow := ss.RegisterSheet.SheetCoords.StartRow
+	for _, e := range ss.RegisterSheet.Register {
+		matched := false
+		name := strings.ToLower(e.Name)
+		for _, m := range lowered {
+			if strings.Contains(name, m) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+
+		idx := e.RowID - startRow
+		rowVals := getRowValues(ss.RegisterSheet.RangeValues, int(idx*2))
+
+		var fromIndex int
+		var value float64
+		hits := 0
+		for _, col := range cols {
+			if !col.IsCategory() {
+				continue
+			}
+			v, err := getDollarsCellByIndex(rowVals, col.ColumnIndex-1)
+			if err != nil {
+				continue
+			}
+			if v != 0 {
+				hits++
+				fromIndex = col.ColumnIndex
+				value = v
+			}
+		}
+
+		desc := fmt.Sprintf("row %d (%s %s)", e.RowID, e.Date, e.Name)
+		switch {
+		case hits == 0:
+			notes = append(notes, desc+": no category amount found, skipping")
+		case hits > 1:
+			notes = append(notes, desc+": multiple category amounts, skipping")
+		case fromIndex == target.ColumnIndex:
+			notes = append(notes, desc+": already in "+target.Name+", skipping")
+		default:
+			moves = append(moves, CategoryMove{
+				Key:       e.Key,
+				RowID:     e.RowID,
+				FromIndex: fromIndex,
+				ToIndex:   target.ColumnIndex,
+				Value:     value,
+				Color:     target.Color,
+			})
+		}
+	}
+	return moves, notes
+}
+
+// MoveCategoryCells executes planned category moves in a single batch update:
+// each amount is written into its new column and cleared from the old one.
+func (ss *SheetsService) MoveCategoryCells(moves []CategoryMove) error {
+	var requests []*sheets.Request
+	for _, m := range moves {
+		write := &sheets.UpdateCellsRequest{
+			Fields: "*",
+			Start: &sheets.GridCoordinate{
+				SheetId:     ss.RegisterSheet.ID,
+				RowIndex:    m.RowID - 1,
+				ColumnIndex: m.ToIndex - 1,
+			},
+			Rows: []*sheets.RowData{
+				{Values: []*sheets.CellData{mkCellDataDollars(m.Value, "right", m.Color, false)}},
+			},
+		}
+		requests = append(requests, &sheets.Request{UpdateCells: write})
+
+		clear := &sheets.UpdateCellsRequest{
+			Fields: "*",
+			Start: &sheets.GridCoordinate{
+				SheetId:     ss.RegisterSheet.ID,
+				RowIndex:    m.RowID - 1,
+				ColumnIndex: m.FromIndex - 1,
+			},
+			Rows: []*sheets.RowData{
+				{Values: []*sheets.CellData{{}}},
+			},
+		}
+		requests = append(requests, &sheets.Request{UpdateCells: clear})
+	}
+
+	_, err := ss.Provider.BatchUpdate(&sheets.BatchUpdateSpreadsheetRequest{Requests: requests})
+	return err
 }
