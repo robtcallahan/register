@@ -97,7 +97,11 @@ func monthly() error {
 	//sheets_service.WriteJSONFile(jsonDir+"payee_agg.json", payeeAgg)
 	/**/
 	fmt.Println("Updating...")
-	sheetsService.UpdateMonthlyCategories("MonthlyCategories", catAgg, cols)
-	sheetsService.UpdateMonthlyPayees("MonthlyPayees", payeeAgg)
+	if err := sheetsService.UpdateMonthlyCategories("MonthlyCategories", catAgg, cols); err != nil {
+		return fmt.Errorf("monthly categories: %w", err)
+	}
+	if err := sheetsService.UpdateMonthlyPayees("MonthlyPayees", payeeAgg); err != nil {
+		return fmt.Errorf("monthly payees: %w", err)
+	}
 	return nil
 }
