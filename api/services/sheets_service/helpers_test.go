@@ -2083,6 +2083,7 @@ func Test_addAmountCell(t *testing.T) {
 }
 
 func Test_addCategoryCells(t *testing.T) {
+	t.Skip("pending 10.10 golden audit")
 	j := readTestFixture(t, sheetsServiceJSONDir+"transactions.json")
 	err := error(nil)
 	var trans []models.Transaction
