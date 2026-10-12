@@ -88,8 +88,8 @@ Phase 10 — Functional tests
 - [X] 10.1 Make `go test ./...` build and run: fix the three stale monthly-test signatures, resolve Test_getTransactionKey1 and the csv ReadCSVFiles/Banks references, delete or fill the 16 csv skeleton tests, remove the machine-absolute fixture paths (fixtures under testdata/, no log.Fatalf in init)
 - [X] 10.2 Direct unit tests for models.TransactionKey (canonical format: lowercase source, %.2f amount, date passthrough, 100.5 vs 100.50 equivalence)
 - [X] 10.3 banking.buildTransaction matrix per bank: Wells Fargo sign conventions + check detection, Chase/Fidelity credit-purchase fields, Key stamping on each path
-- [ ] 10.4 banking filters: FilterCreditCardPayments, FilterRecordedTransactions (exact-key), FindByBankPattern (CHECK resolution)
-- [ ] 10.5 Income allocation: allocationFor table test (weekly / monthly / other-frequency visible zeros) + addSalaryCells/addCategoryCells with a GAP in the column set (pins 6.1 identity placement beyond the gapless goldens)
+- [X] 10.4 banking filters: FilterCreditCardPayments, FilterRecordedTransactions (exact-key), FindByBankPattern (CHECK resolution)
+- [X] 10.5 Income allocation: allocationFor table test (weekly / monthly / other-frequency visible zeros) + addSalaryCells/addCategoryCells with a GAP in the column set (pins 6.1 identity placement beyond the gapless goldens)
 - [ ] 10.6 NewRegisterSheet end-column derivation from DB columns (fake provider), including the config fallback used by register copy
 - [ ] 10.7 CSV conversions: real cases for the process*Data functions + processCheck through the FakeReadFiler seam
 - [ ] 10.8 Small cmd units: filterNonCategoryColumns (6.4 threshold rule) and writeRawTransactionsCSV (3.10 quoting regression)
