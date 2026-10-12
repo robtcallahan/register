@@ -37,7 +37,7 @@ type Merchant struct {
 	TaxDeductible bool
 	Priority      int    // when several rules match, the highest priority wins
 	MatchType     string // "exact", "substring", or "regex"; "" is treated as "substring" (pre-Phase-4 rows)
-	Pattern       string // what the matcher compares; BankName stays the raw observed name
+	Pattern       string `gorm:"column:match_pattern"` // what the matcher compares; BankName stays the raw observed name
 }
 
 // Column ...
