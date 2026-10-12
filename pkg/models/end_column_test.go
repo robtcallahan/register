@@ -1,0 +1,151 @@
+package models
+
+import "testing"
+
+func TestColumnSet_End(t *testing.T) {
+	tests := []struct {
+		name    string
+		columns []Column
+		wantIdx int
+		wantOk  bool
+	}{
+		{
+			name: "returns highest index",
+			columns: []Column{
+				{Name: "A", ColumnIndex: 1},
+				{Name: "B", ColumnIndex: 5},
+				{Name: "C", ColumnIndex: 3},
+			},
+			wantIdx: 5,
+			wantOk:  true,
+		},
+		{
+			name: "single column",
+			columns: []Column{
+				{Name: "A", ColumnIndex: 39},
+			},
+			wantIdx: 39,
+			wantOk:  true,
+		},
+		{
+			name:    "empty returns not ok",
+			columns: []Column{},
+			wantIdx: 0,
+			wantOk:  false,
+		},
+		{
+			name:    "nil returns not ok",
+			columns: nil,
+			wantIdx: 0,
+			wantOk:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			set := NewColumnSet(tt.columns)
+			got, ok := set.End()
+			if ok != tt.wantOk {
+				t.Fatalf("End() ok = %v, want %v", ok, tt.wantOk)
+			}
+			if !ok {
+				return
+			}
+			if got.ColumnIndex != tt.wantIdx {
+				t.Errorf("End().ColumnIndex = %d, want %d", got.ColumnIndex, tt.wantIdx)
+			}
+		})
+	}
+}
+
+func TestColumnLetter(t *testing.T) {
+	tests := []struct {
+		index int
+		want  string
+	}{
+		{1, "A"},
+		{10, "J"},
+		{26, "Z"},
+		{27, "AA"},
+		{28, "AB"},
+		{39, "AM"},  // Rob's register has 39 columns (A-AM)
+		{46, "AT"},  // was 46 before AR-AT deletion
+		{52, "AZ"},
+		{53, "BA"},
+		{0, ""},     // edge: zero returns empty
+		{-1, ""},    // edge: negative returns empty
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			if got := ColumnLetter(tt.index); got != tt.want {
+				t.Errorf("ColumnLetter(%d) = %q, want %q", tt.index, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestColumnSet_LetterFor(t *testing.T) {
+	set := NewColumnSet([]Column{{Name: "A", ColumnIndex: 1}})
+
+	if got := set.LetterFor(1); got != "A" {
+		t.Errorf("LetterFor(1) = %q, want %q", got, "A")
+	}
+	if got := set.LetterFor(39); got != "AM" {
+		t.Errorf("LetterFor(39) = %q, want %q", got, "AM")
+	}
+}
+
+func TestColumnSet_SliceOffset(t *testing.T) {
+	set := NewColumnSet([]Column{{Name: "A", ColumnIndex: 1}})
+
+	// 1-based ColumnIndex → 0-based slice offset
+	tests := []struct {
+		index int
+		want  int
+	}{
+		{1, 0},
+		{10, 9},
+		{39, 38},
+	}
+
+	for _, tt := range tests {
+		if got := set.SliceOffset(tt.index); got != tt.want {
+			t.Errorf("SliceOffset(%d) = %d, want %d", tt.index, got, tt.want)
+		}
+	}
+}
+
+func TestNewRegisterSheet_EndColumn(t *testing.T) {
+	// NewRegisterSheet derives EndColumnName/EndColumnIndex from the columns
+	// table via ColumnSet. This tests the derivation logic directly.
+
+	columns := []Column{
+		{Name: "Recon", ColumnIndex: 1},
+		{Name: "Grocery", ColumnIndex: 11},
+		{Name: "Gifts", ColumnIndex: 46}, // last column
+	}
+
+	set := NewColumnSet(columns)
+	end, ok := set.End()
+	if !ok {
+		t.Fatal("End() returned not ok, want ok")
+	}
+
+	endColumnName := set.LetterFor(end.ColumnIndex)
+	endColumnIndex := int64(set.SliceOffset(end.ColumnIndex))
+
+	if endColumnName != "AT" {
+		t.Errorf("EndColumnName = %q, want %q", endColumnName, "AT")
+	}
+	if endColumnIndex != 45 {
+		t.Errorf("EndColumnIndex = %d, want 45", endColumnIndex)
+	}
+
+	// Empty columns: NewRegisterSheet falls back to the sheet's grid width.
+	// The ColumnSet returns not-ok, signaling the caller to use grid properties.
+	emptySet := NewColumnSet(nil)
+	if _, ok := emptySet.End(); ok {
+		t.Errorf("End() on empty set returned ok, want not ok")
+	}
+}
