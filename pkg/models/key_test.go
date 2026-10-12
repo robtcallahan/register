@@ -1,0 +1,119 @@
+package models
+
+import "testing"
+
+func TestTransactionKey(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+		date   string
+		amount float64
+		want   string
+	}{
+		{
+			name:   "basic checking withdrawal",
+			source: "WellsFargo",
+			date:   "12/07/20",
+			amount: 5.00,
+			want:   "wellsfargo:12/07/20:5.00",
+		},
+		{
+			name:   "source is lowercased",
+			source: "CHASE",
+			date:   "01/15/21",
+			amount: 100.50,
+			want:   "chase:01/15/21:100.50",
+		},
+		{
+			name:   "mixed case source",
+			source: "Fidelity",
+			date:   "06/30/21",
+			amount: 46.80,
+			want:   "fidelity:06/30/21:46.80",
+		},
+		{
+			name:   "amount formats to two decimals",
+			source: "WellsFargo",
+			date:   "12/07/20",
+			amount: 23.435,
+			// Note: 23.435 is not exactly representable in binary floating
+			// point (it's 23.4349999...), so %.2f rounds it to 23.43.
+			want: "wellsfargo:12/07/20:23.43",
+		},
+		{
+			name:   "amount truncates trailing zeros",
+			source: "Chase",
+			date:   "12/10/20",
+			amount: 29.6,
+			want:   "chase:12/10/20:29.60",
+		},
+		{
+			name:   "zero amount",
+			source: "WellsFargo",
+			date:   "12/07/20",
+			amount: 0,
+			want:   "wellsfargo:12/07/20:0.00",
+		},
+		{
+			name:   "negative amount",
+			source: "Chase",
+			date:   "12/11/20",
+			amount: -699.58,
+			want:   "chase:12/11/20:-699.58",
+		},
+		{
+			name:   "empty source",
+			source: "",
+			date:   "12/07/20",
+			amount: 5.00,
+			want:   ":12/07/20:5.00",
+		},
+		{
+			name:   "source with spaces is preserved",
+			source: "Bank Of America",
+			date:   "12/07/20",
+			amount: 5.00,
+			want:   "bank of america:12/07/20:5.00",
+		},
+		{
+			name:   "large amount",
+			source: "Fidelity",
+			date:   "12/07/20",
+			amount: 8761.12,
+			want:   "fidelity:12/07/20:8761.12",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := TransactionKey(tt.source, tt.date, tt.amount); got != tt.want {
+				t.Errorf("TransactionKey(%q, %q, %v) = %q, want %q",
+					tt.source, tt.date, tt.amount, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTransactionKey_Dedupe(t *testing.T) {
+	// The key must be stable: same inputs always produce the same key,
+	// regardless of case differences in the source.
+	key1 := TransactionKey("WellsFargo", "12/07/20", 5.00)
+	key2 := TransactionKey("wellsfargo", "12/07/20", 5.00)
+	key3 := TransactionKey("WELLSFARGO", "12/07/20", 5.00)
+
+	if key1 != key2 || key2 != key3 {
+		t.Errorf("keys differ for same transaction: %q, %q, %q", key1, key2, key3)
+	}
+
+	// Different amounts must produce different keys.
+	key4 := TransactionKey("WellsFargo", "12/07/20", 5.01)
+	if key1 == key4 {
+		t.Errorf("keys collide for different amounts: %q", key1)
+	}
+
+	// Different dates must produce different keys.
+	key5 := TransactionKey("WellsFargo", "12/08/20", 5.00)
+	if key1 == key5 {
+		t.Errorf("keys collide for different dates: %q", key1)
+	}
+}
