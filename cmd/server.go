@@ -42,7 +42,9 @@ var serverCmd = &cobra.Command{
 }
 
 func init() {
-	config, _ = cfg.ReadConfig(ConfigFile)
+	if cfg, err := cfg.ReadConfig(ConfigFile); err == nil {
+		config = cfg
+	}
 	rootCmd.AddCommand(serverCmd)
 
 	client = getBankingClient()

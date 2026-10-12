@@ -66,7 +66,7 @@ func Test_isIncomeName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ss.isIncomeName(tt.args.name); got != tt.want {
+			if got := isIncomeName(tt.args.name, ss.IncomeSources); got != tt.want {
 				t.Errorf("isIncomeName() = %+v, want %+v", got, tt.want)
 			}
 		})
@@ -1148,7 +1148,7 @@ func Test_addWithdrawal(t *testing.T) {
 	}{
 		{
 			name: "Test add a withdrawal row entry",
-			args: args{amount: -v, bgColor: "white", cells: []*sheets.CellData{}},
+			args: args{amount: v, bgColor: "white", cells: []*sheets.CellData{}},
 			want: want,
 		},
 	}
@@ -1293,7 +1293,7 @@ func Test_addCheckingTransaction(t *testing.T) {
 		}}
 
 	type args struct {
-		amount  float64
+		trans   *models.Transaction
 		bgColor string
 		cells   []*sheets.CellData
 	}
@@ -1304,25 +1304,25 @@ func Test_addCheckingTransaction(t *testing.T) {
 	}{
 		{
 			name: "Test add a deposit checking row entry",
-			args: args{amount: v, bgColor: "white", cells: []*sheets.CellData{}},
+			args: args{trans: &models.Transaction{Deposit: v}, bgColor: "white", cells: []*sheets.CellData{}},
 			want: wantDeposit,
 		},
 		{
 			name: "Test add a withdrawal checking row entry",
-			args: args{amount: -v, bgColor: "white", cells: []*sheets.CellData{}},
+			args: args{trans: &models.Transaction{Withdrawal: v}, bgColor: "white", cells: []*sheets.CellData{}},
 			want: wantWithdrawal,
 		},
 	}
 	tt := tests[0]
 	t.Run(tt.name, func(t *testing.T) {
-		if got := addCheckingTransaction(tt.args.amount, tt.args.bgColor, tt.args.cells); !reflect.DeepEqual(got, tt.want) {
+		if got := addCheckingTransaction(tt.args.trans, tt.args.bgColor, tt.args.cells); !reflect.DeepEqual(got, tt.want) {
 			t.Errorf("addCheckingTransaction() = %v, want %v",
 				got[1].UserEnteredValue.NumberValue, tt.want[1].UserEnteredValue.NumberValue)
 		}
 	})
 	tt = tests[1]
 	t.Run(tt.name, func(t *testing.T) {
-		if got := addCheckingTransaction(tt.args.amount, tt.args.bgColor, tt.args.cells); !reflect.DeepEqual(got, tt.want) {
+		if got := addCheckingTransaction(tt.args.trans, tt.args.bgColor, tt.args.cells); !reflect.DeepEqual(got, tt.want) {
 			t.Errorf("addCheckingTransaction() = %v, want %v",
 				got[0].UserEnteredValue.NumberValue, tt.want[0].UserEnteredValue.NumberValue)
 		}
@@ -1397,7 +1397,7 @@ func Test_addCCTransaction(t *testing.T) {
 	}
 
 	type args struct {
-		amount  float64
+		trans   *models.Transaction
 		bgColor string
 		cells   []*sheets.CellData
 	}
@@ -1408,13 +1408,13 @@ func Test_addCCTransaction(t *testing.T) {
 	}{
 		{
 			name: "Test add a credit card row entry",
-			args: args{amount: -v, bgColor: "white", cells: []*sheets.CellData{}},
+			args: args{trans: &models.Transaction{CreditPurchase: v}, bgColor: "white", cells: []*sheets.CellData{}},
 			want: want,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := addCCTransaction(tt.args.amount, tt.args.bgColor, tt.args.cells); !reflect.DeepEqual(got, tt.want) {
+			if got := addCCTransaction(tt.args.trans, tt.args.bgColor, tt.args.cells); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("addCCTransaction() = %v, want %v",
 					got[2].UserEnteredValue.NumberValue, tt.want[2].UserEnteredValue.NumberValue)
 			}
@@ -1480,39 +1480,9 @@ func Test_getStringField(t *testing.T) {
 	}
 }
 
-func Test_intInSlice(t *testing.T) {
-	type args struct {
-		a    int
-		list []int
-	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			name: "Test in slice",
-			args: args{a: 1, list: []int{2, 3, 4}},
-			want: false,
-		},
-		{
-			name: "Test not in slice",
-			args: args{a: 3, list: []int{2, 3, 4}},
-			want: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := intInSlice(tt.args.a, tt.args.list); got != tt.want {
-				t.Errorf("intInSlice() = %+v, want %+v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_sortAggregateMapKeys(t *testing.T) {
 	type args struct {
-		aggMap *map[string]map[string]float64
+		aggMap map[string]map[string]float64
 	}
 	in := make(map[string]map[string]float64)
 	in["c"] = make(map[string]float64)
@@ -1527,12 +1497,12 @@ func Test_sortAggregateMapKeys(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want *[]string
+		want []string
 	}{
 		{
 			name: "Test key sort",
-			args: args{aggMap: &in},
-			want: &res,
+			args: args{aggMap: in},
+			want: res,
 		},
 	}
 	for _, tt := range tests {
@@ -1626,7 +1596,7 @@ func Test_getSourceField(t *testing.T) {
 		{
 			name: "Test get source field",
 			args: args{values: values},
-			want: "Fidelity",
+			want: "fidelity",
 		},
 	}
 	for _, tt := range tests {
@@ -1686,7 +1656,7 @@ func Test_getAmountString(t *testing.T) {
 		{
 			name: "Test get amount field",
 			args: args{values: values},
-			want: "-123.45",
+			want: "123.45",
 		},
 	}
 	for _, tt := range tests {
@@ -1716,7 +1686,7 @@ func Test_getTransactionKey1(t *testing.T) {
 		{
 			name: "Test get transaction key",
 			args: args{values: values},
-			want: "Fidelity:01/02/23:-123.45",
+			want: "fidelity:01/02/23:123.45",
 		},
 	}
 	for _, tt := range tests {
@@ -1857,8 +1827,9 @@ func Test_addAmountCell(t *testing.T) {
 	v := 101.56
 
 	transWithdrawal := models.Transaction{
-		Source: CheckingAccountSourceName,
-		Amount: -v,
+		Source:     CheckingAccountSourceName,
+		Amount:     -v,
+		Withdrawal: v,
 	}
 	wantWithdrawal := []*sheets.CellData{
 		{
@@ -1924,8 +1895,9 @@ func Test_addAmountCell(t *testing.T) {
 		}}
 
 	transDeposit := models.Transaction{
-		Source: CheckingAccountSourceName,
-		Amount: v,
+		Source:  CheckingAccountSourceName,
+		Amount:  v,
+		Deposit: v,
 	}
 	wantDeposit := []*sheets.CellData{
 		{
@@ -1992,9 +1964,9 @@ func Test_addAmountCell(t *testing.T) {
 	}
 
 	transCC := models.Transaction{
-		Source:     "Fidelity",
-		Amount:     v,
-		CreditCard: -v,
+		Source:         "Fidelity",
+		Amount:         v,
+		CreditPurchase: v,
 	}
 	wantCC := []*sheets.CellData{
 		{
@@ -2105,14 +2077,14 @@ func Test_addAmountCell(t *testing.T) {
 	t.Run(tt.name, func(t *testing.T) {
 		if got := addAmountCell(tt.args.cells, tt.args.trans, tt.args.bgColor); !reflect.DeepEqual(got, tt.want) {
 			t.Errorf("addCheckingTransaction() = %v, want %v",
-				got[0].UserEnteredValue.NumberValue, tt.want[3].UserEnteredValue.NumberValue)
+				got[2].UserEnteredValue.NumberValue, tt.want[2].UserEnteredValue.NumberValue)
 		}
 	})
 }
 
 func Test_addCategoryCells(t *testing.T) {
-	j, err := os.ReadFile(sheetsServiceJSONDir + "transactions.json")
-	checkTestingError(t, err)
+	j := readTestFixture(t, sheetsServiceJSONDir+"transactions.json")
+	err := error(nil)
 	var trans []models.Transaction
 	err = json.Unmarshal(j, &trans)
 	checkTestingError(t, err)

@@ -86,14 +86,13 @@ func Execute() {
 }
 
 func init() {
-	var err error
-
 	cobra.OnInitialize()
 
-	config, err = cfg.ReadConfig(ConfigFile)
-	if err != nil {
+	if cfg, err := cfg.ReadConfig(ConfigFile); err != nil {
 		fmt.Println(err.Error())
 		return
+	} else {
+		config = cfg
 	}
 
 	var bankIDs string

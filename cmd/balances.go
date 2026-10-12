@@ -20,7 +20,9 @@ var balancesCmd = &cobra.Command{
 var ctx = context.Background()
 
 func init() {
-	config, _ = cfg.ReadConfig(ConfigFile)
+	if cfg, err := cfg.ReadConfig(ConfigFile); err == nil {
+		config = cfg
+	}
 	rootCmd.AddCommand(balancesCmd)
 
 	client = getBankingClient()

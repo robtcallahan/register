@@ -52,7 +52,9 @@ amounts from the appropriate budget category columns.`,
 
 /**/
 func init() {
-	config, _ = cfg.ReadConfig(ConfigFile)
+	if cfg, err := cfg.ReadConfig(ConfigFile); err == nil {
+		config = cfg
+	}
 	rootCmd.AddCommand(updateCmd)
 
 	updateCmd.Flags().BoolVar(&options.DryRun, "dry-run", false, "Print-only run: no DB or spreadsheet updates performed")

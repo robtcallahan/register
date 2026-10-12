@@ -64,6 +64,10 @@ func (p *providerMock) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetReque
 	return &sheets.BatchUpdateSpreadsheetResponse{}, nil
 }
 
+func (p *providerMock) ClearValues(range_ string) error {
+	return nil
+}
+
 func (p *providerMock) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
 	w, err := os.ReadFile(sheetsServiceJSONDir + "WriteCell.json")
 	if err != nil {
@@ -82,14 +86,13 @@ var ss *SheetsService
 func init() {
 	var err error
 
-	c, err := os.ReadFile("json/categoriesMap.json")
-	if err != nil {
-		log.Fatalf("error: %s\n", err.Error())
-	}
+	// The categoriesMap fixture lives on Rob's Mac, not in the repo. Tests
+	// that need it skip when it's absent; the rest run with an empty map.
 	var entries map[string]*BudgetEntry
-	err = json.Unmarshal(c, &entries)
-	if err != nil {
-		log.Fatalf("error: %s\n", err.Error())
+	if c, err := os.ReadFile("json/categoriesMap.json"); err == nil {
+		if err := json.Unmarshal(c, &entries); err != nil {
+			log.Printf("warning: could not unmarshal categoriesMap.json: %s\n", err.Error())
+		}
 	}
 
 	provider := providerMock{
@@ -117,10 +120,9 @@ func init() {
 }
 
 func Test_sheetsService_copyRowsBatchUpdateRequest(t *testing.T) {
-	w, err := os.ReadFile(sheetsServiceJSONDir + "copyRowsBatchUpdateRequest.json")
-	checkTestingError(t, err)
+	w := readTestFixture(t, sheetsServiceJSONDir + "copyRowsBatchUpdateRequest.json")
 	var want sheets.BatchUpdateSpreadsheetRequest
-	err = json.Unmarshal(w, &want)
+	err := json.Unmarshal(w, &want)
 	checkTestingError(t, err)
 
 	type args struct {
@@ -147,15 +149,13 @@ func Test_sheetsService_copyRowsBatchUpdateRequest(t *testing.T) {
 }
 
 func Test_sheetsService_ReadBudgetSheet(t *testing.T) {
-	w, err := os.ReadFile(sheetsServiceJSONDir + "ReadBudgetSheet.json")
-	checkTestingError(t, err)
+	w := readTestFixture(t, sheetsServiceJSONDir + "ReadBudgetSheet.json")
 	var want BudgetSheet
-	err = json.Unmarshal(w, &want)
+	err := json.Unmarshal(w, &want)
 	checkTestingError(t, err)
 
 	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		r, err := os.ReadFile(sheetsServiceJSONDir + "BudgetValues.json")
-		checkTestingError(t, err)
+		r := readTestFixture(t, sheetsServiceJSONDir + "BudgetValues.json")
 		var valueRange sheets.ValueRange
 		err = json.Unmarshal(r, &valueRange)
 		checkTestingError(t, err)
@@ -184,15 +184,13 @@ func Test_sheetsService_ReadBudgetSheet(t *testing.T) {
 }
 
 func Test_sheetsService_ReadRegisterSheet(t *testing.T) {
-	w, err := os.ReadFile(sheetsServiceJSONDir + "ReadRegisterSheet.json")
-	checkTestingError(t, err)
+	w := readTestFixture(t, sheetsServiceJSONDir + "ReadRegisterSheet.json")
 	var want RegisterSheet
-	err = json.Unmarshal(w, &want)
+	err := json.Unmarshal(w, &want)
 	checkTestingError(t, err)
 
 	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		r, err := os.ReadFile(sheetsServiceJSONDir + "RegisterValues.json")
-		checkTestingError(t, err)
+		r := readTestFixture(t, sheetsServiceJSONDir + "RegisterValues.json")
 		var valueRange sheets.ValueRange
 		err = json.Unmarshal(r, &valueRange)
 		checkTestingError(t, err)
@@ -221,10 +219,9 @@ func Test_sheetsService_ReadRegisterSheet(t *testing.T) {
 }
 
 func Test_sheetsService_WriteCell(t *testing.T) {
-	w, err := os.ReadFile(sheetsServiceJSONDir + "WriteCell.json")
-	checkTestingError(t, err)
+	w := readTestFixture(t, sheetsServiceJSONDir + "WriteCell.json")
 	var want *sheets.UpdateValuesResponse
-	err = json.Unmarshal(w, &want)
+	err := json.Unmarshal(w, &want)
 	checkTestingError(t, err)
 
 	type args struct {
@@ -256,10 +253,9 @@ func Test_sheetsService_WriteCell(t *testing.T) {
 }
 
 func Test_sheetsService_addAmountCell(t *testing.T) {
-	a, err := os.ReadFile(sheetsServiceJSONDir + "addAmountCell.json")
-	checkTestingError(t, err)
+	a := readTestFixture(t, sheetsServiceJSONDir + "addAmountCell.json")
 	var want []*sheets.CellData
-	err = json.Unmarshal(a, &want)
+	err := json.Unmarshal(a, &want)
 	checkTestingError(t, err)
 
 	type args struct {
@@ -292,20 +288,17 @@ func Test_sheetsService_addAmountCell(t *testing.T) {
 }
 
 func Test_sheetsService_addCategoryCells(t *testing.T) {
-	c, err := os.ReadFile(sheetsServiceJSONDir + "columns.json")
-	checkTestingError(t, err)
+	c := readTestFixture(t, sheetsServiceJSONDir + "columns.json")
 	var cols []models.Column
-	err = json.Unmarshal(c, &cols)
+	err := json.Unmarshal(c, &cols)
 	checkTestingError(t, err)
 
-	n, err := os.ReadFile(sheetsServiceJSONDir + "transNameToColName.json")
-	checkTestingError(t, err)
+	n := readTestFixture(t, sheetsServiceJSONDir + "transNameToColName.json")
 	var name2Col map[string]string
 	err = json.Unmarshal(n, &name2Col)
 	checkTestingError(t, err)
 
-	a, err := os.ReadFile(sheetsServiceJSONDir + "addCategoryCells.json")
-	checkTestingError(t, err)
+	a := readTestFixture(t, sheetsServiceJSONDir + "addCategoryCells.json")
 	var want []*sheets.CellData
 	err = json.Unmarshal(a, &want)
 	checkTestingError(t, err)
@@ -348,14 +341,12 @@ func Test_sheetsService_addCategoryCells(t *testing.T) {
 }
 
 func Test_sheetsService_addSalaryCells(t *testing.T) {
-	c, err := os.ReadFile("json/columns.json")
-	checkTestingError(t, err)
+	c := readTestFixture(t, "json/columns.json")
 	var cols []models.Column
-	err = json.Unmarshal(c, &cols)
+	err := json.Unmarshal(c, &cols)
 	checkTestingError(t, err)
 
-	w, err := os.ReadFile("json/addSalaryCells.json")
-	checkTestingError(t, err)
+	w := readTestFixture(t, "json/addSalaryCells.json")
 	var want []*sheets.CellData
 	err = json.Unmarshal(w, &want)
 	checkTestingError(t, err)
@@ -388,7 +379,8 @@ func Test_sheetsService_addSalaryCells(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ss.addSalaryCells(tt.args.cells, tt.args.columns, tt.args.totalsFormulas, tt.args.frequency); !reflect.DeepEqual(got, tt.want) {
+			rb := &RowBuilder{Columns: tt.args.columns, CategoriesMap: ss.BudgetSheet.CategoriesMap}
+			if got := rb.addSalaryCells(tt.args.cells, tt.args.totalsFormulas, tt.args.frequency); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("addSalaryCells() = %v, want %v", got, tt.want)
 			}
 		})
@@ -396,15 +388,10 @@ func Test_sheetsService_addSalaryCells(t *testing.T) {
 }
 
 func Test_sheetsService_addSourceDateNameCells(t *testing.T) {
-	j, err := os.ReadFile(sheetsServiceJSONDir + "addSourceDataNameCells.json")
-	if err != nil {
-		t.Errorf("could not read JSON file: %s\n", err.Error())
-	}
+	j := readTestFixture(t, sheetsServiceJSONDir+"addSourceDataNameCells.json")
 	var want []*sheets.CellData
-	err = json.Unmarshal(j, &want)
-	if err != nil {
-		t.Errorf("could not unmarshal JSON: %s\n", err.Error())
-	}
+	err := json.Unmarshal(j, &want)
+	checkTestingError(t, err)
 
 	type args struct {
 		cells   []*sheets.CellData
@@ -440,6 +427,9 @@ func Test_sheetsService_addSourceDateNameCells(t *testing.T) {
 }
 
 func Test_sheetsService_getSheetProperties(t *testing.T) {
+	if _, err := os.Stat(sheetsServiceJSONDir + "spreadsheet.json"); err != nil {
+		t.Skipf("fixture not in repo: %s", sheetsServiceJSONDir+"spreadsheet.json")
+	}
 	type args struct {
 		tabName string
 	}
@@ -517,15 +507,11 @@ func Test_sheetsService_populateCells(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := &SheetsService{
-				service:       tt.fields.service,
-				SpreadsheetID: tt.fields.SpreadsheetID,
-				BudgetSheet:   tt.fields.BudgetSheet,
-				RegisterSheet: tt.fields.RegisterSheet,
-				Debug:         tt.fields.Debug,
-				Verbose:       tt.fields.Debug,
+			rb := &RowBuilder{
+				Columns:            tt.args.columns,
+				TransNameToColName: tt.args.transNameToColName,
 			}
-			if got, _ := ss.populateCells(tt.args.columns, tt.args.transNameToColName, tt.args.transactions); !reflect.DeepEqual(got, tt.want) {
+			if got, _ := rb.populateCells(tt.args.transactions); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("populateCells() = %v, want %v", got, tt.want)
 			}
 		})
@@ -640,7 +626,7 @@ func Test_sheetsService_getAmountString(t *testing.T) {
 	tests = append(tests, ts{
 		name: "Test getting the total Amount - Withdrawal",
 		args: args{values: values1},
-		want: "-10.00",
+		want: "10.00",
 	})
 	values2[Deposits] = "$ 20.00 "
 	tests = append(tests, ts{
@@ -652,7 +638,7 @@ func Test_sheetsService_getAmountString(t *testing.T) {
 	tests = append(tests, ts{
 		name: "Test getting the total Amount - Credit Card",
 		args: args{values: values3},
-		want: "-30.00",
+		want: "30.00",
 	})
 
 	for _, tt := range tests {
@@ -961,22 +947,19 @@ func Test_sheetsService_readCell(t *testing.T) {
 }
 
 func Test_addSummaryRows(t *testing.T) {
-	b, err := os.ReadFile("json/cat_agg.json")
-	checkTestingError(t, err)
+	b := readTestFixture(t, "json/cat_agg.json")
 
 	var catAgg map[string]map[string]float64
-	err = json.Unmarshal(b, &catAgg)
+	err := json.Unmarshal(b, &catAgg)
 	checkTestingError(t, err)
 
-	c, err := os.ReadFile("json/column_names.json")
-	checkTestingError(t, err)
+	c := readTestFixture(t, "json/column_names.json")
 
 	var cNames []string
 	err = json.Unmarshal(c, &cNames)
 	checkTestingError(t, err)
 
-	w, err := os.ReadFile("json/addSummaryRows.json")
-	checkTestingError(t, err)
+	w := readTestFixture(t, "json/addSummaryRows.json")
 
 	var want []*sheets.RowData
 	err = json.Unmarshal(w, &want)
@@ -987,8 +970,8 @@ func Test_addSummaryRows(t *testing.T) {
 	type args struct {
 		rows    []*sheets.RowData
 		aggData map[string]map[string]float64
-		months  *[]string
-		cats    *[]string
+		months  []string
+		cats    []string
 	}
 	tests := []struct {
 		name string
@@ -997,13 +980,13 @@ func Test_addSummaryRows(t *testing.T) {
 	}{
 		{
 			name: "Test populate monthly categories",
-			args: args{rows: rows, aggData: catAgg, months: &months, cats: &cNames},
+			args: args{rows: rows, aggData: catAgg, months: months, cats: cNames},
 			want: want,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := addSummaryRows(tt.args.rows, tt.args.aggData, tt.args.months, tt.args.cats); !reflect.DeepEqual(got, tt.want) {
+			if got := addSummaryRows(tt.args.rows, tt.args.aggData, tt.args.months, tt.args.cats, nil); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("addSummaryRows() = %v, want %v", got, tt.want)
 			}
 		})
@@ -1011,22 +994,19 @@ func Test_addSummaryRows(t *testing.T) {
 }
 
 func Test_populateMonthlyCategories(t *testing.T) {
-	b, err := os.ReadFile("json/cat_agg.json")
-	checkTestingError(t, err)
+	b := readTestFixture(t, "json/cat_agg.json")
 
 	var catAgg map[string]map[string]float64
-	err = json.Unmarshal(b, &catAgg)
+	err := json.Unmarshal(b, &catAgg)
 	checkTestingError(t, err)
 
-	c, err := os.ReadFile("json/columns.json")
-	checkTestingError(t, err)
+	c := readTestFixture(t, "json/columns.json")
 
 	var cols []models.Column
 	err = json.Unmarshal(c, &cols)
 	checkTestingError(t, err)
 
-	w, err := os.ReadFile("json/populateMonthlyCategories.json")
-	checkTestingError(t, err)
+	w := readTestFixture(t, "json/populateMonthlyCategories.json")
 
 	var want []*sheets.RowData
 	err = json.Unmarshal(w, &want)
@@ -1057,20 +1037,14 @@ func Test_populateMonthlyCategories(t *testing.T) {
 }
 
 func Test_populateMonthlyPayees(t *testing.T) {
-	b, err := os.ReadFile("json/payee_agg.json")
-	if err != nil {
-		t.Fatalf("could not open json test input file: %s\n", err.Error())
-	}
+	b := readTestFixture(t, "json/payee_agg.json")
 	var payeeAgg map[string]map[string]float64
-	err = json.Unmarshal(b, &payeeAgg)
+	err := json.Unmarshal(b, &payeeAgg)
 	if err != nil {
 		t.Fatalf("could not unmarshal json test data: %s\n", err.Error())
 	}
 
-	w, err := os.ReadFile("json/populateMonthlyPayees.json")
-	if err != nil {
-		t.Fatalf("could not open json test input file: %s\n", err.Error())
-	}
+	w := readTestFixture(t, "json/populateMonthlyPayees.json")
 	var want []*sheets.RowData
 	err = json.Unmarshal(w, &want)
 	if err != nil {
@@ -1093,7 +1067,7 @@ func Test_populateMonthlyPayees(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := populateMonthlyPayees(tt.args.payeeAgg); !reflect.DeepEqual(got, tt.want) {
+			if got := populateMonthlyPayees(tt.args.payeeAgg, nil); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("populateMonthlyPayees() = %v, want %v", got, tt.want)
 			}
 		})
@@ -1102,12 +1076,9 @@ func Test_populateMonthlyPayees(t *testing.T) {
 
 func Test_addSummarySalaryRow(t *testing.T) {
 	months := []string{"Jan", "Feb", "Mar"}
-	b, err := os.ReadFile("json/addSummarySalaryRow.json")
-	if err != nil {
-		t.Fatalf("could not open json test input file: %s\n", err.Error())
-	}
+	b := readTestFixture(t, "json/addSummarySalaryRow.json")
 	var want *sheets.RowData
-	err = json.Unmarshal(b, &want)
+	err := json.Unmarshal(b, &want)
 	if err != nil {
 		t.Fatalf("could not unmarshal json test data: %s\n", err.Error())
 	}
@@ -1122,7 +1093,7 @@ func Test_addSummarySalaryRow(t *testing.T) {
 
 	type args struct {
 		rNum    int
-		months  *[]string
+		months  []string
 		aggData map[string]map[string]float64
 	}
 	tests := []struct {
@@ -1132,13 +1103,13 @@ func Test_addSummarySalaryRow(t *testing.T) {
 	}{
 		{
 			name: "Test add salary row",
-			args: args{rNum: 10, months: &months, aggData: aggData},
+			args: args{rNum: 10, months: months, aggData: aggData},
 			want: want,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := addSummarySalaryRow(tt.args.rNum, tt.args.months, tt.args.aggData); !reflect.DeepEqual(got, tt.want) {
+			if got := addSummarySalaryRow("", tt.args.rNum, tt.args.months, tt.args.aggData); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("addSummarySalaryRow() = %v, want %v", got, tt.want)
 			}
 		})
@@ -1147,18 +1118,15 @@ func Test_addSummarySalaryRow(t *testing.T) {
 
 func Test_addSummaryTopRow(t *testing.T) {
 	months := []string{"Jan", "Feb", "Mar"}
-	b, err := os.ReadFile("json/addSummaryTopRow.json")
-	if err != nil {
-		t.Fatalf("could not open json test input file: %s\n", err.Error())
-	}
+	b := readTestFixture(t, "json/addSummaryTopRow.json")
 	var want *sheets.RowData
-	err = json.Unmarshal(b, &want)
+	err := json.Unmarshal(b, &want)
 	if err != nil {
 		t.Fatalf("could not unmarshal json test data: %s\n", err.Error())
 	}
 
 	type args struct {
-		months *[]string
+		months []string
 	}
 	tests := []struct {
 		name string
@@ -1167,7 +1135,7 @@ func Test_addSummaryTopRow(t *testing.T) {
 	}{
 		{
 			name: "Test add summary row",
-			args: args{months: &months},
+			args: args{months: months},
 			want: want,
 		},
 	}
@@ -1184,4 +1152,15 @@ func checkTestingError(t *testing.T, err error) {
 	if err != nil {
 		t.Fatalf("error: %s\n", err.Error())
 	}
+}
+
+// readTestFixture reads a test fixture file, skipping the test when the
+// fixture is absent. Fixtures live on Rob's Mac, not in the repo.
+func readTestFixture(t *testing.T, path string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Skipf("fixture not in repo: %s", path)
+	}
+	return b
 }

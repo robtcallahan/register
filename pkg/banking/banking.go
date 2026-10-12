@@ -169,7 +169,7 @@ func (c *Client) GetBalance(accessToken string, bankID string, ctx context.Conte
 		if err2 != nil {
 			return nil, err2
 		}
-		return nil, fmt.Errorf("error with %s\n%s: %w", bankID, err, buf.Bytes())
+		return nil, fmt.Errorf("error with %s: %w\n%s", bankID, err, buf.String())
 	}
 	nullFloat64 := balancesGetResp.Accounts[0].Balances.Current
 	if !nullFloat64.IsSet() {
