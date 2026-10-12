@@ -108,6 +108,12 @@ func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
 	ss.RegisterSheet.SheetCoords.LastRow = ss.getLastRow(resp.Values)
 	keysMap := make(map[string]bool)
 
+	// The Reconciled..Delta index constants assume fixed positions; verify
+	// the sheet agrees before trusting them.
+	if err := ss.checkRegisterHeaders(); err != nil {
+		return nil, err
+	}
+
 	for i = 0; i <= ss.RegisterSheet.SheetCoords.LastRow; i += 2 {
 		row := getRowValues(resp.Values, int(i))
 		if ss.isEmptyRow(row) {
@@ -368,4 +374,40 @@ func (ss *SheetsService) readRangeFormulas(readRange string) ([]string, error) {
 		retValues = append(retValues, fmt.Sprintf("%v", val))
 	}
 	return retValues, nil
+}
+
+// registerFixedHeaders are the expected labels of the Register tab's fixed
+// A-J columns (row 4), in position order. They anchor the Reconciled..Delta
+// index constants: a moved, renamed, or missing header is a loud error,
+// not a silently wrong column.
+var registerFixedHeaders = []string{
+	"Recon", "Check", "Date", "Description", "Withdrawals",
+	"Deposits", "Credit Purchases", "Register", "Cleared", "Delta",
+}
+
+// checkRegisterHeaders verifies the Register tab's fixed column headers
+// against the positions the index constants assume.
+func (ss *SheetsService) checkRegisterHeaders() error {
+	headerRange := fmt.Sprintf("%s!A4:J4", ss.RegisterSheet.TabName)
+	resp, err := ss.Provider.GetValues(headerRange)
+	if err != nil {
+		return fmt.Errorf("could not read register header row: %w", err)
+	}
+	if len(resp.Values) == 0 {
+		return errors.New("no header row found on Register tab")
+	}
+	decoder, err := newRowDecoder(resp.Values[0])
+	if err != nil {
+		return err
+	}
+	for i, want := range registerFixedHeaders {
+		got, err := decoder.require(want)
+		if err != nil {
+			return fmt.Errorf("register header %q not found: %w", want, err)
+		}
+		if got != i {
+			return fmt.Errorf("register header %q moved: expected column %d, found at column %d", want, i, got)
+		}
+	}
+	return nil
 }

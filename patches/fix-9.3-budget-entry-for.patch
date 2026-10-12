@@ -1,0 +1,20 @@
+diff --git a/api/services/sheets_service/budget_service.go b/api/services/sheets_service/budget_service.go
+index b1ffeac..81ec537 100644
+--- a/api/services/sheets_service/budget_service.go
++++ b/api/services/sheets_service/budget_service.go
+@@ -183,11 +183,11 @@ func (ss *SheetsService) BudgetEntryFor(name string) (*BudgetEntry, bool, error)
+ 	if len(resp.Values) == 0 {
+ 		return nil, false, nil
+ 	}
+-	values := resp.Values[0]
+-	for len(values) < 7 { // short rows: trailing cells trimmed by the API
+-		values = append(values, "")
++	decoder, err := ss.budgetHeaderDecoder()
++	if err != nil {
++		return nil, false, err
+ 	}
+-	entry, err := ss.populateBudgetEntry(values)
++	entry, err := ss.populateBudgetEntry(decoder, resp.Values[0])
+ 	if err != nil {
+ 		return nil, false, err
+ 	}

@@ -2,8 +2,10 @@ package csv
 
 import (
 	//"bytes"
+	stdcsv "encoding/csv"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"register/pkg/config"
 	"register/pkg/models"
@@ -76,6 +78,59 @@ type Row struct {
 // myReadFile is a function variable that can be reassigned to handle mocking for testing
 var myReadFile = os.ReadFile
 
+// normalizeHeader canonicalizes a CSV header label for matching: surrounding
+// whitespace is ignored and matching is case-insensitive.
+func normalizeHeader(h string) string {
+	return strings.ToLower(strings.TrimSpace(h))
+}
+
+// csvHeaders returns the `csv:` struct tags of a gocsv-mapped struct: the
+// headers the bank's file must contain.
+func csvHeaders(sample interface{}) []string {
+	t := reflect.TypeOf(sample)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	var headers []string
+	for i := 0; i < t.NumField(); i++ {
+		if tag, ok := t.Field(i).Tag.Lookup("csv"); ok && tag != "" && tag != "-" {
+			headers = append(headers, tag)
+		}
+	}
+	return headers
+}
+
+// checkCSVHeaders reads a CSV file's header row and verifies it contains every
+// header the given gocsv struct expects. gocsv maps columns by header name
+// but stays silent when one is missing (the field just keeps its zero value),
+// so a renamed bank column would silently zero a field; this makes it loud.
+func checkCSVHeaders(csvFile string, sample interface{}) error {
+	f, err := os.Open(csvFile)
+	if err != nil {
+		return fmt.Errorf("could not open file %s: %w", csvFile, err)
+	}
+	defer f.Close()
+	r := stdcsv.NewReader(f)
+	header, err := r.Read()
+	if err != nil {
+		return fmt.Errorf("could not read header row of %s: %w", csvFile, err)
+	}
+	have := make(map[string]bool)
+	for _, h := range header {
+		have[normalizeHeader(h)] = true
+	}
+	var missing []string
+	for _, want := range csvHeaders(sample) {
+		if !have[normalizeHeader(want)] {
+			missing = append(missing, want)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("CSV file %s is missing expected headers: %s", csvFile, strings.Join(missing, ", "))
+	}
+	return nil
+}
+
 // New ...
 func New(o ConfigOptions) *Client {
 	return &Client{
@@ -144,6 +199,8 @@ func (c *Client) readWellsFargoCSV() ([]*models.Transaction, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not write csv file: %w", err)
 		}
+	} else if err := checkCSVHeaders(csvFile, WellsFargo{}); err != nil {
+		return nil, err
 	}
 
 	return readWellsFargoCSVRows(csvFile, bank.ID)
@@ -238,6 +295,9 @@ func addWellsFargoHeads(fileName string, fileBytes []byte) error {
 }
 
 func readFidelityCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
+	if err := checkCSVHeaders(csvFile, FidelityVisa{}); err != nil {
+		return nil, err
+	}
 	csvFilePtr, err := os.Open(csvFile)
 	if err != nil {
 		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)
@@ -271,6 +331,9 @@ func processFidelityData(fidelity []*FidelityVisa, bankId string) []*models.Tran
 }
 
 func readChaseCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
+	if err := checkCSVHeaders(csvFile, ChaseVisa{}); err != nil {
+		return nil, err
+	}
 	csvFilePtr, err := os.Open(csvFile)
 	if err != nil {
 		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)
@@ -309,6 +372,9 @@ func processChaseData(chase []*ChaseVisa, bankId string) []*models.Transaction {
 }
 
 func readBankOfAmericaCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
+	if err := checkCSVHeaders(csvFile, BankOfAmerica{}); err != nil {
+		return nil, err
+	}
 	csvFilePtr, err := os.Open(csvFile)
 	if err != nil {
 		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)

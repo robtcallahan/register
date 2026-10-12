@@ -1,0 +1,320 @@
+diff --git a/api/services/sheets_service/budget_service.go b/api/services/sheets_service/budget_service.go
+index 1adc9cf..b1ffeac 100644
+--- a/api/services/sheets_service/budget_service.go
++++ b/api/services/sheets_service/budget_service.go
+@@ -60,13 +60,25 @@ func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
+ 		return nil, errors.New("no values found")
+ 	}
+ 
++	decoder, err := ss.budgetHeaderDecoder()
++	if err != nil {
++		return nil, err
++	}
++	// Fail fast: the columns we read must exist under their expected headers.
++	if _, err := decoder.require("Weekly"); err != nil {
++		return nil, err
++	}
++	if _, err := decoder.require("Monthly"); err != nil {
++		return nil, err
++	}
++
+ 	var entries []*BudgetEntry
+ 	var categoriesMap = make(map[string]*BudgetEntry)
+ 	for _, values := range resp.Values {
+ 		if ss.isEmptyBudgetRow(values) {
+ 			continue
+ 		}
+-		entry, err := ss.populateBudgetEntry(values)
++		entry, err := ss.populateBudgetEntry(decoder, values)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+@@ -79,21 +91,21 @@ func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
+ }
+ 
+ func (ss *SheetsService) isEmptyBudgetRow(values []interface{}) bool {
+-	return len(values) < 7 || ss.getBudgetCategory(values) == ""
++	return getStringField(values, 0) == ""
+ }
+ 
+ func (ss *SheetsService) getBudgetCategory(values []interface{}) string {
+ 	return fmt.Sprintf("%s", values[0])
+ }
+ 
+-func (ss *SheetsService) populateBudgetEntry(values []interface{}) (*BudgetEntry, error) {
+-	// Sheet layout, counted from the A-anchored read range:
+-	// A=Category, B=Weekly, C=Monthly
+-	weekly, err := readDollarsValue(values[1])
++func (ss *SheetsService) populateBudgetEntry(decoder *rowDecoder, values []interface{}) (*BudgetEntry, error) {
++	// The category column is A-anchored (index 0); Weekly/Monthly come from
++	// the header row, so a moved or renamed column is a loud error.
++	weekly, err := readDollarsValue(decoder.cell(values, "Weekly"))
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	monthly, err := readDollarsValue(values[2])
++	monthly, err := readDollarsValue(decoder.cell(values, "Monthly"))
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -104,6 +116,20 @@ func (ss *SheetsService) populateBudgetEntry(values []interface{}) (*BudgetEntry
+ 	}, nil
+ }
+ 
++// budgetHeaderDecoder reads the Budget tab header row (row 1) and builds a
++// name→column decoder from it.
++func (ss *SheetsService) budgetHeaderDecoder() (*rowDecoder, error) {
++	headerRange := fmt.Sprintf("%s!A1:%s1", ss.BudgetSheet.TabName, ss.BudgetSheet.SheetCoords.EndColumnName)
++	headerResp, err := ss.Provider.GetValues(headerRange)
++	if err != nil {
++		return nil, fmt.Errorf("could not read budget header row: %w", err)
++	}
++	if len(headerResp.Values) == 0 {
++		return nil, errors.New("no header row found on Budget tab")
++	}
++	return newRowDecoder(headerResp.Values[0])
++}
++
+ // --- Budget tab category surgery (Phase 6.5) -------------------------------
+ // The columns CLI keeps the Budget tab in step with the Register columns:
+ // the salary fan-out reads budget rows by name, so a register category with
+diff --git a/api/services/sheets_service/register_service.go b/api/services/sheets_service/register_service.go
+index b33c9f9..07a3c7f 100644
+--- a/api/services/sheets_service/register_service.go
++++ b/api/services/sheets_service/register_service.go
+@@ -108,6 +108,12 @@ func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
+ 	ss.RegisterSheet.SheetCoords.LastRow = ss.getLastRow(resp.Values)
+ 	keysMap := make(map[string]bool)
+ 
++	// The Reconciled..Delta index constants assume fixed positions; verify
++	// the sheet agrees before trusting them.
++	if err := ss.checkRegisterHeaders(); err != nil {
++		return nil, err
++	}
++
+ 	for i = 0; i <= ss.RegisterSheet.SheetCoords.LastRow; i += 2 {
+ 		row := getRowValues(resp.Values, int(i))
+ 		if ss.isEmptyRow(row) {
+@@ -369,3 +375,39 @@ func (ss *SheetsService) readRangeFormulas(readRange string) ([]string, error) {
+ 	}
+ 	return retValues, nil
+ }
++
++// registerFixedHeaders are the expected labels of the Register tab's fixed
++// A-J columns (row 4), in position order. They anchor the Reconciled..Delta
++// index constants: a moved, renamed, or missing header is a loud error,
++// not a silently wrong column.
++var registerFixedHeaders = []string{
++	"Recon", "Check", "Date", "Description", "Withdrawals",
++	"Deposits", "Credit Purchases", "Register", "Cleared", "Delta",
++}
++
++// checkRegisterHeaders verifies the Register tab's fixed column headers
++// against the positions the index constants assume.
++func (ss *SheetsService) checkRegisterHeaders() error {
++	headerRange := fmt.Sprintf("%s!A4:J4", ss.RegisterSheet.TabName)
++	resp, err := ss.Provider.GetValues(headerRange)
++	if err != nil {
++		return fmt.Errorf("could not read register header row: %w", err)
++	}
++	if len(resp.Values) == 0 {
++		return errors.New("no header row found on Register tab")
++	}
++	decoder, err := newRowDecoder(resp.Values[0])
++	if err != nil {
++		return err
++	}
++	for i, want := range registerFixedHeaders {
++		got, err := decoder.require(want)
++		if err != nil {
++			return fmt.Errorf("register header %q not found: %w", want, err)
++		}
++		if got != i {
++			return fmt.Errorf("register header %q moved: expected column %d, found at column %d", want, i, got)
++		}
++	}
++	return nil
++}
+diff --git a/api/services/sheets_service/row_decoder.go b/api/services/sheets_service/row_decoder.go
+new file mode 100644
+index 0000000..aa61ade
+--- /dev/null
++++ b/api/services/sheets_service/row_decoder.go
+@@ -0,0 +1,63 @@
++package sheets_service
++
++import (
++	"fmt"
++	"strings"
++)
++
++// rowDecoder maps header names to column positions, built once from a header
++// row. It replaces positional values[index] reads: a missing, renamed, or
++// moved header is a loud error, not a silently wrong column.
++type rowDecoder struct {
++	index map[string]int
++}
++
++// normalizeHeader canonicalizes a header label for matching: surrounding
++// whitespace is ignored and matching is case-insensitive, so ' Withdrawals '
++// and 'withdrawals' are the same header.
++func normalizeHeader(h string) string {
++	return strings.ToLower(strings.TrimSpace(h))
++}
++
++// newRowDecoder builds a decoder from a header row. Empty header cells are
++// skipped; a duplicated header name is an error.
++func newRowDecoder(header []interface{}) (*rowDecoder, error) {
++	d := &rowDecoder{index: make(map[string]int)}
++	for i, h := range header {
++		name := normalizeHeader(fmt.Sprintf("%s", h))
++		if name == "" {
++			continue
++		}
++		if _, dup := d.index[name]; dup {
++			return nil, fmt.Errorf("duplicate header %q in header row", h)
++		}
++		d.index[name] = i
++	}
++	return d, nil
++}
++
++// indexOf returns the 0-based column index for a header name, or -1.
++func (d *rowDecoder) indexOf(name string) int {
++	if i, ok := d.index[normalizeHeader(name)]; ok {
++		return i
++	}
++	return -1
++}
++
++// require returns the column index for a header name, or a loud error naming
++// the missing header.
++func (d *rowDecoder) require(name string) (int, error) {
++	if i := d.indexOf(name); i >= 0 {
++		return i, nil
++	}
++	return -1, fmt.Errorf("expected header %q not found", name)
++}
++
++// cell returns the cell at the named column, or "" when the row is short.
++func (d *rowDecoder) cell(row []interface{}, name string) interface{} {
++	i := d.indexOf(name)
++	if i < 0 || i >= len(row) {
++		return ""
++	}
++	return row[i]
++}
+diff --git a/pkg/csv/csv.go b/pkg/csv/csv.go
+index 86e33b4..bfe74c3 100644
+--- a/pkg/csv/csv.go
++++ b/pkg/csv/csv.go
+@@ -2,8 +2,10 @@ package csv
+ 
+ import (
+ 	//"bytes"
++	stdcsv "encoding/csv"
+ 	"fmt"
+ 	"os"
++	"reflect"
+ 	"regexp"
+ 	"register/pkg/config"
+ 	"register/pkg/models"
+@@ -76,6 +78,59 @@ type Row struct {
+ // myReadFile is a function variable that can be reassigned to handle mocking for testing
+ var myReadFile = os.ReadFile
+ 
++// normalizeHeader canonicalizes a CSV header label for matching: surrounding
++// whitespace is ignored and matching is case-insensitive.
++func normalizeHeader(h string) string {
++	return strings.ToLower(strings.TrimSpace(h))
++}
++
++// csvHeaders returns the `csv:` struct tags of a gocsv-mapped struct: the
++// headers the bank's file must contain.
++func csvHeaders(sample interface{}) []string {
++	t := reflect.TypeOf(sample)
++	if t.Kind() == reflect.Ptr {
++		t = t.Elem()
++	}
++	var headers []string
++	for i := 0; i < t.NumField(); i++ {
++		if tag, ok := t.Field(i).Tag.Lookup("csv"); ok && tag != "" && tag != "-" {
++			headers = append(headers, tag)
++		}
++	}
++	return headers
++}
++
++// checkCSVHeaders reads a CSV file's header row and verifies it contains every
++// header the given gocsv struct expects. gocsv maps columns by header name
++// but stays silent when one is missing (the field just keeps its zero value),
++// so a renamed bank column would silently zero a field; this makes it loud.
++func checkCSVHeaders(csvFile string, sample interface{}) error {
++	f, err := os.Open(csvFile)
++	if err != nil {
++		return fmt.Errorf("could not open file %s: %w", csvFile, err)
++	}
++	defer f.Close()
++	r := stdcsv.NewReader(f)
++	header, err := r.Read()
++	if err != nil {
++		return fmt.Errorf("could not read header row of %s: %w", csvFile, err)
++	}
++	have := make(map[string]bool)
++	for _, h := range header {
++		have[normalizeHeader(h)] = true
++	}
++	var missing []string
++	for _, want := range csvHeaders(sample) {
++		if !have[normalizeHeader(want)] {
++			missing = append(missing, want)
++		}
++	}
++	if len(missing) > 0 {
++		return fmt.Errorf("CSV file %s is missing expected headers: %s", csvFile, strings.Join(missing, ", "))
++	}
++	return nil
++}
++
+ // New ...
+ func New(o ConfigOptions) *Client {
+ 	return &Client{
+@@ -144,6 +199,8 @@ func (c *Client) readWellsFargoCSV() ([]*models.Transaction, error) {
+ 		if err != nil {
+ 			return nil, fmt.Errorf("could not write csv file: %w", err)
+ 		}
++	} else if err := checkCSVHeaders(csvFile, WellsFargo{}); err != nil {
++		return nil, err
+ 	}
+ 
+ 	return readWellsFargoCSVRows(csvFile, bank.ID)
+@@ -238,6 +295,9 @@ func addWellsFargoHeads(fileName string, fileBytes []byte) error {
+ }
+ 
+ func readFidelityCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
++	if err := checkCSVHeaders(csvFile, FidelityVisa{}); err != nil {
++		return nil, err
++	}
+ 	csvFilePtr, err := os.Open(csvFile)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)
+@@ -271,6 +331,9 @@ func processFidelityData(fidelity []*FidelityVisa, bankId string) []*models.Tran
+ }
+ 
+ func readChaseCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
++	if err := checkCSVHeaders(csvFile, ChaseVisa{}); err != nil {
++		return nil, err
++	}
+ 	csvFilePtr, err := os.Open(csvFile)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)
+@@ -309,6 +372,9 @@ func processChaseData(chase []*ChaseVisa, bankId string) []*models.Transaction {
+ }
+ 
+ func readBankOfAmericaCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
++	if err := checkCSVHeaders(csvFile, BankOfAmerica{}); err != nil {
++		return nil, err
++	}
+ 	csvFilePtr, err := os.Open(csvFile)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)

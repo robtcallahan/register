@@ -60,13 +60,25 @@ func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
 		return nil, errors.New("no values found")
 	}
 
+	decoder, err := ss.budgetHeaderDecoder()
+	if err != nil {
+		return nil, err
+	}
+	// Fail fast: the columns we read must exist under their expected headers.
+	if _, err := decoder.require("Weekly"); err != nil {
+		return nil, err
+	}
+	if _, err := decoder.require("Monthly"); err != nil {
+		return nil, err
+	}
+
 	var entries []*BudgetEntry
 	var categoriesMap = make(map[string]*BudgetEntry)
 	for _, values := range resp.Values {
 		if ss.isEmptyBudgetRow(values) {
 			continue
 		}
-		entry, err := ss.populateBudgetEntry(values)
+		entry, err := ss.populateBudgetEntry(decoder, values)
 		if err != nil {
 			return nil, err
 		}
@@ -79,21 +91,21 @@ func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
 }
 
 func (ss *SheetsService) isEmptyBudgetRow(values []interface{}) bool {
-	return len(values) < 7 || ss.getBudgetCategory(values) == ""
+	return getStringField(values, 0) == ""
 }
 
 func (ss *SheetsService) getBudgetCategory(values []interface{}) string {
 	return fmt.Sprintf("%s", values[0])
 }
 
-func (ss *SheetsService) populateBudgetEntry(values []interface{}) (*BudgetEntry, error) {
-	// Sheet layout, counted from the A-anchored read range:
-	// A=Category, B=Weekly, C=Monthly
-	weekly, err := readDollarsValue(values[1])
+func (ss *SheetsService) populateBudgetEntry(decoder *rowDecoder, values []interface{}) (*BudgetEntry, error) {
+	// The category column is A-anchored (index 0); Weekly/Monthly come from
+	// the header row, so a moved or renamed column is a loud error.
+	weekly, err := readDollarsValue(decoder.cell(values, "Weekly"))
 	if err != nil {
 		return nil, err
 	}
-	monthly, err := readDollarsValue(values[2])
+	monthly, err := readDollarsValue(decoder.cell(values, "Monthly"))
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +114,20 @@ func (ss *SheetsService) populateBudgetEntry(values []interface{}) (*BudgetEntry
 		Weekly:   weekly,
 		Monthly:  monthly,
 	}, nil
+}
+
+// budgetHeaderDecoder reads the Budget tab header row (row 1) and builds a
+// name→column decoder from it.
+func (ss *SheetsService) budgetHeaderDecoder() (*rowDecoder, error) {
+	headerRange := fmt.Sprintf("%s!A1:%s1", ss.BudgetSheet.TabName, ss.BudgetSheet.SheetCoords.EndColumnName)
+	headerResp, err := ss.Provider.GetValues(headerRange)
+	if err != nil {
+		return nil, fmt.Errorf("could not read budget header row: %w", err)
+	}
+	if len(headerResp.Values) == 0 {
+		return nil, errors.New("no header row found on Budget tab")
+	}
+	return newRowDecoder(headerResp.Values[0])
 }
 
 // --- Budget tab category surgery (Phase 6.5) -------------------------------
@@ -157,11 +183,11 @@ func (ss *SheetsService) BudgetEntryFor(name string) (*BudgetEntry, bool, error)
 	if len(resp.Values) == 0 {
 		return nil, false, nil
 	}
-	values := resp.Values[0]
-	for len(values) < 7 { // short rows: trailing cells trimmed by the API
-		values = append(values, "")
+	decoder, err := ss.budgetHeaderDecoder()
+	if err != nil {
+		return nil, false, err
 	}
-	entry, err := ss.populateBudgetEntry(values)
+	entry, err := ss.populateBudgetEntry(decoder, resp.Values[0])
 	if err != nil {
 		return nil, false, err
 	}
