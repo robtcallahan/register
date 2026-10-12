@@ -5,7 +5,7 @@ import (
 
 	"register/api/providers/sheets_provider"
 	"register/api/services/sheets_service"
-	"register/pkg/driver"
+	"register/pkg/repository"
 	"register/pkg/models"
 	"register/pkg/repository/mysql"
 
@@ -39,18 +39,11 @@ func init() {
 }
 
 func recategorize() error {
-	conn, err := driver.ConnectSQL(&driver.ConnectParams{
-		DBType: driver.DBType(config.DB.Type),
-		Host:   config.DB.Host,
-		Port:   config.DB.Port,
-		DBName: config.DB.Name,
-		User:   config.DB.Username,
-		Pass:   config.DB.Password,
-	})
+	conn, err := repository.Connect(&config.DB)
 	if err != nil {
 		return err
 	}
-	qHandler := mysql.NewMySQLQueryRepo(conn.SQL)
+	qHandler := mysql.NewMySQLQueryRepo(conn)
 
 	cols, err := qHandler.GetColumns()
 	if err != nil {

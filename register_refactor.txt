@@ -77,6 +77,7 @@ Phase 8 — Monthly summary correction
 - [X] 8.5 Remove dead if err != nil after sheets_service.New() in monthly() (New returns no error; it re-checks the provider's)
 - [X] 8.6 Remove commented-out JSON debug block + dead jsonDir const in monthly.go
 - [X] 8.7 Create a pie chart for monthly summary on a separate worksheet to the right of the register tab
+- [X] 
 -----------------------------------------------------------------------------------------
 Phase 9 — Miscellaneous fixes
 - [ ] 9.1 Add unique index on transactions.key so UpdateTransactionTables upserts instead of duplicating (empty the table once first; OnConflict UpdateAll already in place)

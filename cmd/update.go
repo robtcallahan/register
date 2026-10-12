@@ -31,7 +31,6 @@ import (
 	"register/pkg/banking"
 	cfg "register/pkg/config"
 	"register/pkg/csv"
-	"register/pkg/driver"
 	"register/pkg/models"
 	"register/pkg/repository"
 	"register/pkg/repository/mysql"
@@ -67,18 +66,11 @@ func update(cmd *cobra.Command, args []string) error {
 		err          error
 	)
 
-	conn, err := driver.ConnectSQL(&driver.ConnectParams{
-		DBType: driver.DBType(config.DB.Type),
-		Host:   config.DB.Host,
-		Port:   config.DB.Port,
-		DBName: config.DB.Name,
-		User:   config.DB.Username,
-		Pass:   config.DB.Password,
-	})
+	conn, err := repository.Connect(&config.DB)
 	if err != nil {
 		return err
 	}
-	qHandler := mysql.NewMySQLQueryRepo(conn.SQL)
+	qHandler := mysql.NewMySQLQueryRepo(conn)
 
 	sheetsProvider, err := sheets_provider.New(options.SpreadsheetID, config)
 	if err != nil {

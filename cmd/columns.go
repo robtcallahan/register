@@ -6,7 +6,6 @@ import (
 
 	"register/api/providers/sheets_provider"
 	"register/api/services/sheets_service"
-	"register/pkg/driver"
 	"register/pkg/models"
 	"register/pkg/repository"
 	"register/pkg/repository/mysql"
@@ -107,18 +106,11 @@ func init() {
 }
 
 func columnsQuery() (repository.QueryRepo, error) {
-	conn, err := driver.ConnectSQL(&driver.ConnectParams{
-		DBType: driver.DBType(config.DB.Type),
-		Host:   config.DB.Host,
-		Port:   config.DB.Port,
-		DBName: config.DB.Name,
-		User:   config.DB.Username,
-		Pass:   config.DB.Password,
-	})
+	conn, err := repository.Connect(&config.DB)
 	if err != nil {
 		return nil, err
 	}
-	return mysql.NewMySQLQueryRepo(conn.SQL), nil
+	return mysql.NewMySQLQueryRepo(conn), nil
 }
 
 func columnsSheetService(q repository.QueryRepo) (*sheets_service.SheetsService, error) {

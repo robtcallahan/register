@@ -1,0 +1,234 @@
+diff --git a/cmd/columns.go b/cmd/columns.go
+index bf131f9..8537d6a 100644
+--- a/cmd/columns.go
++++ b/cmd/columns.go
+@@ -6,7 +6,6 @@ import (
+ 
+ 	"register/api/providers/sheets_provider"
+ 	"register/api/services/sheets_service"
+-	"register/pkg/driver"
+ 	"register/pkg/models"
+ 	"register/pkg/repository"
+ 	"register/pkg/repository/mysql"
+@@ -107,18 +106,11 @@ func init() {
+ }
+ 
+ func columnsQuery() (repository.QueryRepo, error) {
+-	conn, err := driver.ConnectSQL(&driver.ConnectParams{
+-		DBType: driver.DBType(config.DB.Type),
+-		Host:   config.DB.Host,
+-		Port:   config.DB.Port,
+-		DBName: config.DB.Name,
+-		User:   config.DB.Username,
+-		Pass:   config.DB.Password,
+-	})
++	conn, err := repository.Connect(config.DB)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	return mysql.NewMySQLQueryRepo(conn.SQL), nil
++	return mysql.NewMySQLQueryRepo(conn), nil
+ }
+ 
+ func columnsSheetService(q repository.QueryRepo) (*sheets_service.SheetsService, error) {
+diff --git a/cmd/monthly.go b/cmd/monthly.go
+index f34422e..e41606c 100644
+--- a/cmd/monthly.go
++++ b/cmd/monthly.go
+@@ -20,7 +20,7 @@ import (
+ 	"fmt"
+ 	"register/api/providers/sheets_provider"
+ 
+-	"register/pkg/driver"
++	"register/pkg/repository"
+ 	"register/pkg/repository/mysql"
+ 
+ 	"register/api/services/sheets_service"
+@@ -43,18 +43,11 @@ func init() {
+ }
+ 
+ func monthly() error {
+-	conn, err := driver.ConnectSQL(&driver.ConnectParams{
+-		DBType: driver.DBType(config.DB.Type),
+-		Host:   config.DB.Host,
+-		Port:   config.DB.Port,
+-		DBName: config.DB.Name,
+-		User:   config.DB.Username,
+-		Pass:   config.DB.Password,
+-	})
++	conn, err := repository.Connect(config.DB)
+ 	if err != nil {
+ 		return err
+ 	}
+-	qHandler := mysql.NewMySQLQueryRepo(conn.SQL)
++	qHandler := mysql.NewMySQLQueryRepo(conn)
+ 
+ 	sheetsProvider, err := sheets_provider.New(options.SpreadsheetID, config)
+ 	if err != nil {
+diff --git a/cmd/recategorize.go b/cmd/recategorize.go
+index 22711e0..615ae43 100644
+--- a/cmd/recategorize.go
++++ b/cmd/recategorize.go
+@@ -5,7 +5,7 @@ import (
+ 
+ 	"register/api/providers/sheets_provider"
+ 	"register/api/services/sheets_service"
+-	"register/pkg/driver"
++	"register/pkg/repository"
+ 	"register/pkg/models"
+ 	"register/pkg/repository/mysql"
+ 
+@@ -39,18 +39,11 @@ func init() {
+ }
+ 
+ func recategorize() error {
+-	conn, err := driver.ConnectSQL(&driver.ConnectParams{
+-		DBType: driver.DBType(config.DB.Type),
+-		Host:   config.DB.Host,
+-		Port:   config.DB.Port,
+-		DBName: config.DB.Name,
+-		User:   config.DB.Username,
+-		Pass:   config.DB.Password,
+-	})
++	conn, err := repository.Connect(config.DB)
+ 	if err != nil {
+ 		return err
+ 	}
+-	qHandler := mysql.NewMySQLQueryRepo(conn.SQL)
++	qHandler := mysql.NewMySQLQueryRepo(conn)
+ 
+ 	cols, err := qHandler.GetColumns()
+ 	if err != nil {
+diff --git a/cmd/update.go b/cmd/update.go
+index 347d71c..45f5454 100644
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -31,7 +31,6 @@ import (
+ 	"register/pkg/banking"
+ 	cfg "register/pkg/config"
+ 	"register/pkg/csv"
+-	"register/pkg/driver"
+ 	"register/pkg/models"
+ 	"register/pkg/repository"
+ 	"register/pkg/repository/mysql"
+@@ -67,18 +66,11 @@ func update(cmd *cobra.Command, args []string) error {
+ 		err          error
+ 	)
+ 
+-	conn, err := driver.ConnectSQL(&driver.ConnectParams{
+-		DBType: driver.DBType(config.DB.Type),
+-		Host:   config.DB.Host,
+-		Port:   config.DB.Port,
+-		DBName: config.DB.Name,
+-		User:   config.DB.Username,
+-		Pass:   config.DB.Password,
+-	})
++	conn, err := repository.Connect(config.DB)
+ 	if err != nil {
+ 		return err
+ 	}
+-	qHandler := mysql.NewMySQLQueryRepo(conn.SQL)
++	qHandler := mysql.NewMySQLQueryRepo(conn)
+ 
+ 	sheetsProvider, err := sheets_provider.New(options.SpreadsheetID, config)
+ 	if err != nil {
+diff --git a/pkg/driver/driver.go b/pkg/driver/driver.go
+deleted file mode 100644
+index 9cc238b..0000000
+--- a/pkg/driver/driver.go
++++ /dev/null
+@@ -1,61 +0,0 @@
+-package driver
+-
+-import (
+-	"fmt"
+-
+-	"gorm.io/driver/mysql"
+-	"gorm.io/gorm"
+-)
+-
+-// DBType ...
+-type DBType string
+-
+-const (
+-	// MySQL ...
+-	MySQL = "MySQL"
+-)
+-
+-// DB ...
+-type DB struct {
+-	DBType DBType
+-	SQL    *gorm.DB
+-}
+-
+-// ConnectParams ...
+-type ConnectParams struct {
+-	DBType DBType
+-	Host   string
+-	Port   string
+-	DBName string
+-	User   string
+-	Pass   string
+-}
+-
+-// ConnectSQL ...
+-func ConnectSQL(c *ConnectParams) (*DB, error) {
+-	var err error
+-	db := &gorm.DB{}
+-
+-	switch c.DBType {
+-	case MySQL:
+-		dsn := fmt.Sprintf(
+-			"%s:%s@tcp(%s:%s)/%s?charset=utf8&parseTime=true",
+-			c.User,
+-			c.Pass,
+-			c.Host,
+-			c.Port,
+-			c.DBName,
+-		)
+-		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+-	default:
+-		panic(fmt.Errorf("unknown DBType %s", c.DBType))
+-	}
+-	if err != nil {
+-		return nil, err
+-	}
+-	dbConn := &DB{
+-		DBType: c.DBType,
+-		SQL:    db,
+-	}
+-	return dbConn, err
+-}
+diff --git a/pkg/repository/connect.go b/pkg/repository/connect.go
+new file mode 100644
+index 0000000..20b82c7
+--- /dev/null
++++ b/pkg/repository/connect.go
+@@ -0,0 +1,27 @@
++package repository
++
++import (
++	"fmt"
++
++	"register/pkg/config"
++
++	"gorm.io/driver/mysql"
++	"gorm.io/gorm"
++)
++
++// Connect opens the MySQL database described by db and returns the GORM handle.
++//
++// This replaces the old pkg/driver package: with postgres gone, the DBType
++// switch had exactly one branch left, so a whole package for "pick a driver"
++// was just ceremony around building a DSN string.
++func Connect(db *config.DBConfig) (*gorm.DB, error) {
++	dsn := fmt.Sprintf(
++		"%s:%s@tcp(%s:%s)/%s?charset=utf8&parseTime=true",
++		db.Username,
++		db.Password,
++		db.Host,
++		db.Port,
++		db.Name,
++	)
++	return gorm.Open(mysql.Open(dsn), &gorm.Config{})
++}

@@ -1,0 +1,40 @@
+diff --git a/cmd/update.go b/cmd/update.go
+--- a/cmd/update.go
++++ b/cmd/update.go
+@@ -69,5 +69,5 @@
+-	conn, err := repository.Connect(config.DB)
++	conn, err := repository.Connect(&config.DB)
+ 	if err != nil {
+ 		return err
+ 	}
+ 	qHandler := mysql.NewMySQLQueryRepo(conn)
+diff --git a/cmd/monthly.go b/cmd/monthly.go
+--- a/cmd/monthly.go
++++ b/cmd/monthly.go
+@@ -46,5 +46,5 @@
+-	conn, err := repository.Connect(config.DB)
++	conn, err := repository.Connect(&config.DB)
+ 	if err != nil {
+ 		return err
+ 	}
+ 	qHandler := mysql.NewMySQLQueryRepo(conn)
+diff --git a/cmd/recategorize.go b/cmd/recategorize.go
+--- a/cmd/recategorize.go
++++ b/cmd/recategorize.go
+@@ -42,5 +42,5 @@
+-	conn, err := repository.Connect(config.DB)
++	conn, err := repository.Connect(&config.DB)
+ 	if err != nil {
+ 		return err
+ 	}
+ 	qHandler := mysql.NewMySQLQueryRepo(conn)
+diff --git a/cmd/columns.go b/cmd/columns.go
+--- a/cmd/columns.go
++++ b/cmd/columns.go
+@@ -109,5 +109,5 @@
+-	conn, err := repository.Connect(config.DB)
++	conn, err := repository.Connect(&config.DB)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+ 	return mysql.NewMySQLQueryRepo(conn), nil
