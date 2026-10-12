@@ -1,0 +1,16 @@
+diff --git a/cmd/server.go b/cmd/server.go
+index c59d74e..e854e11 100644
+--- a/cmd/server.go
++++ b/cmd/server.go
+@@ -112,11 +112,6 @@ func (c *Client) exchangePublicToken(w http.ResponseWriter, r *http.Request) {
+ 		http.Error(w, err.Error(), http.StatusInternalServerError)
+ 		return
+ 	}
+-	err = os.WriteFile(config.PlaidTokensDir+"/"+"AccessToken.txt", []byte(accessToken+"\n"), 0600)
+-	if err != nil {
+-		log.Printf("could not write access token: %s", err.Error())
+-	}
+-
+ 	session, err := store.Get(r, "register")
+ 	if err != nil {
+ 		log.Println(err.Error())

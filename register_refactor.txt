@@ -80,7 +80,7 @@ Phase 8 — Monthly summary correction
 - [X] fix-fold-driver-into-repository-v3.patch
 -----------------------------------------------------------------------------------------
 Phase 9 — Miscellaneous fixes
-- [] 9.1 Add unique index on transactions.key so UpdateTransactionTables upserts instead of duplicating (empty the table once first; OnConflict UpdateAll already in place)
+- [X] 9.1 Add unique index on transactions.key so UpdateTransactionTables upserts instead of duplicating (empty the table once first; OnConflict UpdateAll already in place)
 - [X] 9.2 Amazon ±1-day date drift can still mint a second key — handled by Phase 3 fuzzy matching (cross-reference, not a separate fix)
 - [ ] 9.3 Replace positional values[index] sheet/CSV reads with header-named row decoding (Budget first, then Register row-4 headers, then CSV header row); missing expected header errors loudly instead of reading the wrong column
 -----------------------------------------------------------------------------------------

@@ -53,7 +53,6 @@ type Config struct {
 	PlaidClientID               string                   `json:"plaid_client_id"`
 	PlaidEnvironment            string                   `json:"plaid_environment"`
 	PlaidEnvSecrets             map[string]string        `json:"plaid_env_secrets"`
-	PlaidTokensDir              string                   `json:"plaid_tokens_dir"`
 	KeyFile                     string                   `json:"key_file"`
 	CertFile                    string                   `json:"cert_file"`
 	GoogleCredentialsFile       string                   `json:"google_credentials_file"`

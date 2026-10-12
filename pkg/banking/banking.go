@@ -19,8 +19,6 @@ package banking
 import (
 	"bytes"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/plaid/plaid-go/v15/plaid"
 	"golang.org/x/net/context"
@@ -63,7 +61,6 @@ type ClientOptions struct {
 	PlaidClientID    string
 	PlaidSecret      string
 	PlaidEnvironment plaid.Environment
-	PlaidTokensDir   string
 	UserID           string
 	Banks            map[string]config.Bank
 	IncomeSources    []config.IncomeSource
@@ -76,7 +73,6 @@ type Client struct {
 	ClientID    string
 	Secret      string
 	Environment plaid.Environment
-	TokensDir   string
 	UserID      string
 	Banks       map[string]config.Bank
 	IncomeSources []config.IncomeSource
@@ -95,7 +91,6 @@ func NewClient(o *ClientOptions) *Client {
 		ClientID:    o.PlaidClientID,
 		Secret:      o.PlaidSecret,
 		Environment: o.PlaidEnvironment,
-		TokensDir:   o.PlaidTokensDir,
 		UserID:      o.UserID,
 		Banks:         o.Banks,
 		IncomeSources: o.IncomeSources,
@@ -134,17 +129,15 @@ func (c *Client) GetBalances(bankIDs []string) map[string]Balance {
 	for _, id := range bankIDs {
 		bank := c.Banks[id]
 
-		tok, err := os.ReadFile(c.TokensDir + "/" + bank.Source + "AccessToken.txt")
-		if err != nil {
+		if bank.AccessToken == "" {
 			balances[id] = Balance{
 				BankName: bank.Name,
-				Error:    err,
+				Error:    fmt.Errorf("no Plaid access token configured for %s", bank.Name),
 			}
 			continue
 		}
-		accessToken := strings.ReplaceAll(string(tok), "\n", "")
 
-		amount, err := c.GetBalance(accessToken, id, ctx)
+		amount, err := c.GetBalance(bank.AccessToken, id, ctx)
 		if err != nil {
 			balance = Balance{
 				BankName: bank.Name,
