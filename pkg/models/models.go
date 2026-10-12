@@ -7,7 +7,7 @@ import (
 // Transaction ...
 type Transaction struct {
 	gorm.Model
-	Key            string
+	Key            string `gorm:"size:255;uniqueIndex"`
 	Source         string
 	Date           string
 	Name           string

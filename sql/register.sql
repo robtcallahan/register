@@ -37,7 +37,7 @@ CREATE TABLE `transactions` (
 	`created_at` datetime(3) DEFAULT NULL,
 	`updated_at` datetime(3) DEFAULT NULL,
 	`deleted_at` datetime(3) DEFAULT NULL,
-	`key` longtext DEFAULT NULL,
+	`key` varchar(255) DEFAULT NULL,
 	`source` longtext DEFAULT NULL,
 	`date` longtext DEFAULT NULL,
 	`name` longtext DEFAULT NULL,
@@ -56,6 +56,7 @@ CREATE TABLE `transactions` (
 	`credit_purchase` double DEFAULT NULL,
 	`budget` double DEFAULT NULL,
 	PRIMARY KEY (`id`),
-	INDEX `idx_transactions_deleted_at` (`deleted_at`)
+	INDEX `idx_transactions_deleted_at` (`deleted_at`),
+	UNIQUE KEY `idx_transactions_key` (`key`)
 ) ENGINE=InnoDB;
 

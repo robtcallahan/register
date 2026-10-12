@@ -77,10 +77,26 @@ Phase 8 — Monthly summary correction
 - [X] 8.5 Remove dead if err != nil after sheets_service.New() in monthly() (New returns no error; it re-checks the provider's)
 - [X] 8.6 Remove commented-out JSON debug block + dead jsonDir const in monthly.go
 - [X] 8.7 Create a pie chart for monthly summary on a separate worksheet to the right of the register tab
-- [X] 
+- [X] fix-fold-driver-into-repository-v3.patch
 -----------------------------------------------------------------------------------------
 Phase 9 — Miscellaneous fixes
-- [ ] 9.1 Add unique index on transactions.key so UpdateTransactionTables upserts instead of duplicating (empty the table once first; OnConflict UpdateAll already in place)
-- [ ] 9.2 Amazon ±1-day date drift can still mint a second key — handled by Phase 3 fuzzy matching (cross-reference, not a separate fix)
-- [ ] 9.3  Replace positional values[index] sheet/CSV reads with header-named row decoding (Budget first, then Register row-4 headers, then CSV header row); missing expected header errors loudly instead of reading the wrong column
-
+- [] 9.1 Add unique index on transactions.key so UpdateTransactionTables upserts instead of duplicating (empty the table once first; OnConflict UpdateAll already in place)
+- [X] 9.2 Amazon ±1-day date drift can still mint a second key — handled by Phase 3 fuzzy matching (cross-reference, not a separate fix)
+- [ ] 9.3 Replace positional values[index] sheet/CSV reads with header-named row decoding (Budget first, then Register row-4 headers, then CSV header row); missing expected header errors loudly instead of reading the wrong column
+-----------------------------------------------------------------------------------------
+Phase 10 — Functional tests
+- [ ] 10.1 Make `go test ./...` build and run: fix the three stale monthly-test signatures, resolve Test_getTransactionKey1 and the csv ReadCSVFiles/Banks references, delete or fill the 16 csv skeleton tests, remove the machine-absolute fixture paths (fixtures under testdata/, no log.Fatalf in init)
+- [ ] 10.2 Direct unit tests for models.TransactionKey (canonical format: lowercase source, %.2f amount, date passthrough, 100.5 vs 100.50 equivalence)
+- [ ] 10.3 banking.buildTransaction matrix per bank: Wells Fargo sign conventions + check detection, Chase/Fidelity credit-purchase fields, Key stamping on each path
+- [ ] 10.4 banking filters: FilterCreditCardPayments, FilterRecordedTransactions (exact-key), FindByBankPattern (CHECK resolution)
+- [ ] 10.5 Income allocation: allocationFor table test (weekly / monthly / other-frequency visible zeros) + addSalaryCells/addCategoryCells with a GAP in the column set (pins 6.1 identity placement beyond the gapless goldens)
+- [ ] 10.6 NewRegisterSheet end-column derivation from DB columns (fake provider), including the config fallback used by register copy
+- [ ] 10.7 CSV conversions: real cases for the process*Data functions + processCheck through the FakeReadFiler seam
+- [ ] 10.8 Small cmd units: filterNonCategoryColumns (6.4 threshold rule) and writeRawTransactionsCSV (3.10 quoting regression)
+- [ ] 10.9 Columns CLI safety: AddColumn/DeleteColumn index shifting + fixed-block/--after/delete guards (DB test strategy first)
+- [ ] 10.10 Golden fixture audit against post-6.x behavior (budget fixture must encode the post-column-D layout); regenerate or retire stale goldens, dedupe the two addCategoryCells goldens
+- [ ] 10.11 UpdateTransactionTables upsert/idempotence DB test (lands with or just after 9.1)
+- [ ] 10.12 (low) SESSION_KEY server guard test; monthly Aggregate/populateMonthlyPayees tests rewritten only after Phase 8 settles behavior
+-----------------------------------------------------------------------------------------
+Phase 11 — Database Migration
+- [ ] 11.1 Adopt a migration library (golang-migrate or goose) for schema changes instead of extending GORM AutoMigrate; merchants/columns tables stay hand-DDL'd until then
