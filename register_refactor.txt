@@ -97,6 +97,11 @@ Phase 10 — Functional tests
 - [X] 10.10 Golden fixture audit against post-6.x behavior (budget fixture must encode the post-column-D layout); regenerate or retire stale goldens, dedupe the two addCategoryCells goldens
 - [X] 10.11 UpdateTransactionTables upsert/idempotence DB test (lands with or just after 9.1)
 - [X] 10.12 (low) SESSION_KEY server guard test; monthly Aggregate/populateMonthlyPayees tests rewritten only after Phase 8 settles behavior
+- [X] 10.13 Add 18 mysql DB tests (will use register_test DB
 -----------------------------------------------------------------------------------------
-Phase 11 — Database Migration
-- [ ] 11.1 Adopt a migration library (golang-migrate or goose) for schema changes instead of extending GORM AutoMigrate; merchants/columns tables stay hand-DDL'd until then
+Phase 11 — Database migration tooling
+- [ ] 11.1 Choose golang-migrate vs goose (evaluate, pick one)
+- [ ] 11.2 Write initial migration from current schema (columns, merchants, transactions tables)
+- [ ] 11.3 Replace hand-DDL in mysql package with migration runner
+- [ ] 11.4 Remove GORM AutoMigrate from UpdateTransactionTables (migrations own the schema now)
+- [ ] 11.5 Document migration workflow (how to add a new migration)
