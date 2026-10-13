@@ -1,10 +1,6 @@
 .DS_Store
-.idea
-.vscode
 /db
 /config/config.json
 json
 register
-/sql/*.bak
 /tmp/*
-/bin/*

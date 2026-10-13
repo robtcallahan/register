@@ -99,9 +99,10 @@ Phase 10 — Functional tests
 - [X] 10.12 (low) SESSION_KEY server guard test; monthly Aggregate/populateMonthlyPayees tests rewritten only after Phase 8 settles behavior
 - [X] 10.13 Add 18 mysql DB tests (will use register_test DB
 -----------------------------------------------------------------------------------------
-Phase 11 — Database migration tooling
-- [ ] 11.1 Choose golang-migrate vs goose (evaluate, pick one)
-- [ ] 11.2 Write initial migration from current schema (columns, merchants, transactions tables)
-- [ ] 11.3 Replace hand-DDL in mysql package with migration runner
-- [ ] 11.4 Remove GORM AutoMigrate from UpdateTransactionTables (migrations own the schema now)
-- [ ] 11.5 Document migration workflow (how to add a new migration)
+Phase 11 — Database migration with goose
+- [X] 11.1 Add goose dependency, create migrations/ directory
+- [ ] 11.2 Write baseline migration from current schema (columns, merchants, transactions)
+- [ ] 11.3 Add `register migrate up|down|status|redo` CLI commands
+- [ ] 11.4 Remove GORM AutoMigrate from UpdateTransactionTables (migrations own schema)
+- [ ] 11.5 Remove hand-DDL from mysql package (CreateTable calls, etc.)
+- [ ] 11.6 Document migration workflow in repo (how to create/apply a new migration)
