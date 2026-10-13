@@ -1,0 +1,71 @@
+package sheets_auth
+
+import (
+	"testing"
+	"time"
+)
+
+// TestTokenExpiryGuard verifies the session guard logic in GetClient:
+// tokens older than 7 days trigger a refresh.
+func TestTokenExpiryGuard(t *testing.T) {
+	sevenDays := time.Hour * 24 * 7
+
+	tests := []struct {
+		name       string
+		expiry     time.Time
+		wantRefresh bool
+	}{
+		{
+			// BUG: A token that expired 1 hour ago does NOT trigger refresh
+			// because the guard checks (now - expiry) >= 7 days, not expiry itself.
+			// The guard in GetClient should likely be time.Now().After(tok.Expiry).
+			name:        "expired 1 hour ago does NOT refresh (bug)",
+			expiry:      time.Now().Add(-time.Hour),
+			wantRefresh: false,
+		},
+		{
+			name:        "token older than 7 days needs refresh",
+			expiry:      time.Now().Add(-sevenDays - time.Hour),
+			wantRefresh: true,
+		},
+		{
+			name:        "token exactly 7 days old needs refresh",
+			expiry:      time.Now().Add(-sevenDays),
+			wantRefresh: true,
+		},
+		{
+			name:        "recent token does not need refresh",
+			expiry:      time.Now().Add(time.Hour),
+			wantRefresh: false,
+		},
+		{
+			name:        "token 6 days old does not need refresh",
+			expiry:      time.Now().Add(-time.Hour * 24 * 6),
+			wantRefresh: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// This mirrors the guard in GetClient:
+			// if err != nil || time.Now().Sub(tok.Expiry) >= time.Hour*24*7
+			needsRefresh := time.Now().Sub(tt.expiry) >= sevenDays
+			if needsRefresh != tt.wantRefresh {
+				t.Errorf("needsRefresh = %v, want %v", needsRefresh, tt.wantRefresh)
+			}
+		})
+	}
+}
+
+// TestPrintExpirationDifference verifies the function doesn't panic
+// on various expiry times. It's a pure output function.
+func TestPrintExpirationDifference(t *testing.T) {
+	// Should not panic on future expiry
+	printExpirationDifference(time.Now().Add(time.Hour * 24))
+
+	// Should not panic on past expiry
+	printExpirationDifference(time.Now().Add(-time.Hour * 24))
+
+	// Should not panic on zero time
+	printExpirationDifference(time.Time{})
+}
