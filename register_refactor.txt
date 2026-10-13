@@ -101,7 +101,7 @@ Phase 10 — Functional tests
 -----------------------------------------------------------------------------------------
 Phase 11 — Database migration with goose
 - [X] 11.1 Add goose dependency, create migrations/ directory
-- [ ] 11.2 Write baseline migration from current schema (columns, merchants, transactions)
+- [X] 11.2 Write baseline migration from current schema (columns, merchants, transactions)
 - [ ] 11.3 Add `register migrate up|down|status|redo` CLI commands
 - [ ] 11.4 Remove GORM AutoMigrate from UpdateTransactionTables (migrations own schema)
 - [ ] 11.5 Remove hand-DDL from mysql package (CreateTable calls, etc.)
