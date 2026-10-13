@@ -1,0 +1,52 @@
+package cmd
+
+import (
+	"testing"
+	"time"
+)
+
+func TestWeeksAgo(t *testing.T) {
+	// weeksAgo is hardcoded to Jan 1, 2026 (see TODO in helpers.go).
+	got := weeksAgo(0)
+	want := "2026-01-01"
+	if got != want {
+		t.Errorf("weeksAgo(0) = %q, want %q", got, want)
+	}
+
+	// The weeks parameter is currently ignored (hardcoded date).
+	got = weeksAgo(4)
+	if got != want {
+		t.Errorf("weeksAgo(4) = %q, want %q (hardcoded)", got, want)
+	}
+}
+
+func TestToday(t *testing.T) {
+	got := today()
+	want := time.Now().Format(PlaidDateFormat)
+	if got != want {
+		t.Errorf("today() = %q, want %q", got, want)
+	}
+
+	// Verify the format is YYYY-MM-DD
+	if len(got) != 10 || got[4] != '-' || got[7] != '-' {
+		t.Errorf("today() = %q, want YYYY-MM-DD format", got)
+	}
+}
+
+func TestDashes(t *testing.T) {
+	tests := []struct {
+		count int
+		want  string
+	}{
+		{0, ""},
+		{1, "-"},
+		{5, "-----"},
+		{10, "----------"},
+	}
+
+	for _, tt := range tests {
+		if got := dashes(tt.count); got != tt.want {
+			t.Errorf("dashes(%d) = %q, want %q", tt.count, got, tt.want)
+		}
+	}
+}

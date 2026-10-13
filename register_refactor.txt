@@ -92,7 +92,7 @@ Phase 10 — Functional tests
 - [X] 10.5 Income allocation: allocationFor table test (weekly / monthly / other-frequency visible zeros) + addSalaryCells/addCategoryCells with a GAP in the column set (pins 6.1 identity placement beyond the gapless goldens)
 - [X] 10.6 NewRegisterSheet end-column derivation from DB columns (fake provider), including the config fallback used by register copy
 - [X] 10.7 CSV conversions: real cases for the process*Data functions + processCheck through the FakeReadFiler seam
-- [ ] 10.8 Small cmd units: filterNonCategoryColumns (6.4 threshold rule) and writeRawTransactionsCSV (3.10 quoting regression)
+- [X] 10.8 Small cmd units: filterNonCategoryColumns (6.4 threshold rule) and writeRawTransactionsCSV (3.10 quoting regression)
 - [ ] 10.9 Columns CLI safety: AddColumn/DeleteColumn index shifting + fixed-block/--after/delete guards (DB test strategy first)
 - [ ] 10.10 Golden fixture audit against post-6.x behavior (budget fixture must encode the post-column-D layout); regenerate or retire stale goldens, dedupe the two addCategoryCells goldens
 - [ ] 10.11 UpdateTransactionTables upsert/idempotence DB test (lands with or just after 9.1)
