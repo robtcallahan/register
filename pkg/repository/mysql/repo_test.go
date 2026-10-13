@@ -226,6 +226,11 @@ func TestGetMerchantsByColumn(t *testing.T) {
 func TestSaveAndGetTransactions(t *testing.T) {
 	r := testRepo(t)
 
+	// Ensure the table exists (the dump may not include it)
+	if err := r.Conn.AutoMigrate(&models.Transaction{}); err != nil {
+		t.Fatalf("AutoMigrate() error = %v", err)
+	}
+
 	tx := &models.Transaction{
 		Key:      "test:1013:1",
 		Source:   "TestBank",
