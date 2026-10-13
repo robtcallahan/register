@@ -105,4 +105,4 @@ Phase 11 — Database migration with goose
 - [X] 11.3 Add `register migrate up|down|status|redo` CLI commands
 - [X] 11.4 Remove GORM AutoMigrate from UpdateTransactionTables (migrations own schema)
 - [X] 11.5 Remove hand-DDL from mysql package (CreateTable calls, etc.)
-- [ ] 11.6 Document migration workflow in repo (how to create/apply a new migration)
+- [X] 11.6 Document migration workflow in repo (how to create/apply a new migration)
