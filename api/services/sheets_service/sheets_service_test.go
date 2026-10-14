@@ -32,7 +32,7 @@ var getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
 	}
 	if range_ == "Budget!A1:J1" {
 		vr := &sheets.ValueRange{}
-		vr.Values = [][]interface{}{{ "", "Weekly", "Monthly", "Yearly", "Current Total", "Needed - Monthly" }}
+		vr.Values = [][]interface{}{{"", "Weekly", "Monthly", "Yearly", "Current Total", "Needed - Monthly"}}
 		return vr, nil
 	}
 	vr := &sheets.ValueRange{Values: [][]interface{}{}}
@@ -157,14 +157,14 @@ func Test_sheetsService_ReadBudgetSheet(t *testing.T) {
 	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
 		if range_ == "Budget!A1:J1" {
 			vr := &sheets.ValueRange{}
-			vr.Values = [][]interface{}{{ "", "Weekly", "Monthly", "Yearly", "Current Total", "Needed - Monthly" }}
+			vr.Values = [][]interface{}{{"", "Weekly", "Weekly (view only)", "Bi-Weekly", "Monthly", "Monthly (view only)", "Yearly", "Current Total", "Needed - Monthly"}}
 			return vr, nil
 		}
 		// Return minimal budget data
 		vr := &sheets.ValueRange{}
 		vr.Values = [][]interface{}{
-			{"", "Weekly", "Monthly", "Yearly", "Current Total", "Needed - Monthly"},
-			{"Grocery", "120", "520", "6240", "0", "0"},
+			{"", "Weekly", "Weekly (view only)", "Bi-Weekly", "Monthly", "Monthly (view only)", "Yearly", "Current Total", "Needed - Monthly"},
+			{"Grocery", "120", "240", "520", "520", "6240", "0", "0"},
 		}
 		return vr, nil
 	}
@@ -207,7 +207,7 @@ func Test_sheetsService_ReadRegisterSheet(t *testing.T) {
 }
 
 func Test_sheetsService_WriteCell(t *testing.T) {
-	w := readTestFixture(t, sheetsServiceJSONDir + "WriteCell.json")
+	w := readTestFixture(t, sheetsServiceJSONDir+"WriteCell.json")
 	var want *sheets.UpdateValuesResponse
 	err := json.Unmarshal(w, &want)
 	checkTestingError(t, err)
@@ -241,7 +241,7 @@ func Test_sheetsService_WriteCell(t *testing.T) {
 }
 
 func Test_sheetsService_addAmountCell(t *testing.T) {
-	a := readTestFixture(t, sheetsServiceJSONDir + "addAmountCell.json")
+	a := readTestFixture(t, sheetsServiceJSONDir+"addAmountCell.json")
 	var want []*sheets.CellData
 	err := json.Unmarshal(a, &want)
 	checkTestingError(t, err)

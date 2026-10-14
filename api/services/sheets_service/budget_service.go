@@ -19,6 +19,7 @@ import (
 type BudgetEntry struct {
 	Category string
 	Weekly   float64
+	BiWeekly float64
 	Monthly  float64
 }
 
@@ -36,10 +37,9 @@ func (ss *SheetsService) NewBudgetSheet(cfg *config.Config) error {
 	ss.BudgetSheet = &BudgetSheet{
 		TabName: BudgetTabName,
 		SheetCoords: SheetCoords{
-			StartRow:       cfg.BudgetStartRow,
-			EndRow:         cfg.BudgetEndRow,
-			EndColumnName:  "I",
-			EndColumnIndex: 8,
+			StartRow: cfg.BudgetStartRow,
+			EndRow:   cfg.BudgetEndRow,
+			// EndColumnName/Index are detected from the header row below.
 		},
 	}
 	props, err := ss.getSheetProperties(BudgetTabName)
@@ -47,6 +47,27 @@ func (ss *SheetsService) NewBudgetSheet(cfg *config.Config) error {
 		return err
 	}
 	ss.BudgetSheet.ID = props.SheetId
+
+	// Detect the rightmost column from the header row so adding columns
+	// to the Budget tab doesn't require a code change. We read a generous
+	// range (A1:Z1) and find the last non-empty header.
+	headerRange := fmt.Sprintf("%s!A1:Z1", BudgetTabName)
+	headerResp, err := ss.Provider.GetValues(headerRange)
+	if err != nil {
+		return fmt.Errorf("could not read budget header row for width detection: %w", err)
+	}
+	if len(headerResp.Values) == 0 || len(headerResp.Values[0]) == 0 {
+		return errors.New("no header row found on Budget tab")
+	}
+	headers := headerResp.Values[0]
+	lastIdx := 0
+	for i, h := range headers {
+		if s := fmt.Sprintf("%v", h); strings.TrimSpace(s) != "" {
+			lastIdx = i
+		}
+	}
+	ss.BudgetSheet.SheetCoords.EndColumnIndex = int64(lastIdx)
+	ss.BudgetSheet.SheetCoords.EndColumnName = models.ColumnLetter(lastIdx)
 	return nil
 }
 
@@ -66,6 +87,9 @@ func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
 	}
 	// Fail fast: the columns we read must exist under their expected headers.
 	if _, err := decoder.require("Weekly"); err != nil {
+		return nil, err
+	}
+	if _, err := decoder.require("Bi-Weekly"); err != nil {
 		return nil, err
 	}
 	if _, err := decoder.require("Monthly"); err != nil {
@@ -105,6 +129,10 @@ func (ss *SheetsService) populateBudgetEntry(decoder *rowDecoder, values []inter
 	if err != nil {
 		return nil, err
 	}
+	biweekly, err := readDollarsValue(decoder.cell(values, "Bi-Weekly"))
+	if err != nil {
+		return nil, err
+	}
 	monthly, err := readDollarsValue(decoder.cell(values, "Monthly"))
 	if err != nil {
 		return nil, err
@@ -112,6 +140,7 @@ func (ss *SheetsService) populateBudgetEntry(decoder *rowDecoder, values []inter
 	return &BudgetEntry{
 		Category: ss.getBudgetCategory(values),
 		Weekly:   weekly,
+		BiWeekly: biweekly,
 		Monthly:  monthly,
 	}, nil
 }
