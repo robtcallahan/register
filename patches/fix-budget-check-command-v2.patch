@@ -1,0 +1,117 @@
+diff --git a/api/services/sheets_service/budget_service.go b/api/services/sheets_service/budget_service.go
+index ef8837a..d45c588 100644
+--- a/api/services/sheets_service/budget_service.go
++++ b/api/services/sheets_service/budget_service.go
+@@ -114,6 +114,42 @@ func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
+ 	return ss.BudgetSheet, nil
+ }
+ 
++// BudgetCheckResult is a single line of the budget layout check report.
++type BudgetCheckResult struct {
++	Ok      bool
++	Message string
++}
++
++// CheckBudgetLayout validates the Budget tab headers and returns a
++// human-readable report. Unlike ReadBudgetSheet (which fails on the first
++// problem), this collects all issues so they can be fixed in one pass.
++func (ss *SheetsService) CheckBudgetLayout() ([]BudgetCheckResult, error) {
++	var results []BudgetCheckResult
++
++	decoder, err := ss.budgetHeaderDecoder()
++	if err != nil {
++		return nil, fmt.Errorf("could not read budget headers: %w", err)
++	}
++
++	// Required headers for the current code.
++	required := []string{"Bi-Weekly", "Monthly"}
++	for _, h := range required {
++		if _, err := decoder.require(h); err != nil {
++			results = append(results, BudgetCheckResult{
++				Ok:      false,
++				Message: fmt.Sprintf("Header %q not found \u2014 did you rename it?", h),
++			})
++		} else {
++			results = append(results, BudgetCheckResult{
++				Ok:      true,
++				Message: fmt.Sprintf("Header %q found", h),
++			})
++		}
++	}
++
++	return results, nil
++}
++
+ func (ss *SheetsService) isEmptyBudgetRow(values []interface{}) bool {
+ 	return getStringField(values, 0) == ""
+ }
+diff --git a/cmd/budget.go b/cmd/budget.go
+new file mode 100644
+index 0000000..0e054d7
+--- /dev/null
++++ b/cmd/budget.go
+@@ -0,0 +1,64 @@
++package cmd
++
++import (
++	"fmt"
++
++	"register/api/providers/sheets_provider"
++	"register/api/services/sheets_service"
++
++	"github.com/spf13/cobra"
++)
++
++var budgetCmd = &cobra.Command{
++	Use:   "budget",
++	Short: "Budget sheet commands",
++}
++
++var budgetCheckCmd = &cobra.Command{
++	Use:   "check",
++	Short: "Validate the Budget sheet layout (read-only)",
++	Long: `Checks that the Budget tab has the expected headers.
++Run this after editing the Budget sheet to catch layout
++problems before a real update.`,
++	RunE: func(cmd *cobra.Command, args []string) error {
++		return checkBudget()
++	},
++}
++
++func init() {
++	rootCmd.AddCommand(budgetCmd)
++	budgetCmd.AddCommand(budgetCheckCmd)
++}
++
++func checkBudget() error {
++	provider, err := sheets_provider.New(options.SpreadsheetID, config)
++	if err != nil {
++		return err
++	}
++	ss := sheets_service.New(provider)
++
++	if err := ss.NewBudgetSheet(config); err != nil {
++		return fmt.Errorf("could not initialize budget sheet: %w", err)
++	}
++
++	results, err := ss.CheckBudgetLayout()
++	if err != nil {
++		return err
++	}
++
++	allOk := true
++	for _, r := range results {
++		mark := "✓"
++		if !r.Ok {
++			mark = "✗"
++			allOk = false
++		}
++		fmt.Printf("%s %s\n", mark, r.Message)
++	}
++
++	if !allOk {
++		return fmt.Errorf("budget sheet has layout problems (see above)")
++	}
++	fmt.Println("Budget sheet OK")
++	return nil
++}

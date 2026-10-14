@@ -114,6 +114,42 @@ func (ss *SheetsService) ReadBudgetSheet() (*BudgetSheet, error) {
 	return ss.BudgetSheet, nil
 }
 
+// BudgetCheckResult is a single line of the budget layout check report.
+type BudgetCheckResult struct {
+	Ok      bool
+	Message string
+}
+
+// CheckBudgetLayout validates the Budget tab headers and returns a
+// human-readable report. Unlike ReadBudgetSheet (which fails on the first
+// problem), this collects all issues so they can be fixed in one pass.
+func (ss *SheetsService) CheckBudgetLayout() ([]BudgetCheckResult, error) {
+	var results []BudgetCheckResult
+
+	decoder, err := ss.budgetHeaderDecoder()
+	if err != nil {
+		return nil, fmt.Errorf("could not read budget headers: %w", err)
+	}
+
+	// Required headers for the current code.
+	required := []string{"Bi-Weekly", "Monthly"}
+	for _, h := range required {
+		if _, err := decoder.require(h); err != nil {
+			results = append(results, BudgetCheckResult{
+				Ok:      false,
+				Message: fmt.Sprintf("Header %q not found \u2014 did you rename it?", h),
+			})
+		} else {
+			results = append(results, BudgetCheckResult{
+				Ok:      true,
+				Message: fmt.Sprintf("Header %q found", h),
+			})
+		}
+	}
+
+	return results, nil
+}
+
 func (ss *SheetsService) isEmptyBudgetRow(values []interface{}) bool {
 	return getStringField(values, 0) == ""
 }
