@@ -29,7 +29,10 @@ func (c *clientStruct) GetFormula(ssService *sheets.Service, spreadsheetId strin
 	call.ValueRenderOption("FORMULA")
 	call.Ranges(range_)
 	resp, err := call.Do()
-	if resp == nil {
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil || len(resp.ValueRanges) == 0 {
 		return nil, errors.New("empty response")
 	}
 	return resp.ValueRanges[0], err

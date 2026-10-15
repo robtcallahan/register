@@ -110,7 +110,7 @@ Phase 11 — Database migration with goose
 Phase 12 — Critical bug fixes
 - [X] 12.1 Fix CreateMerchant silently dropping TaxDeductible (mysql.go:80-95) — pass input struct through instead of rebuilding field-by-field
 - [X] 12.2 Add default case to buildTransaction switch (transactions.go:128) — return error for unknown banks, change signature to (*models.Transaction, error)
-- [ ] 12.3 Fix GetFormula panic on empty ValueRanges (sheets_client.go:33) — check len before indexing
+- [X] 12.3 Fix GetFormula panic on empty ValueRanges (sheets_client.go:33) — check len before indexing
 - [ ] 12.4 Fix doWellsFargoHeadsExist panic on short files (csv.go:274) — use bytes.HasPrefix
 - [ ] 12.5 Wrap UpdateTransactionTables writes in a DB transaction (mysql.go:39-52) — all-or-nothing batch
 - [ ] 12.6 Fix Merchant/Column ID shadowing gorm.Model (models.go:30-48) — remove redeclared ID field
