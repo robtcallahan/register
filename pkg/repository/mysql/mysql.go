@@ -5,8 +5,6 @@ import (
 	"register/pkg/models"
 	repo "register/pkg/repository"
 
-	"gorm.io/gorm/clause"
-
 	"gorm.io/gorm"
 )
 
@@ -36,18 +34,15 @@ func (r *mysqlQueryRepo) SaveTransaction(trans *models.Transaction) error {
 	return nil
 }
 
-// UpdateTransactionTables ...
-func (r *mysqlQueryRepo) UpdateTransactionTables(trans []*models.Transaction) error {
-	// Schema is owned by goose migrations (see migrations/). No AutoMigrate here.
-	for _, t := range trans {
-		result := r.Conn.Clauses(clause.OnConflict{
-			UpdateAll: true,
-		}).Create(t)
-		if result.Error != nil {
-			return fmt.Errorf("unable to create transaction: %w", result.Error)
+func (r *mysqlQueryRepo) UpdateTransactionTables(transactions []*models.Transaction) error {
+	return r.Conn.Transaction(func(tx *gorm.DB) error {
+		for _, t := range transactions {
+			if result := tx.Create(t); result.Error != nil {
+				return result.Error
+			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // CreateDB ...

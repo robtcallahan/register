@@ -2,7 +2,6 @@ package csv
 
 import (
 	"bytes"
-	//"bytes"
 	stdcsv "encoding/csv"
 	"fmt"
 	"os"
