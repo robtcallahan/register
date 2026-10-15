@@ -2,9 +2,10 @@ package mysql
 
 import (
 	"fmt"
-	"gorm.io/gorm/clause"
 	"register/pkg/models"
 	repo "register/pkg/repository"
+
+	"gorm.io/gorm/clause"
 
 	"gorm.io/gorm"
 )
@@ -79,14 +80,7 @@ func (r *mysqlQueryRepo) CreateMerchant(m *models.Merchant) error {
 	if pattern == "" {
 		pattern = m.BankName
 	}
-	result := r.Conn.Create(&models.Merchant{
-		Name:      m.Name,
-		BankName:  m.BankName,
-		ColumnID:  m.ColumnID,
-		Priority:  m.Priority,
-		MatchType: m.MatchType,
-		Pattern:   pattern,
-	})
+	result := r.Conn.Create(m)
 	if result.Error != nil {
 		return fmt.Errorf("unable to create merchant: %w", result.Error)
 	}
