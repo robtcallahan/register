@@ -97,9 +97,10 @@ Phase 10 — Functional tests
 - [X] 10.10 Golden fixture audit against post-6.x behavior (budget fixture must encode the post-column-D layout); regenerate or retire stale goldens, dedupe the two addCategoryCells goldens
 - [X] 10.11 UpdateTransactionTables upsert/idempotence DB test (lands with or just after 9.1)
 - [X] 10.12 (low) SESSION_KEY server guard test; monthly Aggregate/populateMonthlyPayees tests rewritten only after Phase 8 settles behavior
+- [X] 10.13 Add 18 mysql DB tests (will use register_test DB
 -----------------------------------------------------------------------------------------
-Phase 11 — Database Migration
 Phase 11 — Database migration with goose
+- [X] 11.1 Add goose dependency, create migrations/ directory
 - [X] 11.2 Write baseline migration from current schema (columns, merchants, transactions)
 - [X] 11.3 Add `register migrate up|down|status|redo` CLI commands
 - [X] 11.4 Remove GORM AutoMigrate from UpdateTransactionTables (migrations own schema)
@@ -149,4 +150,3 @@ Phase 17 — Cleanup
 - [ ] 17.4 Extract long functions (InsertBudgetCategory, addSummaryRows, moveColumn, etc.)
 - [ ] 17.5 Delete commented-out and dead code (getPlaidTransactions, printRegister, WriteCSV, etc.)
 - [ ] 17.6 Fix naming nits (snake_case packages, range_ params, Day capitalization, "covert" typo)
-

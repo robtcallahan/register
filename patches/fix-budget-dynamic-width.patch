@@ -1,0 +1,46 @@
+diff --git a/api/services/sheets_service/budget_service.go b/api/services/sheets_service/budget_service.go
+index 81ec537..1a2a74c 100644
+--- a/api/services/sheets_service/budget_service.go
++++ b/api/services/sheets_service/budget_service.go
+@@ -36,10 +36,9 @@ func (ss *SheetsService) NewBudgetSheet(cfg *config.Config) error {
+ 	ss.BudgetSheet = &BudgetSheet{
+ 		TabName: BudgetTabName,
+ 		SheetCoords: SheetCoords{
+-			StartRow:       cfg.BudgetStartRow,
+-			EndRow:         cfg.BudgetEndRow,
+-			EndColumnName:  "I",
+-			EndColumnIndex: 8,
++			StartRow: cfg.BudgetStartRow,
++			EndRow:   cfg.BudgetEndRow,
++			// EndColumnName/Index are detected from the header row below.
+ 		},
+ 	}
+ 	props, err := ss.getSheetProperties(BudgetTabName)
+@@ -47,6 +46,27 @@ func (ss *SheetsService) NewBudgetSheet(cfg *config.Config) error {
+ 		return err
+ 	}
+ 	ss.BudgetSheet.ID = props.SheetId
++
++	// Detect the rightmost column from the header row so adding columns
++	// to the Budget tab doesn't require a code change. We read a generous
++	// range (A1:Z1) and find the last non-empty header.
++	headerRange := fmt.Sprintf("%s!A1:Z1", BudgetTabName)
++	headerResp, err := ss.Provider.GetValues(headerRange)
++	if err != nil {
++		return fmt.Errorf("could not read budget header row for width detection: %w", err)
++	}
++	if len(headerResp.Values) == 0 || len(headerResp.Values[0]) == 0 {
++		return errors.New("no header row found on Budget tab")
++	}
++	headers := headerResp.Values[0]
++	lastIdx := 0
++	for i, h := range headers {
++		if s := fmt.Sprintf("%v", h); strings.TrimSpace(s) != "" {
++			lastIdx = i
++		}
++	}
++	ss.BudgetSheet.SheetCoords.EndColumnIndex = int64(lastIdx)
++	ss.BudgetSheet.SheetCoords.EndColumnName = models.ColumnLetter(lastIdx)
+ 	return nil
+ }
+ 

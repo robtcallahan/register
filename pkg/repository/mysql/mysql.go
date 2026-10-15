@@ -37,10 +37,7 @@ func (r *mysqlQueryRepo) SaveTransaction(trans *models.Transaction) error {
 
 // UpdateTransactionTables ...
 func (r *mysqlQueryRepo) UpdateTransactionTables(trans []*models.Transaction) error {
-	if err := r.Conn.AutoMigrate(&models.Transaction{}); err != nil {
-		return fmt.Errorf("unable to migrate transactions table: %w", err)
-	}
-
+	// Schema is owned by goose migrations (see migrations/). No AutoMigrate here.
 	for _, t := range trans {
 		result := r.Conn.Clauses(clause.OnConflict{
 			UpdateAll: true,

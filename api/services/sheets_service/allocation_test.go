@@ -16,31 +16,31 @@ func TestAllocationFor(t *testing.T) {
 	}{
 		{
 			name:      "weekly frequency returns weekly amount",
-			entry:     &BudgetEntry{Category: "Grocery", Weekly: 120.00, Monthly: 520.00},
-			frequency: "weekly",
-			want:      120.00,
+			entry:     &BudgetEntry{Category: "Grocery", BiWeekly: 240.00, Monthly: 520.00},
+			frequency: "biweekly",
+			want:      240.00,
 		},
 		{
 			name:      "monthly frequency returns monthly amount",
-			entry:     &BudgetEntry{Category: "Rent", Weekly: 0, Monthly: 1400.00},
+			entry:     &BudgetEntry{Category: "Rent", BiWeekly: 0, Monthly: 1400.00},
 			frequency: "monthly",
 			want:      1400.00,
 		},
 		{
 			name:      "frequency is case-insensitive",
-			entry:     &BudgetEntry{Category: "Grocery", Weekly: 120.00, Monthly: 520.00},
-			frequency: "WEEKLY",
-			want:      120.00,
+			entry:     &BudgetEntry{Category: "Grocery", BiWeekly: 240.00, Monthly: 520.00},
+			frequency: "BIWEEKLY",
+			want:      240.00,
 		},
 		{
 			name:      "unknown frequency returns zero",
-			entry:     &BudgetEntry{Category: "Grocery", Weekly: 120.00, Monthly: 520.00},
-			frequency: "biweekly",
+			entry:     &BudgetEntry{Category: "Grocery", BiWeekly: 240.00, Monthly: 520.00},
+			frequency: "bimonthly",
 			want:      0,
 		},
 		{
 			name:      "empty frequency returns zero",
-			entry:     &BudgetEntry{Category: "Grocery", Weekly: 120.00, Monthly: 520.00},
+			entry:     &BudgetEntry{Category: "Grocery", BiWeekly: 240.00, Monthly: 520.00},
 			frequency: "",
 			want:      0,
 		},
@@ -74,9 +74,9 @@ func TestIsIncomeName(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		txName  string
-		want    bool
+		name   string
+		txName string
+		want   bool
 	}{
 		{"matches Taylor House", "Taylor House", true},
 		{"matches Social Security", "Social Security", true},

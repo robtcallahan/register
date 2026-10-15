@@ -4,12 +4,11 @@ package sheets_service
 
 import (
 	"fmt"
-	"strings"
 	"register/pkg/models"
+	"strings"
 
 	"google.golang.org/api/sheets/v4"
 )
-
 
 func (ss *SheetsService) UpdateRows(columns []models.Column, transNameToColName map[string]string, transactions []*models.Transaction) error {
 	var requests []*sheets.Request
@@ -74,6 +73,8 @@ func allocationFor(entry *BudgetEntry, frequency string) float64 {
 	switch strings.ToLower(frequency) {
 	case "weekly":
 		return entry.Weekly
+	case "biweekly":
+		return entry.BiWeekly
 	case "monthly":
 		return entry.Monthly
 	}
