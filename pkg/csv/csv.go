@@ -1,6 +1,7 @@
 package csv
 
 import (
+	"bytes"
 	//"bytes"
 	stdcsv "encoding/csv"
 	"fmt"
@@ -273,14 +274,7 @@ func processCheck(name string, t *models.Transaction) *models.Transaction {
 }
 
 func doWellsFargoHeadsExist(fileBytes []byte) bool {
-	dateHeader := ""
-	for i := range []int8{0, 1, 2, 3, 4, 5} {
-		dateHeader += string(fileBytes[i])
-	}
-	if dateHeader == "\"DATE\"" {
-		return true
-	}
-	return false
+	return bytes.HasPrefix(fileBytes, []byte("\"DATE\""))
 }
 
 func addWellsFargoHeads(fileName string, fileBytes []byte) error {
