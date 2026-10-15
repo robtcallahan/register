@@ -24,10 +24,11 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/plaid/plaid-go/v15/plaid"
-	"golang.org/x/net/context"
 	"register/pkg/config"
 	"register/pkg/models"
+
+	"github.com/plaid/plaid-go/v15/plaid"
+	"golang.org/x/net/context"
 )
 
 func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
@@ -45,10 +46,11 @@ func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([
 
 		for _, trans := range transResp {
 			// skip CC payment transaction as these will show up as checking account payments
-			register := c.buildTransaction(bankConfig.ID, trans)
+			register, err := c.buildTransaction(bankConfig.ID, trans)
+			if err != nil {
+				return nil, err
+			}
 			transactions = append(transactions, register)
-			//printPlaidTransaction(t, bankID)
-			//printTransaction(r)
 		}
 		fmt.Println("done")
 	}
@@ -118,7 +120,7 @@ func (c *Client) getPlaidTransactions(bankConfig config.Bank, startDate, endDate
 	//return resp.Transactions, nil
 }
 
-func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Transaction {
+func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.Transaction, error) {
 	tran := &models.Transaction{
 		Date:     readDateValue(p.Date),
 		Name:     "",
@@ -170,8 +172,10 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) *models.Tr
 		if tran.Name == "" {
 			tran.Name = tran.BankName
 		}
+	default:
+		return nil, fmt.Errorf("unknown bank ID: %s", bankID)
 	}
-	return tran
+	return tran, nil
 }
 
 func (c *Client) SortTransactions(trans []*models.Transaction) []*models.Transaction {

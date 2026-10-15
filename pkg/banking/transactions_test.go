@@ -3,8 +3,9 @@ package banking
 import (
 	"testing"
 
-	"github.com/plaid/plaid-go/v15/plaid"
 	"register/pkg/models"
+
+	"github.com/plaid/plaid-go/v15/plaid"
 )
 
 func plaidTransaction(name string, amount float64, date string) plaid.Transaction {
@@ -76,7 +77,10 @@ func TestBuildTransaction_WellsFargo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := c.buildTransaction(WellsFargoID, tt.plaidTx)
+			got, err := c.buildTransaction(WellsFargoID, tt.plaidTx)
+			if err != nil {
+				t.Fatalf("buildTransaction failed: %v", err)
+			}
 			want := tt.checkTran
 
 			if got.Source != want.Source {
@@ -118,7 +122,10 @@ func TestBuildTransaction_Fidelity(t *testing.T) {
 
 	// Fidelity transactions are credit purchases (positive amounts stay positive)
 	plaidTx := plaidTransaction("AMAZON", 29.66, "2020-12-10")
-	got := c.buildTransaction(FidelityID, plaidTx)
+	got, err := c.buildTransaction(FidelityID, plaidTx)
+	if err != nil {
+		t.Fatalf("buildTransaction failed: %v", err)
+	}
 
 	if got.Source != "Fidelity" {
 		t.Errorf("Source = %q, want %q", got.Source, "Fidelity")
@@ -159,7 +166,10 @@ func TestBuildTransaction_Chase(t *testing.T) {
 
 	// Chase transactions are credit purchases (same as Fidelity)
 	plaidTx := plaidTransaction("WHOLE FOODS", 85.42, "2020-12-12")
-	got := c.buildTransaction(ChaseID, plaidTx)
+	got, err := c.buildTransaction(ChaseID, plaidTx)
+	if err != nil {
+		t.Fatalf("buildTransaction failed: %v", err)
+	}
 
 	if got.Source != "Chase" {
 		t.Errorf("Source = %q, want %q", got.Source, "Chase")
@@ -187,22 +197,9 @@ func TestBuildTransaction_Chase(t *testing.T) {
 
 func TestBuildTransaction_UnknownBank(t *testing.T) {
 	c := &Client{}
-
-	// Unknown bank IDs should return a transaction with just the basics
 	plaidTx := plaidTransaction("SOME STORE", 10.00, "2020-12-07")
-	got := c.buildTransaction("unknown", plaidTx)
-
-	if got.Date != "12/07/20" {
-		t.Errorf("Date = %q, want %q", got.Date, "12/07/20")
-	}
-	if got.BankName != "SOME STORE" {
-		t.Errorf("BankName = %q, want %q", got.BankName, "SOME STORE")
-	}
-	// No bank-specific fields should be set
-	if got.Source != "" {
-		t.Errorf("Source = %q, want empty", got.Source)
-	}
-	if got.Key != "" {
-		t.Errorf("Key = %q, want empty", got.Key)
+	_, err := c.buildTransaction("unknown", plaidTx)
+	if err == nil {
+		t.Error("expected error for unknown bank, got nil")
 	}
 }
