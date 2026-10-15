@@ -76,9 +76,8 @@ func (r *mysqlQueryRepo) GetMerchants() ([]models.Merchant, error) {
 
 // CreateMerchant ...
 func (r *mysqlQueryRepo) CreateMerchant(m *models.Merchant) error {
-	pattern := m.Pattern
-	if pattern == "" {
-		pattern = m.BankName
+	if m.Pattern == "" {
+		m.Pattern = m.BankName
 	}
 	result := r.Conn.Create(m)
 	if result.Error != nil {
