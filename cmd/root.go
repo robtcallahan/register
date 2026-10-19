@@ -29,8 +29,8 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "register",
-	Short: "Reads bank transactions and updates the financial register spreadsheet",
+	Use:           "register",
+	Short:         "Reads bank transactions and updates the financial register spreadsheet",
 	SilenceErrors: true,
 	SilenceUsage:  true,
 	Long: `Register reads bank and credit card transactions from Wells Fargo, Fidelity, Chase,
@@ -88,11 +88,11 @@ func Execute() {
 func init() {
 	cobra.OnInitialize()
 
-	if cfg, err := cfg.ReadConfig(ConfigFile); err != nil {
-		fmt.Println(err.Error())
+	var err error
+	config, err = cfg.ReadConfig(ConfigFile)
+	if err != nil {
+		fmt.Println(err)
 		return
-	} else {
-		config = cfg
 	}
 
 	var bankIDs string
