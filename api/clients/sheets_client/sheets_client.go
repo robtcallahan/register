@@ -9,23 +9,23 @@ import (
 
 type ClientInterface interface {
 	Get(ssService *sheets.Service, spreadsheetID string, range_ string) (*sheets.ValueRange, error)
-	GetFormula(ssService *sheets.Service, spreadsheetId string, range_ string) (*sheets.ValueRange, error)
-	GetSpreadsheet(ssService *sheets.Service, spreadsheetId string) (*sheets.Spreadsheet, error)
+	GetFormula(ssService *sheets.Service, spreadsheetID string, range_ string) (*sheets.ValueRange, error)
+	GetSpreadsheet(ssService *sheets.Service, spreadsheetID string) (*sheets.Spreadsheet, error)
 	BatchUpdate(ssService *sheets.Service, spreadsheetID string, updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error)
-	Update(ssService *sheets.Service, spreadsheetId string, writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error)
+	Update(ssService *sheets.Service, spreadsheetID string, writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error)
 }
 
 type clientStruct struct{}
 
 var ClientStruct ClientInterface = &clientStruct{}
 
-func (c *clientStruct) Get(ssService *sheets.Service, spreadsheetId string, range_ string) (*sheets.ValueRange, error) {
-	resp, err := ssService.Spreadsheets.Values.Get(spreadsheetId, range_).Do()
+func (c *clientStruct) Get(ssService *sheets.Service, spreadsheetID string, range_ string) (*sheets.ValueRange, error) {
+	resp, err := ssService.Spreadsheets.Values.Get(spreadsheetID, range_).Do()
 	return resp, err
 }
 
-func (c *clientStruct) GetFormula(ssService *sheets.Service, spreadsheetId string, range_ string) (*sheets.ValueRange, error) {
-	call := ssService.Spreadsheets.Values.BatchGet(spreadsheetId)
+func (c *clientStruct) GetFormula(ssService *sheets.Service, spreadsheetID string, range_ string) (*sheets.ValueRange, error) {
+	call := ssService.Spreadsheets.Values.BatchGet(spreadsheetID)
 	call.ValueRenderOption("FORMULA")
 	call.Ranges(range_)
 	resp, err := call.Do()
@@ -38,8 +38,8 @@ func (c *clientStruct) GetFormula(ssService *sheets.Service, spreadsheetId strin
 	return resp.ValueRanges[0], err
 }
 
-func (c *clientStruct) GetSpreadsheet(ssService *sheets.Service, spreadsheetId string) (*sheets.Spreadsheet, error) {
-	resp, err := ssService.Spreadsheets.Get(spreadsheetId).Do()
+func (c *clientStruct) GetSpreadsheet(ssService *sheets.Service, spreadsheetID string) (*sheets.Spreadsheet, error) {
+	resp, err := ssService.Spreadsheets.Get(spreadsheetID).Do()
 	return resp, err
 }
 
@@ -48,8 +48,8 @@ func (c *clientStruct) BatchUpdate(ssService *sheets.Service, spreadsheetID stri
 	return resp, err
 }
 
-func (c *clientStruct) Update(ssService *sheets.Service, spreadsheetId string, writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
-	call := ssService.Spreadsheets.Values.Update(spreadsheetId, writeRange, vRange)
+func (c *clientStruct) Update(ssService *sheets.Service, spreadsheetID string, writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
+	call := ssService.Spreadsheets.Values.Update(spreadsheetID, writeRange, vRange)
 	call.ValueInputOption("USER_ENTERED")
 	resp, err := call.Do()
 	if err != nil {

@@ -10,7 +10,7 @@ func TestProcessWellsFargoData(t *testing.T) {
 	tests := []struct {
 		name     string
 		rows     []*WellsFargo
-		bankId   string
+		bankID   string
 		checkIdx int
 		checkTx  *models.Transaction
 	}{
@@ -19,7 +19,7 @@ func TestProcessWellsFargoData(t *testing.T) {
 			rows: []*WellsFargo{
 				{Date: "12/07/2020", Description: "TARGET", Amount: -46.80, CheckNumber: "", Status: "posted"},
 			},
-			bankId:   "wellsfargo",
+			bankID:   "wellsfargo",
 			checkIdx: 0,
 			checkTx: &models.Transaction{
 				Source:     "WellsFargo",
@@ -36,7 +36,7 @@ func TestProcessWellsFargoData(t *testing.T) {
 			rows: []*WellsFargo{
 				{Date: "12/01/2020", Description: "DIRECT DEPOSIT", Amount: 1500.00, CheckNumber: "", Status: "posted"},
 			},
-			bankId:   "wellsfargo",
+			bankID:   "wellsfargo",
 			checkIdx: 0,
 			checkTx: &models.Transaction{
 				Source:   "WellsFargo",
@@ -53,7 +53,7 @@ func TestProcessWellsFargoData(t *testing.T) {
 			rows: []*WellsFargo{
 				{Date: "12/15/2020", Description: "CHECK # 1234", Amount: -250.00, CheckNumber: "CHECK # 1234", Status: "posted"},
 			},
-			bankId:   "wellsfargo",
+			bankID:   "wellsfargo",
 			checkIdx: 0,
 			checkTx: &models.Transaction{
 				Source:     "1234",
@@ -71,7 +71,7 @@ func TestProcessWellsFargoData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := processWellsFargoData(tt.rows, tt.bankId)
+			got := processWellsFargoData(tt.rows, tt.bankID)
 			if len(got) != 1 {
 				t.Fatalf("got %d transactions, want 1", len(got))
 			}

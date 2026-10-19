@@ -224,7 +224,7 @@ func (c *Client) readBankOfAmericaCSV() ([]*models.Transaction, error) {
 	return trans, err
 }
 
-func readWellsFargoCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
+func readWellsFargoCSVRows(csvFile string, bankID string) ([]*models.Transaction, error) {
 	csvFilePtr, err := os.Open(csvFile)
 	if err != nil {
 		return nil, fmt.Errorf("could not open file %s: %w", csvFile, err)
@@ -235,14 +235,14 @@ func readWellsFargoCSVRows(csvFile string, bankId string) ([]*models.Transaction
 	if err := gocsv.UnmarshalFile(csvFilePtr, &wellsFargo); err != nil {
 		return nil, fmt.Errorf("could not unmarshal CSV file %s: %w", csvFile, err)
 	}
-	return processWellsFargoData(wellsFargo, bankId), nil
+	return processWellsFargoData(wellsFargo, bankID), nil
 }
 
-func processWellsFargoData(wellsFargo []*WellsFargo, bankId string) []*models.Transaction {
+func processWellsFargoData(wellsFargo []*WellsFargo, bankID string) []*models.Transaction {
 	var trans []*models.Transaction
 	for _, wf := range wellsFargo {
 		t := &models.Transaction{
-			Key:      models.TransactionKey(bankId, readDateValue(wf.Date), wf.Amount),
+			Key:      models.TransactionKey(bankID, readDateValue(wf.Date), wf.Amount),
 			Source:   "WellsFargo",
 			Date:     readDateValue(wf.Date),
 			Amount:   wf.Amount,
@@ -287,7 +287,7 @@ func addWellsFargoHeads(fileName string, fileBytes []byte) error {
 	return nil
 }
 
-func readFidelityCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
+func readFidelityCSVRows(csvFile string, bankID string) ([]*models.Transaction, error) {
 	if err := checkCSVHeaders(csvFile, FidelityVisa{}); err != nil {
 		return nil, err
 	}
@@ -302,10 +302,10 @@ func readFidelityCSVRows(csvFile string, bankId string) ([]*models.Transaction, 
 		return nil, fmt.Errorf("could not unmarshal CSV file %s: %w", csvFile, err)
 	}
 
-	return processFidelityData(fidelity, bankId), nil
+	return processFidelityData(fidelity, bankID), nil
 }
 
-func processFidelityData(fidelity []*FidelityVisa, bankId string) []*models.Transaction {
+func processFidelityData(fidelity []*FidelityVisa, bankID string) []*models.Transaction {
 	var trans []*models.Transaction
 	for _, f := range fidelity {
 		t := &models.Transaction{
@@ -317,13 +317,13 @@ func processFidelityData(fidelity []*FidelityVisa, bankId string) []*models.Tran
 			CreditCard:     -1 * f.Amount, // convert to positive
 			Budget:         f.Amount,      // already negative
 		}
-		t.Key = models.TransactionKey(bankId, t.Date, t.CreditCard)
+		t.Key = models.TransactionKey(bankID, t.Date, t.CreditCard)
 		trans = append(trans, t)
 	}
 	return trans
 }
 
-func readChaseCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
+func readChaseCSVRows(csvFile string, bankID string) ([]*models.Transaction, error) {
 	if err := checkCSVHeaders(csvFile, ChaseVisa{}); err != nil {
 		return nil, err
 	}
@@ -337,10 +337,10 @@ func readChaseCSVRows(csvFile string, bankId string) ([]*models.Transaction, err
 	if err := gocsv.UnmarshalFile(csvFilePtr, &chase); err != nil {
 		return nil, fmt.Errorf("could not unmarshal CSV file %s: %w", csvFile, err)
 	}
-	return processChaseData(chase, bankId), nil
+	return processChaseData(chase, bankID), nil
 }
 
-func processChaseData(chase []*ChaseVisa, bankId string) []*models.Transaction {
+func processChaseData(chase []*ChaseVisa, bankID string) []*models.Transaction {
 	var trans []*models.Transaction
 	for _, c := range chase {
 		re := regexp.MustCompile(`(payment\s+thank you)`)
@@ -350,7 +350,7 @@ func processChaseData(chase []*ChaseVisa, bankId string) []*models.Transaction {
 		}
 
 		t := &models.Transaction{
-			Key:            models.TransactionKey(bankId, readDateValue(c.TransactionDate), -1*c.Amount),
+			Key:            models.TransactionKey(bankID, readDateValue(c.TransactionDate), -1*c.Amount),
 			Source:         "Chase",
 			Date:           readDateValue(c.TransactionDate),
 			Amount:         c.Amount, // amount stays as is
@@ -364,7 +364,7 @@ func processChaseData(chase []*ChaseVisa, bankId string) []*models.Transaction {
 	return trans
 }
 
-func readBankOfAmericaCSVRows(csvFile string, bankId string) ([]*models.Transaction, error) {
+func readBankOfAmericaCSVRows(csvFile string, bankID string) ([]*models.Transaction, error) {
 	if err := checkCSVHeaders(csvFile, BankOfAmerica{}); err != nil {
 		return nil, err
 	}
@@ -379,10 +379,10 @@ func readBankOfAmericaCSVRows(csvFile string, bankId string) ([]*models.Transact
 		return nil, fmt.Errorf("could not unmarshal CSV file %s: %w", csvFile, err)
 	}
 
-	return processBankOfAmericaData(boa, bankId), nil
+	return processBankOfAmericaData(boa, bankID), nil
 }
 
-func processBankOfAmericaData(boa []*BankOfAmerica, bankId string) []*models.Transaction {
+func processBankOfAmericaData(boa []*BankOfAmerica, bankID string) []*models.Transaction {
 	var trans []*models.Transaction
 	for _, b := range boa {
 		// skip CC payment transaction as these will show up as checking account payments
@@ -393,8 +393,8 @@ func processBankOfAmericaData(boa []*BankOfAmerica, bankId string) []*models.Tra
 		}
 
 		t := &models.Transaction{
-			Key:        models.TransactionKey(bankId, readDateValue(b.PostedDate), b.Amount),
-			Source:     bankId,
+			Key:        models.TransactionKey(bankID, readDateValue(b.PostedDate), b.Amount),
+			Source:     bankID,
 			Date:       readDateValue(b.PostedDate),
 			Amount:     -b.Amount,
 			CreditCard: -b.Amount,

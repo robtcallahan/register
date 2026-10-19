@@ -370,7 +370,7 @@ func (ss *SheetsService) readRangeFormulas(readRange string) ([]string, error) {
 
 	var retValues []string
 	for _, val := range getRowValues(rangeValues, 0) {
-		retValues = append(retValues, fmt.Sprintf("%w", val))
+		retValues = append(retValues, fmt.Sprintf("%v", val))
 	}
 	return retValues, nil
 }
