@@ -100,7 +100,13 @@ func update(cmd *cobra.Command, args []string) error {
 
 	client = getBankingClient()
 
-	transactions, err = fetchTransactions(client)
+	// Todo: account for pagination
+	// Due to pagination and no code to account for it, I'm going back about 3 mounths (12 weeks).
+	// startDate := config.StartDate
+	// endDate := config.EndDate
+	startDate := weeksAgo(12)
+	endDate := today()
+	transactions, err = fetchTransactions(client, startDate, endDate)
 	if err != nil {
 		return err
 	}
@@ -148,7 +154,7 @@ func update(cmd *cobra.Command, args []string) error {
 // fetchTransactions gathers transactions from every bank: Fidelity always
 // comes from its CSV (Plaid no longer supports it), while Wells Fargo and
 // Chase come from CSV or Plaid depending on the --csv flag.
-func fetchTransactions(client *Client) ([]*models.Transaction, error) {
+func fetchTransactions(client *Client, startDate, endDate string) ([]*models.Transaction, error) {
 	fmt.Println("Getting Fidelity transactions (CSV)...")
 	transactions, err := getCSVTransactions([]string{"fidelity"})
 	if err != nil {
@@ -162,7 +168,7 @@ func fetchTransactions(client *Client) ([]*models.Transaction, error) {
 		newTrans, err = getCSVTransactions(options.BankIDs)
 	} else {
 		fmt.Println("Getting Wells Fargo & Chase transactions (Plaid)...")
-		newTrans, err = getTransactions(client, options.BankIDs)
+		newTrans, err = getTransactions(client, options.BankIDs, startDate, endDate)
 	}
 	if err != nil {
 		return nil, err
@@ -386,12 +392,7 @@ func printBalances(balances map[string]banking.Balance) {
 	fmt.Printf("    Wells Fargo: $%8.2f\n", b.Amount)
 }
 
-func getTransactions(client *Client, bankIDs []string) ([]*models.Transaction, error) {
-	//startDate := weeksAgo(16)
-	//endDate := today()
-	startDate := config.StartDate
-	endDate := config.EndDate
-
+func getTransactions(client *Client, bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
 	transactions, err := client.BankClient.GetTransactions(bankIDs, startDate, endDate)
 	if err != nil {
 		return nil, err
