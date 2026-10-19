@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"register/pkg/repository"
@@ -56,7 +57,7 @@ func runMigration(action string, rest []string) error {
 		return goose.Down(sqlDB, migrationsDir)
 	case "down-to":
 		if len(rest) == 0 {
-			return fmt.Errorf("down-to requires a version argument")
+			return errors.New("down-to requires a version argument")
 		}
 		var version int64
 		if _, err := fmt.Sscanf(rest[0], "%d", &version); err != nil {

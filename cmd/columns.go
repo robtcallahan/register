@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,7 +13,6 @@ import (
 
 	"github.com/spf13/cobra"
 )
-
 
 var columnsCmd = &cobra.Command{
 	Use:   "columns",
@@ -168,10 +168,10 @@ func addColumn(name string) error {
 	switch addColor {
 	case models.ColorGreen, models.ColorYellow, models.ColorBlue:
 	default:
-		return fmt.Errorf("--color must be green, yellow, or blue (grey is reserved for the payoff columns)")
+		return errors.New("--color must be green, yellow, or blue (grey is reserved for the payoff columns)")
 	}
 	if strings.TrimSpace(name) == "" {
-		return fmt.Errorf("column name must not be empty")
+		return errors.New("column name must not be empty")
 	}
 
 	q, err := columnsQuery()
@@ -229,7 +229,7 @@ func addColumn(name string) error {
 
 func renameColumn(oldName, newName string) error {
 	if strings.TrimSpace(newName) == "" {
-		return fmt.Errorf("new name must not be empty")
+		return errors.New("new name must not be empty")
 	}
 
 	q, err := columnsQuery()

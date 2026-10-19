@@ -119,7 +119,7 @@ Phase 13 — Error handling done right
 - [X] 13.1 Replace %v with %w in 5 spots (update.go:182,196,201; register_service.go:173,365)
 - [ ] 13.2 Replace strings.Contains error matching with errors.Is/errors.As (register_service.go:169) Deferred
 - [X] 13.3 Add context to bare return err (plaid_auth.go, register_service.go:195, register_write.go:283-284, mysql.go)
-- [ ] 13.4 Use errors.New instead of fmt.Errorf for static strings (banking.go:176, migrate.go:59, columns.go:171,174,232)
+- [X] 13.4 Use errors.New instead of fmt.Errorf for static strings (banking.go:176, migrate.go:59, columns.go:171,174,232)
 -----------------------------------------------------------------------------------------
 Phase 14 — Go idioms
 - [ ] 14.1 Move ctx to first parameter (plaid_auth.go:38, banking.go:109,157)

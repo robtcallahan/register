@@ -18,11 +18,13 @@ package banking
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+
+	"register/pkg/config"
 
 	"github.com/plaid/plaid-go/v15/plaid"
 	"golang.org/x/net/context"
-	"register/pkg/config"
 )
 
 const (
@@ -37,14 +39,14 @@ const (
 	CheckBankPattern     = "CHECK"
 	IncomeColumnName     = "Emergency Fund" // column_index 42 in his tables today
 
-	WellsFargoID     = "wellsfargo"
-	FidelityID       = "fidelity"
-	ChaseID          = "chase"
-	BankOfAmericaID  = "boa"
-	CitiID           = "citi"
-	AllyID           = "ally"
-	ETradeID         = "etrade"
-	BettermentID     = "betterment"
+	WellsFargoID    = "wellsfargo"
+	FidelityID      = "fidelity"
+	ChaseID         = "chase"
+	BankOfAmericaID = "boa"
+	CitiID          = "citi"
+	AllyID          = "ally"
+	ETradeID        = "etrade"
+	BettermentID    = "betterment"
 )
 
 type PlaidHttpBodyResponse struct {
@@ -69,15 +71,15 @@ type ClientOptions struct {
 }
 
 type Client struct {
-	PlaidClient *plaid.APIClient
-	ClientID    string
-	Secret      string
-	Environment plaid.Environment
-	UserID      string
-	Banks       map[string]config.Bank
+	PlaidClient   *plaid.APIClient
+	ClientID      string
+	Secret        string
+	Environment   plaid.Environment
+	UserID        string
+	Banks         map[string]config.Bank
 	IncomeSources []config.IncomeSource
-	Debug       bool
-	Verbose     bool
+	Debug         bool
+	Verbose       bool
 }
 
 type Balance struct {
@@ -88,14 +90,14 @@ type Balance struct {
 
 func NewClient(o *ClientOptions) *Client {
 	c := &Client{
-		ClientID:    o.PlaidClientID,
-		Secret:      o.PlaidSecret,
-		Environment: o.PlaidEnvironment,
-		UserID:      o.UserID,
+		ClientID:      o.PlaidClientID,
+		Secret:        o.PlaidSecret,
+		Environment:   o.PlaidEnvironment,
+		UserID:        o.UserID,
 		Banks:         o.Banks,
 		IncomeSources: o.IncomeSources,
-		Debug:       o.Debug,
-		Verbose:     o.Debug,
+		Debug:         o.Debug,
+		Verbose:       o.Debug,
 	}
 	configuration := plaid.NewConfiguration()
 	configuration.AddDefaultHeader("PLAID-CLIENT-ID", o.PlaidClientID)
@@ -173,7 +175,7 @@ func (c *Client) GetBalance(accessToken string, bankID string, ctx context.Conte
 	}
 	nullFloat64 := balancesGetResp.Accounts[0].Balances.Current
 	if !nullFloat64.IsSet() {
-		return nil, fmt.Errorf("available balance is not set")
+		return nil, errors.New("available balance is not set")
 	}
 	return nullFloat64.Get(), err
 }
