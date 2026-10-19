@@ -547,6 +547,14 @@ func readFromUser(db repository.QueryRepo, trans []*models.Transaction) (bool, [
 
 			trans[i].Name = readString("            Name: ")
 			var columnID int
+			for {
+				columnID, err = readInt("       Column ID: ")
+				if err != nil {
+					fmt.Println(err.Error())
+					continue
+				}
+				break
+			}
 			for err = fmt.Errorf(""); err != nil; {
 				columnID, err = readInt("       Column ID: ")
 				if err != nil {
