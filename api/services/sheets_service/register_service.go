@@ -170,7 +170,7 @@ func (ss *SheetsService) CopyRows(numCopies int) error {
 		if strings.Contains(err.Error(), "grid limits") {
 			return fmt.Errorf("%w — add rows and re-run", errSheetFull)
 		}
-		return fmt.Errorf("could not perform copy: %v", err)
+		return fmt.Errorf("could not perform copy: %w", err)
 	}
 	return nil
 }
@@ -235,7 +235,6 @@ func (ss *SheetsService) WriteCell(cell string, value interface{}) (*sheets.Upda
 	}
 	return resp, nil
 }
-
 
 func (ss *SheetsService) isEmptyRow(values []interface{}) bool {
 	if getStringField(values, Date) == "" {
@@ -362,7 +361,7 @@ func (ss *SheetsService) getCopyDestination(index int64) *sheets.GridRange {
 func (ss *SheetsService) readRangeFormulas(readRange string) ([]string, error) {
 	resp, err := ss.Provider.GetFormula(readRange)
 	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve data from sheet: %v", err)
+		return nil, fmt.Errorf("unable to retrieve data from sheet: %w", err)
 	}
 	rangeValues := resp.Values
 	if len(rangeValues) == 0 {
@@ -371,7 +370,7 @@ func (ss *SheetsService) readRangeFormulas(readRange string) ([]string, error) {
 
 	var retValues []string
 	for _, val := range getRowValues(rangeValues, 0) {
-		retValues = append(retValues, fmt.Sprintf("%v", val))
+		retValues = append(retValues, fmt.Sprintf("%w", val))
 	}
 	return retValues, nil
 }

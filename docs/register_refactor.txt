@@ -116,7 +116,7 @@ Phase 12 — Critical bug fixes
 - [X] 12.6 Fix Merchant/Column ID shadowing gorm.Model (models.go:30-48) — remove redeclared ID field (dropped as too many casts of uint to int. Will be fixed in 12.7)
 -----------------------------------------------------------------------------------------
 Phase 13 — Error handling done right
-- [ ] 13.1 Replace %v with %w in 5 spots (update.go:182,196,201; register_service.go:173,365)
+- [X] 13.1 Replace %v with %w in 5 spots (update.go:182,196,201; register_service.go:173,365)
 - [ ] 13.2 Replace strings.Contains error matching with errors.Is/errors.As (register_service.go:169)
 - [ ] 13.3 Add context to bare return err (plaid_auth.go, register_service.go:195, register_write.go:283-284, mysql.go)
 - [ ] 13.4 Use errors.New instead of fmt.Errorf for static strings (banking.go:176, migrate.go:59, columns.go:171,174,232)
@@ -142,6 +142,7 @@ Phase 16 — Structural improvements
 - [ ] 16.3 Convert banking.Client pure methods to package functions (SortTransactions, Filter*, FormatMerchantNames)
 - [ ] 16.4 Consolidate three readDateValues into one pkg-level helper with distinct names
 - [ ] 16.5 Fix N+1 Sheets calls in moveColumn — read column A once into map
+- [ ] 16.6 Make fuzzy date matching merchant-specific — currently fuzzyKeySet applies ±1 day to EVERY transaction; scope it to Amazon merchants (or make the window configurable per merchant/source)
 -----------------------------------------------------------------------------------------
 Phase 17 — Cleanup
 - [ ] 17.1 Remove dead struct fields (SheetsService.service, SpreadsheetID fields)

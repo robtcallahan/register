@@ -179,7 +179,7 @@ func writeRawTransactionsCSV(transactions []*models.Transaction) error {
 	fmt.Println("Writing raw transactions CSV file...")
 	file, err := os.Create(config.FinanceDir + "/transactions.csv")
 	if err != nil {
-		return fmt.Errorf("error creating file %s: %v", config.FinanceDir+"/transactions.csv", err)
+		return fmt.Errorf("error creating file %s: %w", config.FinanceDir+"/transactions.csv", err)
 	}
 	defer file.Close()
 
@@ -193,12 +193,12 @@ func writeRawTransactionsCSV(transactions []*models.Transaction) error {
 			strconv.FormatFloat(t.CreditCard, 'f', 2, 64),
 		}
 		if err := w.Write(record); err != nil {
-			return fmt.Errorf("error writing to file: %v", err)
+			return fmt.Errorf("error writing to file: %w", err)
 		}
 	}
 	w.Flush()
 	if err := w.Error(); err != nil {
-		return fmt.Errorf("error writing to file: %v", err)
+		return fmt.Errorf("error writing to file: %w", err)
 	}
 	return nil
 }
