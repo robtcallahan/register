@@ -45,9 +45,8 @@ func GetClient() (*http.Client, error) {
 	// time.
 	tokFile := "json/token.json"
 	tok, err := tokenFromFile(tokFile)
-	//printExpirationDifference(tok.Expiry)
-
-	if err != nil || time.Now().Sub(tok.Expiry) >= time.Hour*24*7 {
+	if err != nil {
+		// No usable token file — do the manual web flow.
 		tok, err = getTokenFromWeb(config)
 		if err != nil {
 			return nil, err
@@ -55,8 +54,35 @@ func GetClient() (*http.Client, error) {
 		if err := saveToken(tokFile, tok); err != nil {
 			return nil, err
 		}
+		return config.Client(ctx, tok), nil
 	}
-	return config.Client(ctx, tok), nil
+
+	// We have a stored token. Let the OAuth2 library handle refresh: if the
+	// access token is still valid this is a no-op; if it's expired but the
+	// refresh token is good, it silently refreshes. If the refresh token is
+	// dead, Token() returns an error and we fall back to the manual flow.
+	tokenSource := config.TokenSource(ctx, tok)
+	newTok, err := tokenSource.Token()
+	if err != nil {
+		fmt.Println("Stored token is no longer valid, starting manual authorization flow...")
+		tok, err = getTokenFromWeb(config)
+		if err != nil {
+			return nil, err
+		}
+		if err := saveToken(tokFile, tok); err != nil {
+			return nil, err
+		}
+		return config.Client(ctx, tok), nil
+	}
+
+	// If the token was refreshed, persist the new one so the next run
+	// doesn't have to refresh again.
+	if newTok.AccessToken != tok.AccessToken {
+		if err := saveToken(tokFile, newTok); err != nil {
+			return nil, err
+		}
+	}
+	return config.Client(ctx, newTok), nil
 }
 
 func printExpirationDifference(expiry time.Time) {
