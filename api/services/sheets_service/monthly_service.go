@@ -76,6 +76,7 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 	payeeAgg := make(map[string]map[string]float64)
 
 	rangeValues := ss.RegisterSheet.RangeValues
+	re := regexp.MustCompile(`(\d\d)/\d\d/(\d\d)`)
 	for i, r := range ss.RegisterSheet.Register {
 		// skip fund reallocations and deposits/transfers: they move money
 		// between categories or into the account, but aren't spending
@@ -83,7 +84,6 @@ func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]
 			continue
 		}
 		// r.Date is MM/DD/YY (readDateValue emits a 2-digit year)
-		re := regexp.MustCompile(`(\d\d)/\d\d/(\d\d)`)
 		m := re.FindStringSubmatch(r.Date)
 		if len(m) > 0 {
 			k := m[1] + "/" + m[2]

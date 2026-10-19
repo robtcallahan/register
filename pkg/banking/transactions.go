@@ -32,6 +32,8 @@ import (
 	"github.com/plaid/plaid-go/v15/plaid"
 )
 
+var dateValueRE = regexp.MustCompile(`(20)?(\d\d)-(\d\d)-(\d\d)`)
+
 func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
 	var transactions []*models.Transaction
 	var errors strings.Builder
@@ -243,8 +245,7 @@ func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) error {
 }
 
 func readDateValue(date string) string {
-	re := regexp.MustCompile(`(20)?(\d\d)-(\d\d)-(\d\d)`)
-	m := re.FindStringSubmatch(date)
+	m := dateValueRE.FindStringSubmatch(date)
 	if m == nil {
 		return ""
 	}

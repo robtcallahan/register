@@ -342,8 +342,8 @@ func readChaseCSVRows(csvFile string, bankID string) ([]*models.Transaction, err
 
 func processChaseData(chase []*ChaseVisa, bankID string) []*models.Transaction {
 	var trans []*models.Transaction
+	re := regexp.MustCompile(`(payment\s+thank you)`)
 	for _, c := range chase {
-		re := regexp.MustCompile(`(payment\s+thank you)`)
 		m := re.FindStringSubmatch(strings.ToLower(c.Description))
 		if len(m) > 0 {
 			continue
@@ -384,9 +384,9 @@ func readBankOfAmericaCSVRows(csvFile string, bankID string) ([]*models.Transact
 
 func processBankOfAmericaData(boa []*BankOfAmerica, bankID string) []*models.Transaction {
 	var trans []*models.Transaction
+	re := regexp.MustCompile(`(ba electronic payment)`)
 	for _, b := range boa {
 		// skip CC payment transaction as these will show up as checking account payments
-		re := regexp.MustCompile(`(ba electronic payment)`)
 		m := re.FindStringSubmatch(strings.ToLower(b.Payee))
 		if len(m) > 0 {
 			continue

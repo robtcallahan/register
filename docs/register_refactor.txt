@@ -127,7 +127,7 @@ Phase 14 — Go idioms
 - [X] 14.3 Fix initialisms to all-caps: bankId→bankID, spreadsheetId→spreadsheetID, etc.
 - [X] 14.4 Use any instead of interface{} in new code (csv.go:89,107; helpers.go:50)
 - [X] 14.5 Delete else after return (root.go:91-95)
-- [ ] 14.6 Hoist regexp.MustCompile out of hot loops (monthly_service.go:90, csv.go, transactions.go:266)
+- [X] 14.6 Hoist regexp.MustCompile out of hot loops (monthly_service.go:90, csv.go, transactions.go:266)
 - [ ] 14.7 Replace for-err-loop with for{}+break (update.go:549)
 - [ ] 14.8 Replace log.Fatalf with t.Fatalf in tests (sheets_service_test.go:85,90)
 -----------------------------------------------------------------------------------------
