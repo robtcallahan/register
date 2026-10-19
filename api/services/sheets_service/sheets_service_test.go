@@ -27,24 +27,24 @@ var getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
 	// 9.3 header checks: return the real header rows for the header ranges.
 	if range_ == "Register!A4:J4" {
 		vr := &sheets.ValueRange{}
-		vr.Values = [][]interface{}{{"Recon", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
+		vr.Values = [][]any{{"Recon", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
 		return vr, nil
 	}
 	if range_ == "Budget!A1:J1" {
 		vr := &sheets.ValueRange{}
-		vr.Values = [][]interface{}{{"", "Weekly", "Monthly", "Yearly", "Current Total", "Needed - Monthly"}}
+		vr.Values = [][]any{{"", "Weekly", "Monthly", "Yearly", "Current Total", "Needed - Monthly"}}
 		return vr, nil
 	}
-	vr := &sheets.ValueRange{Values: [][]interface{}{}}
-	vr.Values = make([][]interface{}, 10)
-	vr.Values[0] = make([]interface{}, 10)
+	vr := &sheets.ValueRange{Values: [][]any{}}
+	vr.Values = make([][]any, 10)
+	vr.Values[0] = make([]any, 10)
 	vr.Values[0][0] = "a string"
 	return vr, nil
 }
 var getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-	vr := &sheets.ValueRange{Values: [][]interface{}{}}
-	vr.Values = make([][]interface{}, 10)
-	vr.Values[0] = make([]interface{}, 10)
+	vr := &sheets.ValueRange{Values: [][]any{}}
+	vr.Values = make([][]any, 10)
+	vr.Values[0] = make([]any, 10)
 	vr.Values[0][0] = "=SUM(A1:A2)"
 	return vr, nil
 }
@@ -157,12 +157,12 @@ func Test_sheetsService_ReadBudgetSheet(t *testing.T) {
 	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
 		if range_ == "Budget!A1:J1" {
 			vr := &sheets.ValueRange{}
-			vr.Values = [][]interface{}{{"", "Weekly", "Weekly (view only)", "Bi-Weekly", "Monthly", "Monthly (view only)", "Yearly", "Current Total", "Needed - Monthly"}}
+			vr.Values = [][]any{{"", "Weekly", "Weekly (view only)", "Bi-Weekly", "Monthly", "Monthly (view only)", "Yearly", "Current Total", "Needed - Monthly"}}
 			return vr, nil
 		}
 		// Return minimal budget data
 		vr := &sheets.ValueRange{}
-		vr.Values = [][]interface{}{
+		vr.Values = [][]any{
 			{"", "Weekly", "Weekly (view only)", "Bi-Weekly", "Monthly", "Monthly (view only)", "Yearly", "Current Total", "Needed - Monthly"},
 			{"Grocery", "120", "240", "520", "520", "6240", "0", "0"},
 		}
@@ -187,11 +187,11 @@ func Test_sheetsService_ReadRegisterSheet(t *testing.T) {
 	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
 		if range_ == "Register!A4:J4" {
 			vr := &sheets.ValueRange{}
-			vr.Values = [][]interface{}{{"Recon", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
+			vr.Values = [][]any{{"Recon", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
 			return vr, nil
 		}
 		vr := &sheets.ValueRange{}
-		vr.Values = [][]interface{}{
+		vr.Values = [][]any{
 			{"", "WellsFargo", "12/07/20", "TARGET", "46.80", "", "", "8761.12", "", ""},
 		}
 		return vr, nil
@@ -214,7 +214,7 @@ func Test_sheetsService_WriteCell(t *testing.T) {
 
 	type args struct {
 		cell  string
-		value interface{}
+		value any
 	}
 	tests := []struct {
 		name string
@@ -438,9 +438,9 @@ func Test_sheetsService_updateMonthly(t *testing.T) {
 
 func Test_sheetsService_readRangeFormulas(t *testing.T) {
 	getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]interface{}{}}
-		vr.Values = make([][]interface{}, 2)
-		vr.Values[0] = make([]interface{}, 2)
+		vr := &sheets.ValueRange{Values: [][]any{}}
+		vr.Values = make([][]any, 2)
+		vr.Values[0] = make([]any, 2)
 		vr.Values[0][0] = "=A1*2"
 		vr.Values[0][1] = "=A2*5"
 		return vr, nil
@@ -473,9 +473,9 @@ func Test_sheetsService_readRangeFormulas(t *testing.T) {
 	}
 
 	getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]interface{}{}}
-		vr.Values = make([][]interface{}, 10)
-		vr.Values[0] = make([]interface{}, 10)
+		vr := &sheets.ValueRange{Values: [][]any{}}
+		vr.Values = make([][]any, 10)
+		vr.Values[0] = make([]any, 10)
 		vr.Values[0][0] = "=SUM(A1:A2)"
 		return vr, nil
 	}
@@ -483,13 +483,13 @@ func Test_sheetsService_readRangeFormulas(t *testing.T) {
 
 func Test_sheetsService_getAmountString(t *testing.T) {
 	var (
-		values1 []interface{}
-		values2 []interface{}
-		values3 []interface{}
+		values1 []any
+		values2 []any
+		values3 []any
 	)
-	values1 = make([]interface{}, CreditCards+1)
-	values2 = make([]interface{}, CreditCards+1)
-	values3 = make([]interface{}, CreditCards+1)
+	values1 = make([]any, CreditCards+1)
+	values2 = make([]any, CreditCards+1)
+	values3 = make([]any, CreditCards+1)
 	for i := 0; i <= CreditCards; i++ {
 		values1[i] = ""
 		values2[i] = ""
@@ -497,7 +497,7 @@ func Test_sheetsService_getAmountString(t *testing.T) {
 	}
 
 	type args struct {
-		values []interface{}
+		values []any
 	}
 	type ts struct {
 		name string
@@ -536,7 +536,7 @@ func Test_sheetsService_getAmountString(t *testing.T) {
 
 func Test_sheetsService_GetDollarsCellByIndex(t *testing.T) {
 	type args struct {
-		values []interface{}
+		values []any
 		i      int
 	}
 	tests := []struct {
@@ -546,22 +546,22 @@ func Test_sheetsService_GetDollarsCellByIndex(t *testing.T) {
 	}{
 		{
 			name: "Test positive dollars",
-			args: args{values: []interface{}{"$ 10.20 "}, i: 0},
+			args: args{values: []any{"$ 10.20 "}, i: 0},
 			want: 10.20,
 		},
 		{
 			name: "Test negative dollars",
-			args: args{values: []interface{}{"$ (10.20) "}, i: 0},
+			args: args{values: []any{"$ (10.20) "}, i: 0},
 			want: -10.20,
 		},
 		{
 			name: "Test for dash",
-			args: args{values: []interface{}{" - "}, i: 0},
+			args: args{values: []any{" - "}, i: 0},
 			want: 0,
 		},
 		{
 			name: "Test empty cell",
-			args: args{values: []interface{}{""}, i: 0},
+			args: args{values: []any{""}, i: 0},
 			want: 0,
 		},
 	}
@@ -575,10 +575,10 @@ func Test_sheetsService_GetDollarsCellByIndex(t *testing.T) {
 }
 
 func Test_sheetsService_getDateField(t *testing.T) {
-	var values []interface{}
-	var values2 []interface{}
-	values = make([]interface{}, Date+1)
-	values2 = make([]interface{}, Date+1)
+	var values []any
+	var values2 []any
+	values = make([]any, Date+1)
+	values2 = make([]any, Date+1)
 	for i := 0; i <= Date; i++ {
 		values[i] = "x"
 		values2[i] = "x"
@@ -587,7 +587,7 @@ func Test_sheetsService_getDateField(t *testing.T) {
 	values2[Date] = ""
 
 	type args struct {
-		values []interface{}
+		values []any
 	}
 	tests := []struct {
 		name string
@@ -615,15 +615,15 @@ func Test_sheetsService_getDateField(t *testing.T) {
 }
 
 func Test_sheetsService_getNameField(t *testing.T) {
-	var values []interface{}
-	values = make([]interface{}, Description+1)
+	var values []any
+	values = make([]any, Description+1)
 	for i := 0; i <= Description; i++ {
 		values[i] = "x"
 	}
 	values[Description] = "merchant"
 
 	type args struct {
-		values []interface{}
+		values []any
 	}
 	tests := []struct {
 		name string
@@ -647,9 +647,9 @@ func Test_sheetsService_getNameField(t *testing.T) {
 
 func Test_sheetsService_ReadStringCell(t *testing.T) {
 	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]interface{}{}}
-		vr.Values = make([][]interface{}, 10)
-		vr.Values[0] = make([]interface{}, 10)
+		vr := &sheets.ValueRange{Values: [][]any{}}
+		vr.Values = make([][]any, 10)
+		vr.Values[0] = make([]any, 10)
 		vr.Values[0][0] = "a string"
 		return vr, nil
 	}
@@ -682,9 +682,9 @@ func Test_sheetsService_ReadStringCell(t *testing.T) {
 
 func Test_sheetsService_ReadDateCell(t *testing.T) {
 	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]interface{}{}}
-		vr.Values = make([][]interface{}, 10)
-		vr.Values[0] = make([]interface{}, 10)
+		vr := &sheets.ValueRange{Values: [][]any{}}
+		vr.Values = make([][]any, 10)
+		vr.Values[0] = make([]any, 10)
 		vr.Values[0][0] = "01/02/20"
 		return vr, nil
 	}
@@ -717,9 +717,9 @@ func Test_sheetsService_ReadDateCell(t *testing.T) {
 
 func Test_sheetsService_ReadDollarsCell(t *testing.T) {
 	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]interface{}{}}
-		vr.Values = make([][]interface{}, 10)
-		vr.Values[0] = make([]interface{}, 10)
+		vr := &sheets.ValueRange{Values: [][]any{}}
+		vr.Values = make([][]any, 10)
+		vr.Values[0] = make([]any, 10)
 		vr.Values[0][0] = " $  20.20 "
 		return vr, nil
 	}
@@ -780,16 +780,16 @@ func Test_sheetsService_ReadFormulaCell(t *testing.T) {
 
 func Test_sheetsService_readCell(t *testing.T) {
 	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]interface{}{}}
-		vr.Values = make([][]interface{}, 10)
-		vr.Values[0] = make([]interface{}, 10)
+		vr := &sheets.ValueRange{Values: [][]any{}}
+		vr.Values = make([][]any, 10)
+		vr.Values[0] = make([]any, 10)
 		vr.Values[0][0] = "a string"
 		return vr, nil
 	}
 	getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]interface{}{}}
-		vr.Values = make([][]interface{}, 10)
-		vr.Values[0] = make([]interface{}, 10)
+		vr := &sheets.ValueRange{Values: [][]any{}}
+		vr.Values = make([][]any, 10)
+		vr.Values[0] = make([]any, 10)
 		vr.Values[0][0] = "=SUM(A1:A2)"
 		return vr, nil
 	}
@@ -801,7 +801,7 @@ func Test_sheetsService_readCell(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want interface{}
+		want any
 	}{
 		{
 			name: "Test reading a formula cell",

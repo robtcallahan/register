@@ -150,15 +150,15 @@ func (ss *SheetsService) CheckBudgetLayout() ([]BudgetCheckResult, error) {
 	return results, nil
 }
 
-func (ss *SheetsService) isEmptyBudgetRow(values []interface{}) bool {
+func (ss *SheetsService) isEmptyBudgetRow(values []any) bool {
 	return getStringField(values, 0) == ""
 }
 
-func (ss *SheetsService) getBudgetCategory(values []interface{}) string {
+func (ss *SheetsService) getBudgetCategory(values []any) string {
 	return fmt.Sprintf("%s", values[0])
 }
 
-func (ss *SheetsService) populateBudgetEntry(decoder *rowDecoder, values []interface{}) (*BudgetEntry, error) {
+func (ss *SheetsService) populateBudgetEntry(decoder *rowDecoder, values []any) (*BudgetEntry, error) {
 	// The category column is A-anchored (index 0); Weekly/Monthly come from
 	// the header row, so a moved or renamed column is a loud error.
 	weekly, err := readDollarsValue(decoder.cell(values, "Weekly"))
@@ -267,7 +267,7 @@ func (ss *SheetsService) RenameBudgetCategory(oldName, newName string) (bool, er
 		return found, err
 	}
 	rng := fmt.Sprintf("%s!A%d", ss.BudgetSheet.TabName, row)
-	if _, err := ss.Provider.Update(rng, &sheets.ValueRange{Values: [][]interface{}{{newName}}}); err != nil {
+	if _, err := ss.Provider.Update(rng, &sheets.ValueRange{Values: [][]any{{newName}}}); err != nil {
 		return false, fmt.Errorf("could not rename budget row %d: %w", row, err)
 	}
 	return true, nil
@@ -308,7 +308,7 @@ func (ss *SheetsService) InsertBudgetCategory(name, color string) error {
 
 	// the new row sits at totalsRow; label it
 	rng := fmt.Sprintf("%s!A%d", ss.BudgetSheet.TabName, totalsRow)
-	if _, err := ss.Provider.Update(rng, &sheets.ValueRange{Values: [][]interface{}{{name}}}); err != nil {
+	if _, err := ss.Provider.Update(rng, &sheets.ValueRange{Values: [][]any{{name}}}); err != nil {
 		return fmt.Errorf("could not label budget row %d: %w", totalsRow, err)
 	}
 
@@ -336,7 +336,7 @@ func (ss *SheetsService) InsertBudgetCategory(name, color string) error {
 		}
 		cellRef := fmt.Sprintf("%s!%s%d", ss.BudgetSheet.TabName,
 			string(rune('A'+j)), newTotalsRow)
-		if _, err := ss.Provider.Update(cellRef, &sheets.ValueRange{Values: [][]interface{}{{extended}}}); err != nil {
+		if _, err := ss.Provider.Update(cellRef, &sheets.ValueRange{Values: [][]any{{extended}}}); err != nil {
 			return fmt.Errorf("could not extend budget totals formula at %s: %w", cellRef, err)
 		}
 	}

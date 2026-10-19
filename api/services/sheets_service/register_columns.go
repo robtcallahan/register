@@ -6,8 +6,8 @@ package sheets_service
 import (
 	"fmt"
 	"regexp"
-	"strings"
 	"register/pkg/models"
+	"strings"
 
 	"google.golang.org/api/sheets/v4"
 )
@@ -25,7 +25,7 @@ func (ss *SheetsService) CheckRegisterColumns(columns []models.Column) ([]string
 	if err != nil {
 		return nil, fmt.Errorf("could not read header row: %w", err)
 	}
-	var headerRow []interface{}
+	var headerRow []any
 	if len(resp.Values) > 0 {
 		headerRow = resp.Values[0]
 	}
@@ -45,7 +45,7 @@ func (ss *SheetsService) CheckRegisterColumns(columns []models.Column) ([]string
 // sheet's row-4 header at its position. Only category columns (K, index 11
 // and up) are compared: the fixed block's sheet labels ("Register") predate
 // its DB names ("BankRegister") and are the code's business, not drift.
-func compareColumnHeaders(columns []models.Column, headerRow []interface{}) []string {
+func compareColumnHeaders(columns []models.Column, headerRow []any) []string {
 	var problems []string
 	set := models.NewColumnSet(columns)
 	for _, col := range columns {
@@ -90,12 +90,12 @@ func (ss *SheetsService) InsertRegisterColumn(index int, name string) error {
 
 	rowCount := ss.RegisterSheet.SheetCoords.RowCount
 	newLetter := models.ColumnLetter(index)
-	values := make([][]interface{}, rowCount)
+	values := make([][]any, rowCount)
 	for i := range values {
-		values[i] = []interface{}{""}
+		values[i] = []any{""}
 	}
 	if rowCount > 3 {
-		values[3] = []interface{}{name} // row 4 holds the column name
+		values[3] = []any{name} // row 4 holds the column name
 	}
 	if index > 1 && rowCount > 0 {
 		neighborLetter := models.ColumnLetter(index - 1)
@@ -107,7 +107,7 @@ func (ss *SheetsService) InsertRegisterColumn(index int, name string) error {
 		// titles, the totals block, the group header, and the name
 		for row := 4; row < len(formulas); row++ {
 			if formulas[row] != "" {
-				values[row] = []interface{}{shiftFormulaColumn(formulas[row], neighborLetter, newLetter)}
+				values[row] = []any{shiftFormulaColumn(formulas[row], neighborLetter, newLetter)}
 			}
 		}
 	}
@@ -258,10 +258,9 @@ func ApplyColumnMove(columns []models.Column, from, to int) []models.Column {
 		}
 		out = append(out, c)
 	}
-	pos := to - 1 // 0-based slot in the shrunk list
-	if pos > len(out) {
-		pos = len(out)
-	}
+	pos := min(
+		// 0-based slot in the shrunk list
+		to-1, len(out))
 	out = append(out, models.Column{})
 	copy(out[pos+1:], out[pos:])
 	out[pos] = moved

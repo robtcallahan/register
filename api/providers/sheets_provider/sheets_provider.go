@@ -41,8 +41,7 @@ func New(spreadsheetID string, cfg *config.Config) (*SheetsProvider, error) {
 		option.WithCredentialsFile(cfg.GoogleCredentialsFile),
 	)
 	if err != nil {
-		var ae *apierror.APIError
-		if errors.As(err, &ae) {
+		if ae, ok := errors.AsType[*apierror.APIError](err); ok {
 			log.Println(ae.Reason())
 			log.Println(ae.Details().Help.GetLinks())
 			return nil, fmt.Errorf("unable to retrieve sheets client: %s", ae.Reason())

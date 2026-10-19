@@ -5,9 +5,9 @@ package sheets_service
 import (
 	"fmt"
 	"regexp"
+	"register/pkg/models"
 	"strconv"
 	"strings"
-	"register/pkg/models"
 )
 
 func formatYear(date string) string {
@@ -15,11 +15,11 @@ func formatYear(date string) string {
 	return re.ReplaceAllString(date, "${1}/${2}")
 }
 
-func readStringValue(text interface{}) string {
+func readStringValue(text any) string {
 	return fmt.Sprintf("%v", text)
 }
 
-func readDollarsValue(value interface{}) (float64, error) {
+func readDollarsValue(value any) (float64, error) {
 	dollars := readStringValue(value)
 	re := regexp.MustCompile(`[\s$,]`)
 	dollars = re.ReplaceAllString(dollars, "")
@@ -39,7 +39,7 @@ func readDollarsValue(value interface{}) (float64, error) {
 	return f, nil
 }
 
-func readDateValue(dateStr interface{}) string {
+func readDateValue(dateStr any) string {
 	date := readStringValue(dateStr)
 	re := regexp.MustCompile(`(\d+)/(\d+)/(20)?(\d+)`)
 	m := re.FindAllStringSubmatch(date, -1)
@@ -53,7 +53,7 @@ func readDateValue(dateStr interface{}) string {
 	return d
 }
 
-func getStringField(values []interface{}, i int) string {
+func getStringField(values []any, i int) string {
 	if i >= 0 && i < len(values) {
 		return readStringValue(values[i])
 	}
@@ -61,21 +61,21 @@ func getStringField(values []interface{}, i int) string {
 }
 
 // getRowValues safely returns the i-th row of a value range, or nil if i is out of range.
-func getRowValues(values [][]interface{}, i int) []interface{} {
+func getRowValues(values [][]any, i int) []any {
 	if i >= 0 && i < len(values) {
 		return values[i]
 	}
 	return nil
 }
 
-func getSourceField(values []interface{}) string {
+func getSourceField(values []any) string {
 	if getStringField(values, Source) == "" {
 		return strings.ToLower(CheckingAccountSourceName)
 	}
 	return strings.ToLower(getStringField(values, Source))
 }
 
-func getDateField(values []interface{}) string {
+func getDateField(values []any) string {
 	dateString := getStringField(values, Date)
 	if dateString == "" {
 		return ""
@@ -83,7 +83,7 @@ func getDateField(values []interface{}) string {
 	return readDateValue(dateString)
 }
 
-func getAmountString(values []interface{}) string {
+func getAmountString(values []any) string {
 	amt := ""
 	v := ""
 	if v = getStringField(values, Withdrawals); v != "" {
@@ -107,7 +107,7 @@ func getAmountString(values []interface{}) string {
 	return amt
 }
 
-func getTransactionKey(values []interface{}) string {
+func getTransactionKey(values []any) string {
 	amtStr := getAmountString(values)
 	if amt, err := strconv.ParseFloat(amtStr, 64); err == nil {
 		return models.TransactionKey(getSourceField(values), getDateField(values), amt)
@@ -115,13 +115,13 @@ func getTransactionKey(values []interface{}) string {
 	return fmt.Sprintf("%s:%s:%s", getSourceField(values), getDateField(values), amtStr)
 }
 
-func getDollarsCellByIndex(values []interface{}, i int) (float64, error) {
+func getDollarsCellByIndex(values []any, i int) (float64, error) {
 	if i >= 0 && i < len(values) {
 		return readDollarsValue(values[i])
 	}
 	return 0, nil
 }
 
-func getNameField(values []interface{}) string {
+func getNameField(values []any) string {
 	return getStringField(values, Description)
 }

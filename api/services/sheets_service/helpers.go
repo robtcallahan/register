@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"register/pkg/models"
 	"slices"
 	"sort"
-	"register/pkg/models"
 )
 
 func hasNote(trans *models.Transaction) bool {
@@ -47,7 +47,7 @@ func isRegisterClearedOrDeltaColumn(i int) bool {
 	return slices.Contains([]int{0, 1, 2}, i)
 }
 
-func WriteJSONFile(fileName string, data interface{}) error {
+func WriteJSONFile(fileName string, data any) error {
 	j, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("error: %w\n", err)

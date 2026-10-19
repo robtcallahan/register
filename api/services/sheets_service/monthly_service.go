@@ -181,7 +181,7 @@ func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float6
 		cells = append(cells, mkBoldFormat(c, "left", bgColor, false))
 
 		// remaining columns: $value for each month
-		for j := 0; j < len(months); j++ {
+		for j := range months {
 			m := months[j]
 			cells = append(cells, mkCellDataDollars(aggData[m][c], "right", bgColor, false))
 		}
@@ -231,7 +231,7 @@ func addSummaryTopRow(months []string) *sheets.RowData {
 	cells = append(cells, mkBoldFormat("Category", "left", bgColor, false))
 
 	// the rest of the months on the top row
-	for i := 0; i < len(months); i++ {
+	for i := range months {
 		m := months[i]
 		cells = append(cells, mkBoldFormat(m, "center", bgColor, false))
 	}
@@ -251,7 +251,7 @@ func addSummarySalaryRow(name string, rNum int, months []string, aggData map[str
 	cells = append(cells, mkBoldFormat(name, "left", bgColor, false))
 
 	// remaining columns: $value for each month
-	for i := 0; i < len(months); i++ {
+	for i := range months {
 		m := months[i]
 		cells = append(cells, mkCellDataDollars(aggData[m][name], "right", bgColor, false))
 	}

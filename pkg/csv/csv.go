@@ -86,14 +86,14 @@ func normalizeHeader(h string) string {
 
 // csvHeaders returns the `csv:` struct tags of a gocsv-mapped struct: the
 // headers the bank's file must contain.
-func csvHeaders(sample interface{}) []string {
+func csvHeaders(sample any) []string {
 	t := reflect.TypeOf(sample)
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	var headers []string
-	for i := 0; i < t.NumField(); i++ {
-		if tag, ok := t.Field(i).Tag.Lookup("csv"); ok && tag != "" && tag != "-" {
+	for field := range t.Fields() {
+		if tag, ok := field.Tag.Lookup("csv"); ok && tag != "" && tag != "-" {
 			headers = append(headers, tag)
 		}
 	}
@@ -104,7 +104,7 @@ func csvHeaders(sample interface{}) []string {
 // header the given gocsv struct expects. gocsv maps columns by header name
 // but stays silent when one is missing (the field just keeps its zero value),
 // so a renamed bank column would silently zero a field; this makes it loud.
-func checkCSVHeaders(csvFile string, sample interface{}) error {
+func checkCSVHeaders(csvFile string, sample any) error {
 	f, err := os.Open(csvFile)
 	if err != nil {
 		return fmt.Errorf("could not open file %s: %w", csvFile, err)

@@ -915,10 +915,10 @@ func Test_formatYear(t *testing.T) {
 
 func Test_readStringValue(t *testing.T) {
 	type args struct {
-		text interface{}
+		text any
 	}
 
-	var v interface{}
+	var v any
 	v = "string"
 	tests := []struct {
 		name string
@@ -942,7 +942,7 @@ func Test_readStringValue(t *testing.T) {
 
 func Test_readDollarsValue(t *testing.T) {
 	type args struct {
-		value interface{}
+		value any
 	}
 	tests := []struct {
 		name string
@@ -981,7 +981,7 @@ func Test_readDollarsValue(t *testing.T) {
 
 func Test_readDateValue(t *testing.T) {
 	type args struct {
-		dateStr interface{}
+		dateStr any
 	}
 	tests := []struct {
 		name string
@@ -1448,10 +1448,10 @@ func Test_isCorrectBudgetColumn(t *testing.T) {
 }
 
 func Test_getStringField(t *testing.T) {
-	var v = make([]interface{}, 2)
+	var v = make([]any, 2)
 	v[0] = "string"
 	type args struct {
-		values []interface{}
+		values []any
 		i      int
 	}
 	tests := []struct {
@@ -1579,13 +1579,13 @@ func Test_isRegisterClearedOrDeltaColumn(t *testing.T) {
 
 func Test_getSourceField(t *testing.T) {
 	strings := []string{"X", "Fidelity", "01/02/2023", "Rent", "123.45", "", ""}
-	values := make([]interface{}, len(strings))
+	values := make([]any, len(strings))
 	for i, s := range strings {
 		values[i] = s
 	}
 
 	type args struct {
-		values []interface{}
+		values []any
 	}
 	tests := []struct {
 		name string
@@ -1609,13 +1609,13 @@ func Test_getSourceField(t *testing.T) {
 
 func Test_getDateField(t *testing.T) {
 	strings := []string{"X", "Fidelity", "01/02/2023", "Rent", "123.45", "", ""}
-	values := make([]interface{}, len(strings))
+	values := make([]any, len(strings))
 	for i, s := range strings {
 		values[i] = s
 	}
 
 	type args struct {
-		values []interface{}
+		values []any
 	}
 	tests := []struct {
 		name string
@@ -1639,13 +1639,13 @@ func Test_getDateField(t *testing.T) {
 
 func Test_getAmountString(t *testing.T) {
 	strings := []string{"X", "Fidelity", "01/02/2023", "Rent", "123.45", "", ""}
-	values := make([]interface{}, len(strings))
+	values := make([]any, len(strings))
 	for i, v := range strings {
 		values[i] = v
 	}
 
 	type args struct {
-		values []interface{}
+		values []any
 	}
 	tests := []struct {
 		name string
@@ -1669,13 +1669,13 @@ func Test_getAmountString(t *testing.T) {
 
 func Test_getTransactionKey1(t *testing.T) {
 	strings := []string{"X", "Fidelity", "01/02/2023", "Rent", "123.45", "", ""}
-	values := make([]interface{}, len(strings))
+	values := make([]any, len(strings))
 	for i, v := range strings {
 		values[i] = v
 	}
 
 	type args struct {
-		values []interface{}
+		values []any
 	}
 	tests := []struct {
 		name string
@@ -2090,7 +2090,7 @@ func Test_addCategoryCells(t *testing.T) {
 	}
 	trans := &models.Transaction{
 		ColumnIndex: 11,
-		Budget:   46.80,
+		Budget:      46.80,
 	}
 	got := addCategoryCells(nil, trans, columns, map[string]string{}, []string{"", "", ""})
 	if len(got) == 0 {
@@ -2100,13 +2100,13 @@ func Test_addCategoryCells(t *testing.T) {
 
 func Test_getDollarsCellByIndex(t *testing.T) {
 	strings := []string{"X", "Fidelity", "01/02/2023", "Rent", "123.45", "", ""}
-	values := make([]interface{}, len(strings))
+	values := make([]any, len(strings))
 	for i, v := range strings {
 		values[i] = v
 	}
 
 	type args struct {
-		values []interface{}
+		values []any
 		i      int
 	}
 	tests := []struct {
@@ -2131,13 +2131,13 @@ func Test_getDollarsCellByIndex(t *testing.T) {
 
 func Test_getNameField(t *testing.T) {
 	strings := []string{"X", "Fidelity", "01/02/2023", "Rent", "123.45", "", ""}
-	values := make([]interface{}, len(strings))
+	values := make([]any, len(strings))
 	for i, v := range strings {
 		values[i] = v
 	}
 
 	type args struct {
-		values []interface{}
+		values []any
 	}
 	tests := []struct {
 		name string

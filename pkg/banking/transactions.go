@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 
 	"register/pkg/config"
 	"register/pkg/models"
@@ -33,14 +34,14 @@ import (
 
 func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
 	var transactions []*models.Transaction
-	var errors string
+	var errors strings.Builder
 	for _, bankID := range bankIDs {
 		bankConfig := c.Banks[bankID]
 		fmt.Printf("    %s...", bankConfig.Name)
 
 		transResp, err := c.getPlaidTransactions(bankConfig, startDate, endDate)
 		if err != nil {
-			errors += err.Error()
+			errors.WriteString(err.Error())
 			continue
 		}
 
@@ -54,8 +55,8 @@ func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([
 		}
 		fmt.Println("done")
 	}
-	if errors != "" {
-		return nil, fmt.Errorf("%s", errors)
+	if errors.String() != "" {
+		return nil, fmt.Errorf("%s", errors.String())
 	}
 	return transactions, nil
 }

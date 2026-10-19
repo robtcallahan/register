@@ -12,7 +12,7 @@ func Test_compareColumnHeaders(t *testing.T) {
 		{Name: "Cash", ColumnIndex: 11},
 		{Name: "Dining Out", ColumnIndex: 12},
 	}
-	headerRow := []interface{}{"", "", "", "", "", "", "", " Register ", "", "", " Cash ", "Groceries"}
+	headerRow := []any{"", "", "", "", "", "", "", " Register ", "", "", " Cash ", "Groceries"}
 	if problems := compareColumnHeaders(columns, headerRow); len(problems) != 1 {
 		t.Errorf("compareColumnHeaders() = %v; want exactly the Dining Out mismatch", problems)
 	}

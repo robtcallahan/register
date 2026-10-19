@@ -149,7 +149,7 @@ func (r *mysqlQueryRepo) AddColumn(col *models.Column) error {
 		}
 		// is_category is still NOT NULL in the DDL (until Rob drops the
 		// column), so the insert writes the value derived from position.
-		row := map[string]interface{}{
+		row := map[string]any{
 			"name":         col.Name,
 			"color":        col.Color,
 			"column_index": col.ColumnIndex,

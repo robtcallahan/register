@@ -21,7 +21,7 @@ func normalizeHeader(h string) string {
 
 // newRowDecoder builds a decoder from a header row. Empty header cells are
 // skipped; a duplicated header name is an error.
-func newRowDecoder(header []interface{}) (*rowDecoder, error) {
+func newRowDecoder(header []any) (*rowDecoder, error) {
 	d := &rowDecoder{index: make(map[string]int)}
 	for i, h := range header {
 		name := normalizeHeader(fmt.Sprintf("%s", h))
@@ -54,7 +54,7 @@ func (d *rowDecoder) require(name string) (int, error) {
 }
 
 // cell returns the cell at the named column, or "" when the row is short.
-func (d *rowDecoder) cell(row []interface{}, name string) interface{} {
+func (d *rowDecoder) cell(row []any, name string) any {
 	i := d.indexOf(name)
 	if i < 0 || i >= len(row) {
 		return ""

@@ -45,7 +45,7 @@ type RegisterSheet struct {
 	SheetCoords SheetCoords
 	Register    []*RegisterEntry
 	KeysMap     map[string]bool
-	RangeValues [][]interface{}
+	RangeValues [][]any
 }
 
 // Public methods
@@ -136,7 +136,7 @@ func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
 	return ss.RegisterSheet, nil
 }
 
-func (ss *SheetsService) ReadCell(cell string, cellDataType CellDataType) (interface{}, error) {
+func (ss *SheetsService) ReadCell(cell string, cellDataType CellDataType) (any, error) {
 	var resp *sheets.ValueRange
 	var err error
 
@@ -221,9 +221,9 @@ func (ss *SheetsService) ReadDateCell(cell string) (string, error) {
 	return readDateValue(v), nil
 }
 
-func (ss *SheetsService) WriteCell(cell string, value interface{}) (*sheets.UpdateValuesResponse, error) {
-	var v [][]interface{}
-	v = append(v, []interface{}{value})
+func (ss *SheetsService) WriteCell(cell string, value any) (*sheets.UpdateValuesResponse, error) {
+	var v [][]any
+	v = append(v, []any{value})
 
 	writeRange := fmt.Sprintf("%s!%s:%s", ss.RegisterSheet.TabName, cell, cell)
 	vRange := &sheets.ValueRange{
@@ -236,7 +236,7 @@ func (ss *SheetsService) WriteCell(cell string, value interface{}) (*sheets.Upda
 	return resp, nil
 }
 
-func (ss *SheetsService) isEmptyRow(values []interface{}) bool {
+func (ss *SheetsService) isEmptyRow(values []any) bool {
 	if getStringField(values, Date) == "" {
 		return true
 	}
@@ -247,7 +247,7 @@ func (ss *SheetsService) getFirstRowToUpdate(i int64) int64 {
 	return ss.RegisterSheet.SheetCoords.StartRow + i - 1
 }
 
-func (ss *SheetsService) getLastRow(values [][]interface{}) int64 {
+func (ss *SheetsService) getLastRow(values [][]any) int64 {
 	return int64(len(values)) + ss.RegisterSheet.SheetCoords.StartRow - 2
 }
 
@@ -260,7 +260,7 @@ func (ss *SheetsService) getRowID(i int64) int64 {
 	return ss.RegisterSheet.SheetCoords.StartRow + i
 }
 
-func (ss *SheetsService) populateRegisterEntry(values []interface{}) (*RegisterEntry, error) {
+func (ss *SheetsService) populateRegisterEntry(values []any) (*RegisterEntry, error) {
 	withdrawal, err := getDollarsCellByIndex(values, Withdrawals)
 	if err != nil {
 		return nil, err

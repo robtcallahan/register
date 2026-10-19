@@ -10,7 +10,7 @@ import (
 // column must have a unique index, otherwise UpdateTransactionTables'
 // OnConflict(UpdateAll) never conflicts and duplicates accumulate.
 func TestTransactionKey_UniqueIndex(t *testing.T) {
-	field, ok := reflect.TypeOf(Transaction{}).FieldByName("Key")
+	field, ok := reflect.TypeFor[Transaction]().FieldByName("Key")
 	if !ok {
 		t.Fatal("Transaction has no Key field")
 	}
