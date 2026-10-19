@@ -152,3 +152,4 @@ Phase 17 — Cleanup
 - [ ] 17.5 Delete commented-out and dead code (getPlaidTransactions, printRegister, WriteCSV, etc.)
 - [ ] 17.6 Fix naming nits (snake_case packages, range_ params, Day capitalization, "covert" typo)
 - [ ] 17.7 Replace gorm.Model with explicit ID/CreatedAt/UpdatedAt/DeletedAt fields (no more hidden columns)
+- [ ] 17.8 Drop is_category column via goose migration (dead since 6.4; Up: ALTER TABLE columns DROP COLUMN is_category, Down: re-add TINYINT(1) NOT NULL DEFAULT 0; record in migrations/README.md)

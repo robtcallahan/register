@@ -84,27 +84,39 @@ func getDateField(values []any) string {
 }
 
 func getAmountString(values []any) string {
-	amt := ""
-	v := ""
-	if v = getStringField(values, Withdrawals); v != "" {
-		amt = v
-	} else if v = getStringField(values, Deposits); v != "" {
-		amt = v
-	} else if v = getStringField(values, CreditCards); v != "" {
-		re := regexp.MustCompile(`[()]`)
-		if re.Match([]byte(v)) {
-			amt = re.ReplaceAllString(v, "")
-			re := regexp.MustCompile(`[\s$,]`)
-			amt = re.ReplaceAllString(amt, "")
-			fl, _ := strconv.ParseFloat(amt, 64)
-			amt = fmt.Sprintf("%.2f", -1*fl)
-		} else {
-			amt = v
-		}
+	v := getStringField(values, Withdrawals)
+	if v == "" {
+		v = getStringField(values, Deposits)
 	}
-	re := regexp.MustCompile(`[\s$,]`)
-	amt = re.ReplaceAllString(amt, "")
-	return amt
+	if v == "" {
+		v = getStringField(values, CreditCards)
+	}
+
+	// Accounting format: (123.45) means negative
+	negative := strings.Contains(v, "(")
+
+	// Strip parentheses, spaces, $, commas
+	re := regexp.MustCompile(`[()\s$,]`)
+	cleaned := re.ReplaceAllString(v, "")
+
+	// Bare dash, empty, or unparseable → zero
+	if cleaned == "" || cleaned == "-" {
+		return "0.00"
+	}
+
+	fl, err := strconv.ParseFloat(cleaned, 64)
+	if err != nil {
+		return "0.00"
+	}
+
+	if negative {
+		fl = -fl
+	}
+	if fl == 0 {
+		fl = 0 // normalize -0.0
+	}
+
+	return fmt.Sprintf("%.2f", fl)
 }
 
 func getTransactionKey(values []any) string {

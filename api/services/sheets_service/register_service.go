@@ -128,6 +128,7 @@ func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
 		registerEntry.RowID = ss.getRowID(i)
 		register = append(register, registerEntry)
 	}
+
 	ss.RegisterSheet.SheetCoords.FirstRowToUpdate = ss.getFirstRowToUpdate(i)
 	ss.RegisterSheet.Register = register
 	ss.RegisterSheet.KeysMap = keysMap
