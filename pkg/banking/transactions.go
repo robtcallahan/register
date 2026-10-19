@@ -72,6 +72,8 @@ func printTransaction(t *models.Transaction) {
 func (c *Client) getPlaidTransactions(bankConfig config.Bank, startDate, endDate string) ([]plaid.Transaction, error) {
 	ctx := context.Background()
 
+	fmt.Printf("startDate: %s, endDate: %s\n", startDate, endDate)
+
 	request := plaid.NewTransactionsGetRequest(
 		bankConfig.AccessToken,
 		startDate,
@@ -94,31 +96,6 @@ func (c *Client) getPlaidTransactions(bankConfig config.Bank, startDate, endDate
 		return nil, fmt.Errorf("%w\n%s", err, buf.String())
 	}
 	return resp.Transactions, nil
-
-	//options := c.PlaidClient.PlaidApi.TransactionsGet(ctx).NewTransactionsGetRequestOptions(
-	//	StartDate: startDate,
-	//	EndDate:   endDate
-	//)
-	//
-	//resp, httpResp, err := c.PlaidClient.PlaidApi.TransactionsGet(ctx).TransactionsGetRequest(plaid.TransactionsGetRequest{
-	//	ClientId:    &c.ClientID,
-	//	AccessToken: bankConfig.AccessToken,
-	//	Secret:      &c.Secret,
-	//	Options: &plaid.TransactionsGetRequestOptions{
-	//		AccountIds: &[]string{bankConfig.AccountID},
-	//		StartDate:  startDate,
-	//		EndDate:    endDate,
-	//	},
-	//}).Execute()
-	//if err != nil {
-	//	buf := new(bytes.Buffer)
-	//	_, err2 := buf.ReadFrom(httpResp.Body)
-	//	if err2 != nil {
-	//		return nil, err2
-	//	}
-	//	return nil, fmt.Errorf("%s\n%s", err.Error(), buf.String())
-	//}
-	//return resp.Transactions, nil
 }
 
 func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.Transaction, error) {

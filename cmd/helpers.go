@@ -5,10 +5,7 @@ import "time"
 const PlaidDateFormat = "2006-01-02"
 
 func weeksAgo(weeks int) string {
-	//t := time.Now().AddDate(0, -3, 0)
-	// changing to the first of the year
-	// TODO need to fix for next year
-	t := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	t := time.Now().AddDate(0, 0, -7*weeks)
 	return t.Format(PlaidDateFormat)
 }
 
