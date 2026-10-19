@@ -108,7 +108,7 @@ func NewClient(o *ClientOptions) *Client {
 	return c
 }
 
-func (c *Client) GetAccounts(accessToken string, ctx context.Context) ([]plaid.AccountBase, error) {
+func (c *Client) GetAccounts(ctx context.Context, accessToken string) ([]plaid.AccountBase, error) {
 	accountsGetRequest := plaid.NewAccountsGetRequest(accessToken)
 	accountsGetResponse, httpResponse, err := c.PlaidClient.PlaidApi.AccountsGet(ctx).AccountsGetRequest(*accountsGetRequest).Execute()
 
@@ -139,7 +139,7 @@ func (c *Client) GetBalances(bankIDs []string) map[string]Balance {
 			continue
 		}
 
-		amount, err := c.GetBalance(bank.AccessToken, id, ctx)
+		amount, err := c.GetBalance(ctx, bank.AccessToken, id)
 		if err != nil {
 			balance = Balance{
 				BankName: bank.Name,
@@ -156,7 +156,7 @@ func (c *Client) GetBalances(bankIDs []string) map[string]Balance {
 	return balances
 }
 
-func (c *Client) GetBalance(accessToken string, bankID string, ctx context.Context) (*float64, error) {
+func (c *Client) GetBalance(ctx context.Context, accessToken string, bankID string) (*float64, error) {
 	balancesGetReq := plaid.NewAccountsBalanceGetRequest(accessToken)
 	balancesGetReq.SetOptions(plaid.AccountsBalanceGetRequestOptions{
 		AccountIds: &[]string{c.Banks[bankID].AccountID},

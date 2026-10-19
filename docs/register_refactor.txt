@@ -122,7 +122,7 @@ Phase 13 — Error handling done right
 - [X] 13.4 Use errors.New instead of fmt.Errorf for static strings (banking.go:176, migrate.go:59, columns.go:171,174,232)
 -----------------------------------------------------------------------------------------
 Phase 14 — Go idioms
-- [ ] 14.1 Move ctx to first parameter (plaid_auth.go:38, banking.go:109,157)
+- [X] 14.1 Move ctx to first parameter (plaid_auth.go:38, banking.go:109,157)
 - [ ] 14.2 Replace golang.org/x/net/context with stdlib context (6 files)
 - [ ] 14.3 Fix initialisms to all-caps: bankId→bankID, spreadsheetId→spreadsheetID, etc.
 - [ ] 14.4 Use any instead of interface{} in new code (csv.go:89,107; helpers.go:50)

@@ -35,7 +35,7 @@ func GetLinkToken(c *banking.Client) (string, error) {
 	return linkToken, nil
 }
 
-func ExchangePublicToken(c *banking.Client, publicToken string, ctx context.Context) (string, error) {
+func ExchangePublicToken(ctx context.Context, c *banking.Client, publicToken string) (string, error) {
 	exchangePublicTokenReq := plaid.NewItemPublicTokenExchangeRequest(publicToken)
 	exchangePublicTokenResp, resp, err := c.PlaidClient.PlaidApi.ItemPublicTokenExchange(ctx).ItemPublicTokenExchangeRequest(
 		*exchangePublicTokenReq,

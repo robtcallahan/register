@@ -108,7 +108,7 @@ func (c *Client) exchangePublicToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, err := plaid_auth.ExchangePublicToken(c.BankClient, publicToken.PublicToken, ctx)
+	accessToken, err := plaid_auth.ExchangePublicToken(ctx, c.BankClient, publicToken.PublicToken)
 	if err != nil {
 		log.Println(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -145,7 +145,7 @@ func (c *Client) getAccounts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	balances, err := c.BankClient.GetAccounts(accessToken, ctx)
+	balances, err := c.BankClient.GetAccounts(ctx, accessToken)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
 		return
@@ -169,7 +169,7 @@ func (c *Client) getBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	balance, err := c.BankClient.GetBalance(accessToken, "fidelity", ctx)
+	balance, err := c.BankClient.GetBalance(ctx, accessToken, "fidelity")
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
 		return
