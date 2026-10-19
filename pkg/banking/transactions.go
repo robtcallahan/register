@@ -72,8 +72,6 @@ func printTransaction(t *models.Transaction) {
 func (c *Client) getPlaidTransactions(bankConfig config.Bank, startDate, endDate string) ([]plaid.Transaction, error) {
 	ctx := context.Background()
 
-	fmt.Printf("startDate: %s, endDate: %s\n", startDate, endDate)
-
 	request := plaid.NewTransactionsGetRequest(
 		bankConfig.AccessToken,
 		startDate,

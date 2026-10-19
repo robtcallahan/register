@@ -10,5 +10,8 @@ import (
 // consumer of dedupe keys — Plaid, CSV import, and the register sheet itself —
 // builds them here so the formats can't drift apart.
 func TransactionKey(source, date string, amount float64) string {
+	if amount == 0 {
+		amount = 0
+	}
 	return fmt.Sprintf("%s:%s:%.2f", strings.ToLower(source), date, amount)
 }

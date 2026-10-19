@@ -6,6 +6,7 @@ import (
 	repo "register/pkg/repository"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type mysqlQueryRepo struct {
@@ -37,7 +38,7 @@ func (r *mysqlQueryRepo) SaveTransaction(trans *models.Transaction) error {
 func (r *mysqlQueryRepo) UpdateTransactionTables(transactions []*models.Transaction) error {
 	return r.Conn.Transaction(func(tx *gorm.DB) error {
 		for _, t := range transactions {
-			if result := tx.Create(t); result.Error != nil {
+			if result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(t); result.Error != nil {
 				return result.Error
 			}
 		}
