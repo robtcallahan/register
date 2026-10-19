@@ -1,11 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	cfg "register/pkg/config"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/net/context"
 )
 
 var balancesCmd = &cobra.Command{

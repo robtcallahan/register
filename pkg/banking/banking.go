@@ -18,13 +18,12 @@ package banking
 
 import (
 	"bytes"
+	"context"
 	"errors"
-	"fmt"
 
 	"register/pkg/config"
 
 	"github.com/plaid/plaid-go/v15/plaid"
-	"golang.org/x/net/context"
 )
 
 const (

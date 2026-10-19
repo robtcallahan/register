@@ -18,6 +18,7 @@ package banking
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -28,7 +29,6 @@ import (
 	"register/pkg/models"
 
 	"github.com/plaid/plaid-go/v15/plaid"
-	"golang.org/x/net/context"
 )
 
 func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {

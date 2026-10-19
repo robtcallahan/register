@@ -1,11 +1,11 @@
 package plaid_auth
 
 import (
+	"context"
 	"fmt"
 	"register/pkg/banking"
 
 	"github.com/plaid/plaid-go/v15/plaid"
-	"golang.org/x/net/context"
 )
 
 func GetLinkToken(c *banking.Client) (string, error) {
