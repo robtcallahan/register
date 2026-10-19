@@ -125,7 +125,7 @@ Phase 14 — Go idioms
 - [X] 14.1 Move ctx to first parameter (plaid_auth.go:38, banking.go:109,157)
 - [X] 14.2 Replace golang.org/x/net/context with stdlib context (6 files)
 - [X] 14.3 Fix initialisms to all-caps: bankId→bankID, spreadsheetId→spreadsheetID, etc.
-- [ ] 14.4 Use any instead of interface{} in new code (csv.go:89,107; helpers.go:50)
+- [X] 14.4 Use any instead of interface{} in new code (csv.go:89,107; helpers.go:50)
 - [ ] 14.5 Delete else after return (root.go:91-95)
 - [ ] 14.6 Hoist regexp.MustCompile out of hot loops (monthly_service.go:90, csv.go, transactions.go:266)
 - [ ] 14.7 Replace for-err-loop with for{}+break (update.go:549)
