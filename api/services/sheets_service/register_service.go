@@ -192,7 +192,7 @@ func (ss *SheetsService) checkRowsFit(numCopies int) error {
 func (ss *SheetsService) ReadStringCell(cell string) (string, error) {
 	v, err := ss.ReadCell(cell, CellDataString)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("could not read string cell %s: %w", cell, err)
 	}
 	return readStringValue(v), nil
 }

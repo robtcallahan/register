@@ -282,5 +282,8 @@ func (ss *SheetsService) MoveCategoryCells(moves []CategoryMove) error {
 	}
 
 	_, err := ss.Provider.BatchUpdate(&sheets.BatchUpdateSpreadsheetRequest{Requests: requests})
-	return err
+	if err != nil {
+		return fmt.Errorf("clear register rows: %w", err)
+	}
+	return nil
 }

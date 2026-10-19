@@ -122,7 +122,7 @@ func (r *mysqlQueryRepo) GetLookupData() ([]*models.DataRow, error) {
 func (r *mysqlQueryRepo) GetNameMapToColumn() (map[string]string, error) {
 	cols, err := r.GetLookupData()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get lookup data for name-to-column map: %w", err)
 	}
 
 	transNameToColName := make(map[string]string)

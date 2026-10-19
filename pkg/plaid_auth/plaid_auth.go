@@ -28,7 +28,7 @@ func GetLinkToken(c *banking.Client) (string, error) {
 
 	resp, _, err := c.PlaidClient.PlaidApi.LinkTokenCreate(ctx).LinkTokenCreateRequest(*request).Execute()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create Plaid link token: %w", err)
 	}
 
 	linkToken := resp.GetLinkToken()
@@ -41,7 +41,7 @@ func ExchangePublicToken(c *banking.Client, publicToken string, ctx context.Cont
 		*exchangePublicTokenReq,
 	).Execute()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create Plaid item public token exchange: %w", err)
 	}
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("bad response code from ItemPublicTokenExchangeRequest: %d", resp.StatusCode)
