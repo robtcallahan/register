@@ -129,7 +129,7 @@ Phase 14 — Go idioms
 - [X] 14.5 Delete else after return (root.go:91-95)
 - [X] 14.6 Hoist regexp.MustCompile out of hot loops (monthly_service.go:90, csv.go, transactions.go:266)
 - [X] 14.7 Replace for-err-loop with for{}+break (update.go:549)
-- [ ] 14.8 Replace log.Fatalf with t.Fatalf in tests (sheets_service_test.go:85,90)
+- [X] 14.8 Replace log.Fatalf with t.Fatalf in tests (sheets_service_test.go:85,90)
 -----------------------------------------------------------------------------------------
 Phase 15 — Layering: what a layer is for
 - [ ] 15.1 Split SheetsService god object into RegisterService, BudgetService, MonthlyService (52 methods, temporal coupling)

@@ -6,17 +6,17 @@ import (
 )
 
 func TestWeeksAgo(t *testing.T) {
-	// weeksAgo is hardcoded to Jan 1, 2026 (see TODO in helpers.go).
-	got := weeksAgo(0)
-	want := "2026-01-01"
-	if got != want {
-		t.Errorf("weeksAgo(0) = %q, want %q", got, want)
-	}
+	// Todo: startDate and endDate is currently set in update.go before fetchTransactions() due to pagination response from Plaid for > 100 xactions.
+	// startDate := weeksAgo(12)
 
-	// The weeks parameter is currently ignored (hardcoded date).
-	got = weeksAgo(4)
-	if got != want {
-		t.Errorf("weeksAgo(4) = %q, want %q (hardcoded)", got, want)
+	got := weeksAgo(12)
+	gotTime, err := time.Parse(PlaidDateFormat, got)
+	if err != nil {
+		t.Fatalf("weeksAgo(12) = %q, unparseable: %v", got, err)
+	}
+	want := time.Now().AddDate(0, 0, -84)
+	if diff := want.Sub(gotTime); diff > 24*time.Hour || diff < -24*time.Hour {
+		t.Errorf("weeksAgo(12) = %q, want ~84 days ago", got)
 	}
 }
 

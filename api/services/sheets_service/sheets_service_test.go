@@ -21,6 +21,7 @@ var months = []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "S
 type providerMock struct {
 	service       *sheets.Service
 	spreadsheetID string
+	t             *testing.T
 }
 
 var getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
@@ -82,12 +83,18 @@ func (p *providerMock) ClearValues(range_ string) error {
 func (p *providerMock) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
 	w, err := os.ReadFile(sheetsServiceJSONDir + "WriteCell.json")
 	if err != nil {
-		log.Fatalf("error: %s\n", err.Error())
+		if p.t != nil {
+			p.t.Fatalf("error: %s\n", err.Error())
+		}
+		return nil, err
 	}
 	var resp *sheets.UpdateValuesResponse
 	err = json.Unmarshal(w, &resp)
 	if err != nil {
-		log.Fatalf("error: %s\n", err.Error())
+		if p.t != nil {
+			p.t.Fatalf("error: %s\n", err.Error())
+		}
+		return nil, err
 	}
 	return resp, nil
 }
@@ -109,6 +116,7 @@ func init() {
 	provider := providerMock{
 		service:       &sheets.Service{},
 		spreadsheetID: "ssID",
+		t:             nil,
 	}
 	ss = New(&provider)
 	if err != nil {
@@ -345,7 +353,7 @@ func Test_sheetsService_getSheetProperties(t *testing.T) {
 }
 
 func TestSheetsService_CopyRows_sheetFull(t *testing.T) {
-	svc := New(&providerMock{})
+	svc := New(&providerMock{t: t})
 	svc.RegisterSheet = &RegisterSheet{
 		TabName: "Register",
 		SheetCoords: SheetCoords{
