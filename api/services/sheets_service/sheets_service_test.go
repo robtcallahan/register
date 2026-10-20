@@ -57,17 +57,16 @@ func (p *providerMock) GetFormula(range_ string) ([][]any, error) {
 }
 
 func (p *providerMock) GetSpreadsheet(tabName string) (*sheets_provider.Spreadsheet, error) {
-	var s sheets_provider.Spreadsheet
-
-	j, err := os.ReadFile(sheetsServiceJSONDir + "spreadsheet.json")
-	if err != nil {
-		return nil, errors.New(fmt.Sprintf("could not read json file: %s, %s", sheetsServiceJSONDir+"spreadsheet.json", err.Error()))
+	// Canned answer: services tests exercise how services use the sheet
+	// properties, not how the provider looks them up — that lookup is
+	// covered by the provider package's own tests.
+	switch tabName {
+	case RegisterTabName:
+		return &sheets_provider.Spreadsheet{Title: RegisterTabName, SheetID: 617336355, RowCount: 1000, ColumnCount: 47}, nil
+	case BudgetTabName:
+		return &sheets_provider.Spreadsheet{Title: BudgetTabName, SheetID: 987654321, RowCount: 100, ColumnCount: 10}, nil
 	}
-	err = json.Unmarshal(j, &s)
-	if err != nil {
-		return nil, errors.New(fmt.Sprintf("could not unmarshal JSON: %s", err.Error()))
-	}
-	return &s, nil
+	return nil, fmt.Errorf("could not find sheet: %s", tabName)
 }
 
 func (p *providerMock) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
@@ -310,40 +309,6 @@ func Test_sheetsService_addSourceDateNameCells(t *testing.T) {
 	}
 	if len(got) != 4 {
 		t.Errorf("addSourceDateNameCells() produced %d cells, want 4", len(got))
-	}
-}
-
-func Test_sheetsService_getSheetProperties(t *testing.T) {
-	if _, err := os.Stat(sheetsServiceJSONDir + "spreadsheet.json"); err != nil {
-		t.Skipf("fixture not in repo: %s", sheetsServiceJSONDir+"spreadsheet.json")
-	}
-	type args struct {
-		tabName string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    int64
-		wantErr bool
-	}{
-		{
-			name:    "Test get spreadsheet properties",
-			args:    args{tabName: "Register"},
-			want:    617336355,
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := ss.Provider.GetSpreadsheet(tt.args.tabName)
-			if (err != nil) != tt.wantErr {
-				t.Error(err)
-				return
-			}
-			if got.SheetID != tt.want {
-				t.Errorf("getSheetProperties() got = %v, want %v", got.SheetID, tt.want)
-			}
-		})
 	}
 }
 

@@ -1,0 +1,243 @@
+diff --git a/api/providers/sheets_provider/sheets_provider_test.go b/api/providers/sheets_provider/sheets_provider_test.go
+index 612d6a7..888a237 100644
+--- a/api/providers/sheets_provider/sheets_provider_test.go
++++ b/api/providers/sheets_provider/sheets_provider_test.go
+@@ -1,10 +1,17 @@
+ package sheets_provider
+ 
+ import (
++	"errors"
++	"reflect"
++	"testing"
++
++	"register/api/clients/sheets_client"
++
+ 	"google.golang.org/api/sheets/v4"
+ )
+ 
+ var getRequestFunc func(spreadsheetID string, range_ string) (*sheets.ValueRange, error)
++var getSpreadsheetFunc func(spreadsheetID string) (*sheets.Spreadsheet, error)
+ 
+ type getClientMock struct{}
+ 
+@@ -12,3 +19,148 @@ type getClientMock struct{}
+ func (c *getClientMock) Get(ssService *sheets.Service, spreadsheetID string, range_ string) (*sheets.ValueRange, error) {
+ 	return getRequestFunc(spreadsheetID, range_)
+ }
++
++func (c *getClientMock) GetFormula(ssService *sheets.Service, spreadsheetID string, range_ string) (*sheets.ValueRange, error) {
++	return getRequestFunc(spreadsheetID, range_)
++}
++
++func (c *getClientMock) GetSpreadsheet(ssService *sheets.Service, spreadsheetID string) (*sheets.Spreadsheet, error) {
++	return getSpreadsheetFunc(spreadsheetID)
++}
++
++func (c *getClientMock) BatchUpdate(ssService *sheets.Service, spreadsheetID string, updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
++	return nil, errors.New("getClientMock: BatchUpdate not implemented")
++}
++
++func (c *getClientMock) Update(ssService *sheets.Service, spreadsheetID string, writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
++	return nil, errors.New("getClientMock: Update not implemented")
++}
++
++// useMockClient points the package-global client at the mock for the
++// duration of a test and restores the real client afterwards.
++func useMockClient(t *testing.T) {
++	t.Helper()
++	original := sheets_client.ClientStruct
++	sheets_client.ClientStruct = &getClientMock{}
++	t.Cleanup(func() { sheets_client.ClientStruct = original })
++}
++
++func TestSheetsProvider_GetValues(t *testing.T) {
++	useMockClient(t)
++
++	tests := []struct {
++		name     string
++		response *sheets.ValueRange
++		respErr  error
++		want     [][]any
++		wantErr  bool
++	}{
++		{
++			name: "returns only the values from the response",
++			response: &sheets.ValueRange{
++				Range:  "Register!A1:B2",
++				Values: [][]any{{"a", "b"}, {"c", "d"}},
++			},
++			want: [][]any{{"a", "b"}, {"c", "d"}},
++		},
++		{
++			name:    "client error propagates",
++			respErr: errors.New("boom"),
++			wantErr: true,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			getRequestFunc = func(spreadsheetID string, range_ string) (*sheets.ValueRange, error) {
++				return tt.response, tt.respErr
++			}
++			p := &SheetsProvider{service: &sheets.Service{}, spreadsheetID: "ssID"}
++			got, err := p.GetValues("Register!A1:B2")
++			if (err != nil) != tt.wantErr {
++				t.Fatalf("GetValues() error = %v, wantErr %v", err, tt.wantErr)
++			}
++			if tt.wantErr {
++				return
++			}
++			if !reflect.DeepEqual(got, tt.want) {
++				t.Errorf("GetValues() = %v, want %v", got, tt.want)
++			}
++		})
++	}
++}
++
++func TestSheetsProvider_GetSpreadsheet(t *testing.T) {
++	useMockClient(t)
++
++	// The raw spreadsheet data is built in code: no JSON fixture files.
++	getSpreadsheetFunc = func(spreadsheetID string) (*sheets.Spreadsheet, error) {
++		return &sheets.Spreadsheet{
++			Sheets: []*sheets.Sheet{
++				{
++					Properties: &sheets.SheetProperties{
++						Title:          "Budget",
++						SheetId:        987654321,
++						GridProperties: &sheets.GridProperties{RowCount: 100, ColumnCount: 10},
++					},
++				},
++				{
++					Properties: &sheets.SheetProperties{
++						Title:          "Register",
++						SheetId:        617336355,
++						GridProperties: &sheets.GridProperties{RowCount: 1000, ColumnCount: 47},
++					},
++				},
++				{
++					// No GridProperties: the counts must stay at zero.
++					Properties: &sheets.SheetProperties{
++						Title:   "NoGrid",
++						SheetId: 555,
++					},
++				},
++			},
++		}, nil
++	}
++
++	p := &SheetsProvider{service: &sheets.Service{}, spreadsheetID: "ssID"}
++	tests := []struct {
++		name    string
++		tabName string
++		want    *Spreadsheet
++		wantErr bool
++	}{
++		{
++			name:    "finds the Register tab",
++			tabName: "Register",
++			want:    &Spreadsheet{Title: "Register", SheetID: 617336355, RowCount: 1000, ColumnCount: 47},
++		},
++		{
++			name:    "finds the Budget tab",
++			tabName: "Budget",
++			want:    &Spreadsheet{Title: "Budget", SheetID: 987654321, RowCount: 100, ColumnCount: 10},
++		},
++		{
++			name:    "missing GridProperties leaves zero counts",
++			tabName: "NoGrid",
++			want:    &Spreadsheet{Title: "NoGrid", SheetID: 555, RowCount: 0, ColumnCount: 0},
++		},
++		{
++			name:    "unknown tab is an error",
++			tabName: "Missing",
++			wantErr: true,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got, err := p.GetSpreadsheet(tt.tabName)
++			if (err != nil) != tt.wantErr {
++				t.Fatalf("GetSpreadsheet() error = %v, wantErr %v", err, tt.wantErr)
++			}
++			if tt.wantErr {
++				return
++			}
++			if !reflect.DeepEqual(got, tt.want) {
++				t.Errorf("GetSpreadsheet() = %+v, want %+v", got, tt.want)
++			}
++		})
++	}
++}
+diff --git a/api/services/sheets_service/sheets_service_test.go b/api/services/sheets_service/sheets_service_test.go
+index bcdb0d3..176d64c 100644
+--- a/api/services/sheets_service/sheets_service_test.go
++++ b/api/services/sheets_service/sheets_service_test.go
+@@ -57,17 +57,16 @@ func (p *providerMock) GetFormula(range_ string) ([][]any, error) {
+ }
+ 
+ func (p *providerMock) GetSpreadsheet(tabName string) (*sheets_provider.Spreadsheet, error) {
+-	var s sheets_provider.Spreadsheet
+-
+-	j, err := os.ReadFile(sheetsServiceJSONDir + "spreadsheet.json")
+-	if err != nil {
+-		return nil, errors.New(fmt.Sprintf("could not read json file: %s, %s", sheetsServiceJSONDir+"spreadsheet.json", err.Error()))
++	// Canned answer: services tests exercise how services use the sheet
++	// properties, not how the provider looks them up — that lookup is
++	// covered by the provider package's own tests.
++	switch tabName {
++	case RegisterTabName:
++		return &sheets_provider.Spreadsheet{Title: RegisterTabName, SheetID: 617336355, RowCount: 1000, ColumnCount: 47}, nil
++	case BudgetTabName:
++		return &sheets_provider.Spreadsheet{Title: BudgetTabName, SheetID: 987654321, RowCount: 100, ColumnCount: 10}, nil
+ 	}
+-	err = json.Unmarshal(j, &s)
+-	if err != nil {
+-		return nil, errors.New(fmt.Sprintf("could not unmarshal JSON: %s", err.Error()))
+-	}
+-	return &s, nil
++	return nil, fmt.Errorf("could not find sheet: %s", tabName)
+ }
+ 
+ func (p *providerMock) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
+@@ -313,40 +312,6 @@ func Test_sheetsService_addSourceDateNameCells(t *testing.T) {
+ 	}
+ }
+ 
+-func Test_sheetsService_getSheetProperties(t *testing.T) {
+-	if _, err := os.Stat(sheetsServiceJSONDir + "spreadsheet.json"); err != nil {
+-		t.Skipf("fixture not in repo: %s", sheetsServiceJSONDir+"spreadsheet.json")
+-	}
+-	type args struct {
+-		tabName string
+-	}
+-	tests := []struct {
+-		name    string
+-		args    args
+-		want    int64
+-		wantErr bool
+-	}{
+-		{
+-			name:    "Test get spreadsheet properties",
+-			args:    args{tabName: "Register"},
+-			want:    617336355,
+-			wantErr: false,
+-		},
+-	}
+-	for _, tt := range tests {
+-		t.Run(tt.name, func(t *testing.T) {
+-			got, err := ss.Provider.GetSpreadsheet(tt.args.tabName)
+-			if (err != nil) != tt.wantErr {
+-				t.Error(err)
+-				return
+-			}
+-			if got.SheetID != tt.want {
+-				t.Errorf("getSheetProperties() got = %v, want %v", got.SheetID, tt.want)
+-			}
+-		})
+-	}
+-}
+-
+ func TestSheetsService_CopyRows_sheetFull(t *testing.T) {
+ 	svc := NewRegisterService(&providerMock{t: t})
+ 	registerSheet = &RegisterSheet{
