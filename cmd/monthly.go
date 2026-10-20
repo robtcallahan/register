@@ -71,7 +71,7 @@ func monthly() error {
 	}
 
 	fmt.Println("Aggregating...")
-	catAgg, payeeAgg, err := sheetsService.Aggregate(cols)
+	catAgg, payeeAgg, err := sheetsService.Aggregate(*registerSheet, cols)
 	if err != nil {
 		return err
 	}

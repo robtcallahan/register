@@ -68,16 +68,16 @@ func (ss *SheetsService) updateMonthly(tabName string, sheetID int64, rows []*sh
 	return nil
 }
 
-func (ss *SheetsService) Aggregate(cols []models.Column) (map[string]map[string]float64, map[string]map[string]float64, error) {
+func (ss *SheetsService) Aggregate(registerSheet RegisterSheet, cols []models.Column) (map[string]map[string]float64, map[string]map[string]float64, error) {
 	// map of register entries by month and category
 	catAgg := make(map[string]map[string]float64)
 
 	// map of register entries by monty and payee
 	payeeAgg := make(map[string]map[string]float64)
 
-	rangeValues := ss.RegisterSheet.RangeValues
+	rangeValues := registerSheet.RangeValues
 	re := regexp.MustCompile(`(\d\d)/\d\d/(\d\d)`)
-	for i, r := range ss.RegisterSheet.Register {
+	for i, r := range registerSheet.Register {
 		// skip fund reallocations and deposits/transfers: they move money
 		// between categories or into the account, but aren't spending
 		if r.Name == "Reallocation" || r.Deposit != 0 {
