@@ -312,6 +312,10 @@ func deleteColumn(name string) error {
 	if err != nil {
 		return err
 	}
+	registerSheet, err := rs.NewRegisterSheet(config, nil)
+	if err != nil {
+		return err
+	}
 	bs := columnsBudgetSheetService(provider)
 	budgetSheet, err := bs.NewBudgetSheet(config)
 	if err != nil {
@@ -352,7 +356,7 @@ func deleteColumn(name string) error {
 		return err
 	}
 
-	if err := rs.DeleteRegisterColumn(index); err != nil {
+	if err := rs.DeleteRegisterColumn(*registerSheet, index); err != nil {
 		return fmt.Errorf("%q is deleted from the DB but the sheet update failed: %w", name, err)
 	}
 	if hasBudget {
@@ -402,6 +406,10 @@ func moveColumn(name string) error {
 		return err
 	}
 	rs, err := columnsRegisterSheetService(provider)
+	if err != nil {
+		return err
+	}
+	registerSheet, err := rs.NewRegisterSheet(config, nil)
 	if err != nil {
 		return err
 	}
@@ -469,7 +477,7 @@ func moveColumn(name string) error {
 	if after == 0 {
 		destAfter = len(columns)
 	}
-	if err := rs.MoveRegisterColumn(from, destAfter); err != nil {
+	if err := rs.MoveRegisterColumn(*registerSheet, from, destAfter); err != nil {
 		return fmt.Errorf("%q moved to %s (%d) in the DB but the sheet move failed: %w",
 			name, set.LetterFor(to), to, err)
 	}
@@ -496,8 +504,12 @@ func checkColumns() error {
 	if err != nil {
 		return err
 	}
+	registerSheet, err := rs.NewRegisterSheet(config, nil)
+	if err != nil {
+		return err
+	}
 
-	problems, err := rs.CheckRegisterColumns(columns)
+	problems, err := rs.CheckRegisterColumns(*registerSheet, columns)
 	if err != nil {
 		return err
 	}

@@ -355,7 +355,7 @@ func Test_sheetsService_getSheetProperties(t *testing.T) {
 
 func TestSheetsService_CopyRows_sheetFull(t *testing.T) {
 	svc := NewRegisterService(&providerMock{t: t})
-	svc.RegisterSheet = &RegisterSheet{
+	registerSheet = &RegisterSheet{
 		TabName: "Register",
 		SheetCoords: SheetCoords{
 			LastRow:        100,
@@ -365,13 +365,13 @@ func TestSheetsService_CopyRows_sheetFull(t *testing.T) {
 	}
 
 	// last row 100 + 1 copy (2 rows) = 102 > 101 grid rows: must not fit
-	if err := svc.CopyRows(*svc.RegisterSheet, 1); !errors.Is(err, errSheetFull) {
+	if err := svc.CopyRows(*registerSheet, 1); !errors.Is(err, errSheetFull) {
 		t.Errorf("CopyRows() error = %v, want errSheetFull", err)
 	}
 
 	// plenty of room: the copy proceeds and the provider accepts it
-	svc.RegisterSheet.SheetCoords.RowCount = 1000
-	if err := svc.CopyRows(*svc.RegisterSheet, 10); err != nil {
+	registerSheet.SheetCoords.RowCount = 1000
+	if err := svc.CopyRows(*registerSheet, 10); err != nil {
 		t.Errorf("CopyRows() error = %v, want nil", err)
 	}
 }

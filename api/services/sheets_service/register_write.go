@@ -10,16 +10,16 @@ import (
 	"google.golang.org/api/sheets/v4"
 )
 
-func (ss *SheetsService) UpdateRows(columns []models.Column, transNameToColName map[string]string, transactions []*models.Transaction) error {
+func (ss *SheetsService) UpdateRows(registerSheet RegisterSheet, budgetSheet BudgetSheet, columns []models.Column, transNameToColName map[string]string, transactions []*models.Transaction) error {
 	var requests []*sheets.Request
 
 	rb := &RowBuilder{
 		Columns:            columns,
 		TransNameToColName: transNameToColName,
-		CategoriesMap:      ss.BudgetSheet.CategoriesMap,
+		CategoriesMap:      budgetSheet.CategoriesMap,
 		IncomeSources:      ss.IncomeSources,
-		FirstRowToUpdate:   ss.RegisterSheet.SheetCoords.FirstRowToUpdate,
-		EndColumnIndex:     ss.RegisterSheet.SheetCoords.EndColumnIndex,
+		FirstRowToUpdate:   registerSheet.SheetCoords.FirstRowToUpdate,
+		EndColumnIndex:     registerSheet.SheetCoords.EndColumnIndex,
 		ReadFormulas: func(rowIndex int64) ([]string, error) {
 			return ss.readRangeFormulas(getRegisterToDeltaReadRange(rowIndex))
 		},
@@ -29,7 +29,7 @@ func (ss *SheetsService) UpdateRows(columns []models.Column, transNameToColName 
 		return err
 	}
 
-	gridCoordinate := ss.getGridCoordinate()
+	gridCoordinate := ss.getGridCoordinate(registerSheet)
 	updateCellsRequest := sheets.UpdateCellsRequest{
 		Fields: "*",
 		Rows:   rows,
@@ -54,10 +54,10 @@ func (ss *SheetsService) UpdateRows(columns []models.Column, transNameToColName 
 
 // Private methods
 
-func (ss *SheetsService) getGridCoordinate() *sheets.GridCoordinate {
+func (ss *SheetsService) getGridCoordinate(registerSheet RegisterSheet) *sheets.GridCoordinate {
 	return &sheets.GridCoordinate{
-		SheetId:     ss.RegisterSheet.ID,
-		RowIndex:    ss.RegisterSheet.SheetCoords.FirstRowToUpdate,
+		SheetId:     registerSheet.ID,
+		RowIndex:    registerSheet.SheetCoords.FirstRowToUpdate,
 		ColumnIndex: 0,
 	}
 }
@@ -181,7 +181,7 @@ type CategoryMove struct {
 // contains any of the match strings (case-insensitive) and plans moving each
 // row's category amount into the target column. Rows with no (or ambiguous)
 // category amounts are reported in notes and left alone.
-func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Column, cols []models.Column) ([]CategoryMove, []string) {
+func (ss *SheetsService) PlanCategoryMoves(registerSheet RegisterSheet, matches []string, target models.Column, cols []models.Column) ([]CategoryMove, []string) {
 	var moves []CategoryMove
 	var notes []string
 
@@ -190,7 +190,7 @@ func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Colum
 		lowered[i] = strings.ToLower(m)
 	}
 
-	for _, e := range ss.RegisterSheet.Register {
+	for _, e := range registerSheet.Register {
 		matched := false
 		name := strings.ToLower(e.Name)
 		for _, m := range lowered {
@@ -205,7 +205,7 @@ func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Colum
 
 		// RowID = StartRow + offset, so the offset indexes RangeValues
 		// directly: the two-rows-per-entry stepping is already in RowID.
-		rowVals := getRowValues(ss.RegisterSheet.RangeValues, int(e.RowID-ss.RegisterSheet.SheetCoords.StartRow))
+		rowVals := getRowValues(registerSheet.RangeValues, int(e.RowID-registerSheet.SheetCoords.StartRow))
 
 		var fromIndex int
 		var value float64
@@ -251,13 +251,13 @@ func (ss *SheetsService) PlanCategoryMoves(matches []string, target models.Colum
 
 // MoveCategoryCells executes planned category moves in a single batch update:
 // each amount is written into its new column and cleared from the old one.
-func (ss *SheetsService) MoveCategoryCells(moves []CategoryMove) error {
+func (ss *SheetsService) MoveCategoryCells(registerSheet RegisterSheet, moves []CategoryMove) error {
 	var requests []*sheets.Request
 	for _, m := range moves {
 		write := &sheets.UpdateCellsRequest{
 			Fields: "*",
 			Start: &sheets.GridCoordinate{
-				SheetId:     ss.RegisterSheet.ID,
+				SheetId:     registerSheet.ID,
 				RowIndex:    m.RowID - 1,
 				ColumnIndex: int64(m.ToIndex - 1),
 			},
@@ -270,7 +270,7 @@ func (ss *SheetsService) MoveCategoryCells(moves []CategoryMove) error {
 		clear := &sheets.UpdateCellsRequest{
 			Fields: "*",
 			Start: &sheets.GridCoordinate{
-				SheetId:     ss.RegisterSheet.ID,
+				SheetId:     registerSheet.ID,
 				RowIndex:    m.RowID - 1,
 				ColumnIndex: int64(m.FromIndex - 1),
 			},

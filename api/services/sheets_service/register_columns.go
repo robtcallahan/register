@@ -16,11 +16,11 @@ import (
 // Register tab: structural problems in the DB indexes, a sheet grid wider
 // or narrower than the DB's last column, and row-4 header names that
 // disagree with the DB. Report-only; it never writes anything.
-func (ss *SheetsService) CheckRegisterColumns(columns []models.Column) ([]string, error) {
+func (ss *SheetsService) CheckRegisterColumns(registerSheet RegisterSheet, columns []models.Column) ([]string, error) {
 	set := models.NewColumnSet(columns)
 	problems := set.Validate()
 
-	headerRange := fmt.Sprintf("%s!A4:%s4", ss.RegisterSheet.TabName, ss.RegisterSheet.SheetCoords.EndColumnName)
+	headerRange := fmt.Sprintf("%s!A4:%s4", registerSheet.TabName, registerSheet.SheetCoords.EndColumnName)
 	resp, err := ss.Provider.GetValues(headerRange)
 	if err != nil {
 		return nil, fmt.Errorf("could not read header row: %w", err)
@@ -32,7 +32,7 @@ func (ss *SheetsService) CheckRegisterColumns(columns []models.Column) ([]string
 	problems = append(problems, compareColumnHeaders(columns, headerRow)...)
 
 	if end, ok := set.End(); ok {
-		if count := ss.RegisterSheet.SheetCoords.ColumnCount; count > 0 && int64(end.ColumnIndex) != count {
+		if count := registerSheet.SheetCoords.ColumnCount; count > 0 && int64(end.ColumnIndex) != count {
 			problems = append(problems, fmt.Sprintf(
 				"column count mismatch: DB ends at %s (index %d) but the sheet grid has %d columns",
 				set.LetterFor(end.ColumnIndex), end.ColumnIndex, count))
@@ -75,7 +75,7 @@ func (ss *SheetsService) InsertRegisterColumn(registerSheet RegisterSheet, index
 		Requests: []*sheets.Request{{
 			InsertDimension: &sheets.InsertDimensionRequest{
 				Range: &sheets.DimensionRange{
-					SheetId:    ss.RegisterSheet.ID,
+					SheetId:    registerSheet.ID,
 					Dimension:  "COLUMNS",
 					StartIndex: int64(index - 1),
 					EndIndex:   int64(index),
@@ -88,7 +88,7 @@ func (ss *SheetsService) InsertRegisterColumn(registerSheet RegisterSheet, index
 		return fmt.Errorf("could not insert column: %w", err)
 	}
 
-	rowCount := ss.RegisterSheet.SheetCoords.RowCount
+	rowCount := registerSheet.SheetCoords.RowCount
 	newLetter := models.ColumnLetter(index)
 	values := make([][]any, rowCount)
 	for i := range values {
@@ -111,7 +111,7 @@ func (ss *SheetsService) InsertRegisterColumn(registerSheet RegisterSheet, index
 			}
 		}
 	}
-	writeRange := fmt.Sprintf("%s!%s1:%s%d", ss.RegisterSheet.TabName, newLetter, newLetter, rowCount)
+	writeRange := fmt.Sprintf("%s!%s1:%s%d", registerSheet.TabName, newLetter, newLetter, rowCount)
 	if _, err := ss.Provider.Update(writeRange, &sheets.ValueRange{Values: values}); err != nil {
 		return fmt.Errorf("could not write column %s: %w", newLetter, err)
 	}
@@ -119,12 +119,12 @@ func (ss *SheetsService) InsertRegisterColumn(registerSheet RegisterSheet, index
 }
 
 // DeleteRegisterColumn removes the sheet column at the given 1-based index.
-func (ss *SheetsService) DeleteRegisterColumn(index int) error {
+func (ss *SheetsService) DeleteRegisterColumn(registerSheet RegisterSheet, index int) error {
 	deleteReq := sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{{
 			DeleteDimension: &sheets.DeleteDimensionRequest{
 				Range: &sheets.DimensionRange{
-					SheetId:    ss.RegisterSheet.ID,
+					SheetId:    registerSheet.ID,
 					Dimension:  "COLUMNS",
 					StartIndex: int64(index - 1),
 					EndIndex:   int64(index),
@@ -143,12 +143,12 @@ func (ss *SheetsService) DeleteRegisterColumn(index int) error {
 // carrying the column's values, formulas, and header color with it.
 // MoveDimension's DestinationIndex counts positions in pre-removal
 // coordinates, which is exactly what "after column N" means here.
-func (ss *SheetsService) MoveRegisterColumn(fromIndex, afterIndex int) error {
+func (ss *SheetsService) MoveRegisterColumn(registerSheet RegisterSheet, fromIndex, afterIndex int) error {
 	moveReq := sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{{
 			MoveDimension: &sheets.MoveDimensionRequest{
 				Source: &sheets.DimensionRange{
-					SheetId:    ss.RegisterSheet.ID,
+					SheetId:    registerSheet.ID,
 					Dimension:  "COLUMNS",
 					StartIndex: int64(fromIndex - 1),
 					EndIndex:   int64(fromIndex),

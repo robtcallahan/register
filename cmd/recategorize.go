@@ -76,7 +76,7 @@ func recategorize() error {
 		return err
 	}
 
-	moves, notes := sheetsService.PlanCategoryMoves(recategorizeMatches, *target, cols)
+	moves, notes := sheetsService.PlanCategoryMoves(*registerSheet, recategorizeMatches, *target, cols)
 	for _, n := range notes {
 		fmt.Println("note:", n)
 	}
@@ -92,7 +92,7 @@ func recategorize() error {
 		return nil
 	}
 
-	if err := sheetsService.MoveCategoryCells(moves); err != nil {
+	if err := sheetsService.MoveCategoryCells(*registerSheet, moves); err != nil {
 		return fmt.Errorf("sheet move failed: %w", err)
 	}
 

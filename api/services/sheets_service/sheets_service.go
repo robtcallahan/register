@@ -44,8 +44,6 @@ type SheetsService struct {
 	service       *sheets.Service
 	Provider      sheets_provider.SheetsProviderInterface
 	SpreadsheetID string
-	BudgetSheet   *BudgetSheet
-	RegisterSheet *RegisterSheet
 	// IncomeSources are the configured income sources (config.json). Their
 	// display names mark register rows as income deposits.
 	IncomeSources []config.IncomeSource

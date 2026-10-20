@@ -168,44 +168,48 @@ func populateMonthlyPayees(payeeAgg map[string]map[string]float64, incomeNames [
 	return rows
 }
 
-func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float64, months, names []string, incomeNames []string) []*sheets.RowData {
-	r := 2
+func makeSummaryCells(rowNum int, cells []*sheets.CellData, cellName, bgColor string, aggData map[string]map[string]float64, months []string) []*sheets.CellData {
+	// 1st column: category name
+	cells = append(cells, mkBoldFormat(cellName, "left", bgColor, false))
 
-	for i, c := range names {
+	// remaining columns: $value for each month
+	for j := range months {
+		m := months[j]
+		cells = append(cells, mkCellDataDollars(aggData[m][cellName], "right", bgColor, false))
+	}
+
+	// add the totals and average in last 2 columns; the month block
+	// runs B..endCol, derived from the actual month count
+	endCol := models.ColumnLetter(len(months) + 1) // B is 1-based index 2
+	f := mkCellDataFormula(fmt.Sprintf("=SUM(B%d:%s%d) * -1", rowNum, endCol, rowNum), "right", bgColor, false)
+	f.UserEnteredFormat.TextFormat.Bold = true
+	cells = append(cells, f)
+	f = mkCellDataFormula(fmt.Sprintf("=AVERAGE(B%d:%s%d) * -1", rowNum, endCol, rowNum), "right", bgColor, false)
+	f.UserEnteredFormat.TextFormat.Bold = true
+	cells = append(cells, f)
+	return cells
+}
+
+func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float64, months, names []string, incomeNames []string) []*sheets.RowData {
+	row := 2
+
+	for i, cellName := range names {
 		var cells []*sheets.CellData
 
 		// getOddOrEvenRowColor(rowIndex, even_color, odd_color)
 		bgColor := getOddOrEvenRowColor(i, "white", "lightgrey")
 
-		// 1st column: category name
-		cells = append(cells, mkBoldFormat(c, "left", bgColor, false))
-
-		// remaining columns: $value for each month
-		for j := range months {
-			m := months[j]
-			cells = append(cells, mkCellDataDollars(aggData[m][c], "right", bgColor, false))
-		}
-
-		// add the totals and average in last 2 columns; the month block
-		// runs B..endCol, derived from the actual month count
-		endCol := models.ColumnLetter(len(months) + 1) // B is 1-based index 2
-		f := mkCellDataFormula(fmt.Sprintf("=SUM(B%d:%s%d) * -1", r, endCol, r), "right", bgColor, false)
-		f.UserEnteredFormat.TextFormat.Bold = true
-		cells = append(cells, f)
-		f = mkCellDataFormula(fmt.Sprintf("=AVERAGE(B%d:%s%d) * -1", r, endCol, r), "right", bgColor, false)
-		f.UserEnteredFormat.TextFormat.Bold = true
-		cells = append(cells, f)
-
-		r++
+		cells = makeSummaryCells(row, cells, cellName, bgColor, aggData, months)
+		row++
 
 		// add the cells to the row
 		row := &sheets.RowData{Values: cells}
 		rows = append(rows, row)
 	}
-	for _, name := range incomeNames {
-		if aggDataHasName(aggData, name) {
-			rows = append(rows, addSummarySalaryRow(name, r, months, aggData))
-			r++
+	for _, incomeName := range incomeNames {
+		if aggDataHasName(aggData, incomeName) {
+			rows = append(rows, addSummarySalaryRow(incomeName, row, months, aggData))
+			row++
 		}
 	}
 	return rows
@@ -243,28 +247,30 @@ func addSummaryTopRow(months []string) *sheets.RowData {
 	return &sheets.RowData{Values: cells}
 }
 
-func addSummarySalaryRow(name string, rNum int, months []string, aggData map[string]map[string]float64) *sheets.RowData {
+func addSummarySalaryRow(cellName string, rowNum int, months []string, aggData map[string]map[string]float64) *sheets.RowData {
 	bgColor := "grey"
 	var cells []*sheets.CellData
 
-	// 1st column: category name
-	cells = append(cells, mkBoldFormat(name, "left", bgColor, false))
+	cells = makeSummaryCells(rowNum, cells, cellName, bgColor, aggData, months)
 
-	// remaining columns: $value for each month
-	for i := range months {
-		m := months[i]
-		cells = append(cells, mkCellDataDollars(aggData[m][name], "right", bgColor, false))
-	}
-
-	// add the totals and average in last 2 columns; the month block
-	// runs B..endCol, derived from the actual month count
-	endCol := models.ColumnLetter(len(months) + 1) // B is 1-based index 2
-	f := mkCellDataFormula(fmt.Sprintf("=SUM(B%d:%s%d) * -1", rNum, endCol, rNum), "right", bgColor, false)
-	f.UserEnteredFormat.TextFormat.Bold = true
-	cells = append(cells, f)
-	f = mkCellDataFormula(fmt.Sprintf("=AVERAGE(B%d:%s%d) * -1", rNum, endCol, rNum), "right", bgColor, false)
-	f.UserEnteredFormat.TextFormat.Bold = true
-	cells = append(cells, f)
+	//// 1st column: category name
+	//cells = append(cells, mkBoldFormat(cellName, "left", bgColor, false))
+	//
+	//// remaining columns: $value for each month
+	//for i := range months {
+	//	m := months[i]
+	//	cells = append(cells, mkCellDataDollars(aggData[m][cellName], "right", bgColor, false))
+	//}
+	//
+	//// add the totals and average in last 2 columns; the month block
+	//// runs B..endCol, derived from the actual month count
+	//endCol := models.ColumnLetter(len(months) + 1) // B is 1-based index 2
+	//f := mkCellDataFormula(fmt.Sprintf("=SUM(B%d:%s%d) * -1", rowNum, endCol, rowNum), "right", bgColor, false)
+	//f.UserEnteredFormat.TextFormat.Bold = true
+	//cells = append(cells, f)
+	//f = mkCellDataFormula(fmt.Sprintf("=AVERAGE(B%d:%s%d) * -1", rowNum, endCol, rowNum), "right", bgColor, false)
+	//f.UserEnteredFormat.TextFormat.Bold = true
+	//cells = append(cells, f)
 
 	// add the cells to the row
 	return &sheets.RowData{Values: cells}

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -80,9 +81,6 @@ func update(cmd *cobra.Command, args []string) error {
 
 	budgetService := sheets_service.NewBudgetService(sheetsProvider)
 
-	if err != nil {
-		return err
-	}
 	columns, err := qHandler.GetColumns()
 	if err != nil {
 		return err
@@ -315,11 +313,16 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
 		return nil
 	}
 
-	fmt.Printf("Reading Budget...\n")
+	registerSheet, err := sheetsService.NewRegisterSheet(config, nil)
+	if err != nil {
+		return err
+	}
 	budgetSheet, err := budgetService.NewBudgetSheet(config)
 	if err != nil {
 		return err
 	}
+
+	fmt.Printf("Reading Budget...\n")
 	if _, err := budgetService.ReadBudgetSheet(budgetSheet); err != nil {
 		return err
 	}
@@ -331,7 +334,6 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
 	}
 
 	// add the needed number of rows for transactions
-	registerSheet, err := sheetsService.NewRegisterSheet(config, nil)
 	fmt.Println("Adding rows...")
 	if err := sheetsService.CopyRows(*registerSheet, len(transactions)); err != nil {
 		return err
@@ -349,7 +351,7 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
 		return err
 	}
 
-	if err := sheetsService.UpdateRows(columns, transNameToColName, transactions); err != nil {
+	if err := sheetsService.UpdateRows(*registerSheet, *budgetSheet, columns, transNameToColName, transactions); err != nil {
 		return err
 	}
 
@@ -435,20 +437,15 @@ func printTransactions(trans []*models.Transaction) {
 	fmt.Println("")
 }
 
-func printRegister(trans []*sheets_service.RegisterEntry) {
-	for i, t := range trans {
-		fmt.Printf("    (%2d) [%-28s] %-12s %-10s %8.2f %8.2f %8.2f %s\n", i+1, t.Key, t.Source, t.Date, t.Withdrawal, t.Deposit, t.CreditCard, t.Name)
-	}
-	fmt.Println("")
-}
+//func printRegister(trans []*sheets_service.RegisterEntry) {
+//	for i, t := range trans {
+//		fmt.Printf("    (%2d) [%-28s] %-12s %-10s %8.2f %8.2f %8.2f %s\n", i+1, t.Key, t.Source, t.Date, t.Withdrawal, t.Deposit, t.CreditCard, t.Name)
+//	}
+//	fmt.Println("")
+//}
 
 func needTransactionName(trans []*models.Transaction) bool {
-	for _, t := range trans {
-		if needsName(t) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(trans, needsName)
 }
 
 // needsName reports whether the merchant matcher left this transaction
