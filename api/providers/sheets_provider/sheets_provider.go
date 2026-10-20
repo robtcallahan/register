@@ -16,9 +16,9 @@ import (
 )
 
 type SheetsProviderInterface interface {
-	GetValues(range_ string) (*sheets.ValueRange, error)
-	GetFormula(range_ string) (*sheets.ValueRange, error)
-	GetSpreadsheet() (*sheets.Spreadsheet, error)
+	GetValues(range_ string) ([][]any, error)
+	GetFormula(range_ string) ([][]any, error)
+	GetSpreadsheet(tabName string) (*Spreadsheet, error)
 	BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error)
 	Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error)
 	ClearValues(range_ string) error
@@ -27,6 +27,13 @@ type SheetsProviderInterface interface {
 type SheetsProvider struct {
 	service       *sheets.Service
 	spreadsheetID string
+}
+
+type Spreadsheet struct {
+	Title       string
+	SheetID     int64
+	RowCount    int64
+	ColumnCount int64
 }
 
 func New(spreadsheetID string, cfg *config.Config) (*SheetsProvider, error) {
@@ -54,31 +61,45 @@ func New(spreadsheetID string, cfg *config.Config) (*SheetsProvider, error) {
 	}, nil
 }
 
-func (p *SheetsProvider) GetValues(range_ string) (*sheets.ValueRange, error) {
+func (p *SheetsProvider) GetValues(range_ string) ([][]any, error) {
 	resp, err := sheets_client.ClientStruct.Get(p.service, p.spreadsheetID, range_)
 	if err != nil {
 		log.Printf("error when trying to get cell data: %s", err.Error())
 		return nil, err
 	}
-	return resp, nil
+	return resp.Values, nil
 }
 
-func (p *SheetsProvider) GetFormula(range_ string) (*sheets.ValueRange, error) {
+func (p *SheetsProvider) GetFormula(range_ string) ([][]any, error) {
 	resp, err := sheets_client.ClientStruct.GetFormula(p.service, p.spreadsheetID, range_)
 	if err != nil {
 		log.Printf("error when trying to get formula cells: %s, range: %s", err.Error(), range_)
 		return nil, err
 	}
-	return resp, nil
+	return resp.Values, nil
 }
 
-func (p *SheetsProvider) GetSpreadsheet() (*sheets.Spreadsheet, error) {
+func (p *SheetsProvider) GetSpreadsheet(tabName string) (*Spreadsheet, error) {
 	resp, err := sheets_client.ClientStruct.GetSpreadsheet(p.service, p.spreadsheetID)
 	if err != nil {
-		log.Printf("error when try to get spreadsheet: %s", err.Error())
+		log.Printf("error when trying to get spreadsheet: %s", err.Error())
 		return nil, err
 	}
-	return resp, nil
+
+	for _, sheet := range resp.Sheets {
+		if sheet.Properties.Title == tabName {
+			spreadsheet := &Spreadsheet{
+				Title:   sheet.Properties.Title,
+				SheetID: sheet.Properties.SheetId,
+			}
+			if sheet.Properties.GridProperties != nil {
+				spreadsheet.RowCount = sheet.Properties.GridProperties.RowCount
+				spreadsheet.ColumnCount = sheet.Properties.GridProperties.ColumnCount
+			}
+			return spreadsheet, nil
+		}
+	}
+	return nil, fmt.Errorf("could not find sheet: %s", tabName)
 }
 
 func (p *SheetsProvider) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {

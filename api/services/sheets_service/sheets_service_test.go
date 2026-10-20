@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"register/api/providers/sheets_provider"
 	"testing"
 
 	"register/pkg/models"
@@ -24,42 +25,39 @@ type providerMock struct {
 	t             *testing.T
 }
 
-var getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
+var getValuesProviderFunc = func(range_ string) ([][]any, error) {
 	// 9.3 header checks: return the real header rows for the header ranges.
+	var values [][]any
 	if range_ == "Register!A4:J4" {
-		vr := &sheets.ValueRange{}
-		vr.Values = [][]any{{"Recon", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
-		return vr, nil
+		values = [][]any{{"Recon", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
+		return values, nil
 	}
 	if range_ == "Budget!A1:J1" {
-		vr := &sheets.ValueRange{}
-		vr.Values = [][]any{{"", "Weekly", "Monthly", "Yearly", "Current Total", "Needed - Monthly"}}
-		return vr, nil
+		values = [][]any{{"", "Weekly", "Monthly", "Yearly", "Current Total", "Needed - Monthly"}}
+		return values, nil
 	}
-	vr := &sheets.ValueRange{Values: [][]any{}}
-	vr.Values = make([][]any, 10)
-	vr.Values[0] = make([]any, 10)
-	vr.Values[0][0] = "a string"
-	return vr, nil
-}
-var getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-	vr := &sheets.ValueRange{Values: [][]any{}}
-	vr.Values = make([][]any, 10)
-	vr.Values[0] = make([]any, 10)
-	vr.Values[0][0] = "=SUM(A1:A2)"
-	return vr, nil
+	values[0] = make([]any, 10)
+	values[0][0] = "a string"
+	return values, nil
 }
 
-func (p *providerMock) GetValues(range_ string) (*sheets.ValueRange, error) {
+var getFormulaProviderFunc = func(range_ string) ([][]any, error) {
+	values := make([][]any, 10)
+	values[0] = make([]any, 10)
+	values[0][0] = "=SUM(A1:A2)"
+	return values, nil
+}
+
+func (p *providerMock) GetValues(range_ string) ([][]any, error) {
 	return getValuesProviderFunc(range_)
 }
 
-func (p *providerMock) GetFormula(range_ string) (*sheets.ValueRange, error) {
+func (p *providerMock) GetFormula(range_ string) ([][]any, error) {
 	return getFormulaProviderFunc(range_)
 }
 
-func (p *providerMock) GetSpreadsheet() (*sheets.Spreadsheet, error) {
-	var s sheets.Spreadsheet
+func (p *providerMock) GetSpreadsheet(tabName string) (*sheets_provider.Spreadsheet, error) {
+	var s sheets_provider.Spreadsheet
 
 	j, err := os.ReadFile(sheetsServiceJSONDir + "spreadsheet.json")
 	if err != nil {
@@ -122,8 +120,6 @@ func init() {
 	ss = NewRegisterService(&provider)
 	bs = NewBudgetService(&provider)
 
-	//var err error
-	//registerSheet, err = ss.NewRegisterSheet()
 	registerSheet = &RegisterSheet{
 		TabName: "Register",
 	}
@@ -163,19 +159,18 @@ func Test_sheetsService_copyRowsBatchUpdateRequest(t *testing.T) {
 func Test_sheetsService_ReadBudgetSheet(t *testing.T) {
 	// 10.10: Rewritten to test 9.3 header validation without fixtures.
 	// The original compared against a stale JSON golden.
-	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
+	getValuesProviderFunc = func(range_ string) ([][]any, error) {
+		var values [][]any
 		if range_ == "Budget!A1:J1" {
-			vr := &sheets.ValueRange{}
-			vr.Values = [][]any{{"", "Weekly", "Weekly (view only)", "Bi-Weekly", "Monthly", "Monthly (view only)", "Yearly", "Current Total", "Needed - Monthly"}}
-			return vr, nil
+			values = [][]any{{"", "Weekly", "Weekly (view only)", "Bi-Weekly", "Monthly", "Monthly (view only)", "Yearly", "Current Total", "Needed - Monthly"}}
+			return values, nil
 		}
 		// Return minimal budget data
-		vr := &sheets.ValueRange{}
-		vr.Values = [][]any{
+		values = [][]any{
 			{"", "Weekly", "Weekly (view only)", "Bi-Weekly", "Monthly", "Monthly (view only)", "Yearly", "Current Total", "Needed - Monthly"},
 			{"Grocery", "120", "240", "520", "520", "6240", "0", "0"},
 		}
-		return vr, nil
+		return values, nil
 	}
 
 	got, err := bs.ReadBudgetSheet(budgetSheet)
@@ -193,17 +188,16 @@ func Test_sheetsService_ReadBudgetSheet(t *testing.T) {
 
 func Test_sheetsService_ReadRegisterSheet(t *testing.T) {
 	// 10.10: Rewritten to test 9.3 header validation without fixtures.
-	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
+	getValuesProviderFunc = func(range_ string) ([][]any, error) {
+		var values [][]any
 		if range_ == "Register!A4:J4" {
-			vr := &sheets.ValueRange{}
-			vr.Values = [][]any{{"Recon", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
-			return vr, nil
+			values = [][]any{{"Recon", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
+			return values, nil
 		}
-		vr := &sheets.ValueRange{}
-		vr.Values = [][]any{
+		values = [][]any{
 			{"", "WellsFargo", "12/07/20", "TARGET", "46.80", "", "", "8761.12", "", ""},
 		}
-		return vr, nil
+		return values, nil
 	}
 
 	got, err := ss.ReadRegisterSheet(registerSheet)
@@ -341,13 +335,13 @@ func Test_sheetsService_getSheetProperties(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ss.getSheetProperties(tt.args.tabName)
+			got, err := ss.Provider.GetSpreadsheet(tt.args.tabName)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("getSheetProperties() error = %v, wantErr %v", err, tt.wantErr)
+				t.Error(err)
 				return
 			}
-			if got.SheetId != tt.want {
-				t.Errorf("getSheetProperties() got = %v, want %v", got.SheetId, tt.want)
+			if got.SheetID != tt.want {
+				t.Errorf("getSheetProperties() got = %v, want %v", got.SheetID, tt.want)
 			}
 		})
 	}
@@ -390,13 +384,11 @@ func Test_sheetsService_populateCells(t *testing.T) {
 		transNameToColName map[string]string
 		transactions       []*models.Transaction
 	}
-	tests := []struct {
+	var tests []struct {
 		name   string
 		fields fields
 		args   args
 		want   []*sheets.RowData
-	}{
-		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -424,12 +416,10 @@ func Test_sheetsService_updateMonthly(t *testing.T) {
 		sheetID int64
 		rows    []*sheets.RowData
 	}
-	tests := []struct {
+	var tests []struct {
 		name   string
 		fields fields
 		args   args
-	}{
-		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -446,13 +436,12 @@ func Test_sheetsService_updateMonthly(t *testing.T) {
 }
 
 func Test_sheetsService_readRangeFormulas(t *testing.T) {
-	getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]any{}}
-		vr.Values = make([][]any, 2)
-		vr.Values[0] = make([]any, 2)
-		vr.Values[0][0] = "=A1*2"
-		vr.Values[0][1] = "=A2*5"
-		return vr, nil
+	getFormulaProviderFunc = func(range_ string) ([][]any, error) {
+		values := make([][]any, 2)
+		values[0] = make([]any, 2)
+		values[0][0] = "=A1*2"
+		values[0][1] = "=A2*5"
+		return values, nil
 	}
 
 	want := []string{"=A1*2", "=A2*5"}
@@ -481,12 +470,11 @@ func Test_sheetsService_readRangeFormulas(t *testing.T) {
 		})
 	}
 
-	getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]any{}}
-		vr.Values = make([][]any, 10)
-		vr.Values[0] = make([]any, 10)
-		vr.Values[0][0] = "=SUM(A1:A2)"
-		return vr, nil
+	getFormulaProviderFunc = func(range_ string) ([][]any, error) {
+		values := make([][]any, 10)
+		values[0] = make([]any, 10)
+		values[0][0] = "=SUM(A1:A2)"
+		return values, nil
 	}
 }
 
@@ -655,12 +643,11 @@ func Test_sheetsService_getNameField(t *testing.T) {
 }
 
 func Test_sheetsService_ReadStringCell(t *testing.T) {
-	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]any{}}
-		vr.Values = make([][]any, 10)
-		vr.Values[0] = make([]any, 10)
-		vr.Values[0][0] = "a string"
-		return vr, nil
+	getValuesProviderFunc = func(range_ string) ([][]any, error) {
+		values := make([][]any, 10)
+		values[0] = make([]any, 10)
+		values[0][0] = "a string"
+		return values, nil
 	}
 
 	type args struct {
@@ -690,12 +677,11 @@ func Test_sheetsService_ReadStringCell(t *testing.T) {
 }
 
 func Test_sheetsService_ReadDateCell(t *testing.T) {
-	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]any{}}
-		vr.Values = make([][]any, 10)
-		vr.Values[0] = make([]any, 10)
-		vr.Values[0][0] = "01/02/20"
-		return vr, nil
+	getValuesProviderFunc = func(range_ string) ([][]any, error) {
+		values := make([][]any, 10)
+		values[0] = make([]any, 10)
+		values[0][0] = "01/02/20"
+		return values, nil
 	}
 
 	type args struct {
@@ -725,12 +711,11 @@ func Test_sheetsService_ReadDateCell(t *testing.T) {
 }
 
 func Test_sheetsService_ReadDollarsCell(t *testing.T) {
-	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]any{}}
-		vr.Values = make([][]any, 10)
-		vr.Values[0] = make([]any, 10)
-		vr.Values[0][0] = " $  20.20 "
-		return vr, nil
+	getValuesProviderFunc = func(range_ string) ([][]any, error) {
+		values := make([][]any, 10)
+		values[0] = make([]any, 10)
+		values[0][0] = " $  20.20 "
+		return values, nil
 	}
 	type args struct {
 		cell string
@@ -788,19 +773,17 @@ func Test_sheetsService_ReadFormulaCell(t *testing.T) {
 }
 
 func Test_sheetsService_readCell(t *testing.T) {
-	getValuesProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]any{}}
-		vr.Values = make([][]any, 10)
-		vr.Values[0] = make([]any, 10)
-		vr.Values[0][0] = "a string"
-		return vr, nil
+	getValuesProviderFunc = func(range_ string) ([][]any, error) {
+		values := make([][]any, 10)
+		values[0] = make([]any, 10)
+		values[0][0] = "a string"
+		return values, nil
 	}
-	getFormulaProviderFunc = func(range_ string) (*sheets.ValueRange, error) {
-		vr := &sheets.ValueRange{Values: [][]any{}}
-		vr.Values = make([][]any, 10)
-		vr.Values[0] = make([]any, 10)
-		vr.Values[0][0] = "=SUM(A1:A2)"
-		return vr, nil
+	getFormulaProviderFunc = func(range_ string) ([][]any, error) {
+		values := make([][]any, 10)
+		values[0] = make([]any, 10)
+		values[0][0] = "=SUM(A1:A2)"
+		return values, nil
 	}
 
 	type args struct {

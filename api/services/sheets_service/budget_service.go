@@ -40,24 +40,24 @@ func (bs *BudgetService) NewBudgetSheet(cfg *config.Config) (*BudgetSheet, error
 			// EndColumnName/Index are detected from the header row below.
 		},
 	}
-	props, err := bs.getSheetProperties(BudgetTabName)
+	spreadsheet, err := bs.Provider.GetSpreadsheet(BudgetTabName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to retrieve spreadsheet: %w", err)
 	}
-	budgetSheet.ID = props.SheetId
+	budgetSheet.ID = spreadsheet.SheetID
 
 	// Detect the rightmost column from the header row so adding columns
 	// to the Budget tab doesn't require a code change. We read a generous
 	// range (A1:Z1) and find the last non-empty header.
 	headerRange := fmt.Sprintf("%s!A1:Z1", BudgetTabName)
-	headerResp, err := bs.Provider.GetValues(headerRange)
+	values, err := bs.Provider.GetValues(headerRange)
 	if err != nil {
 		return nil, fmt.Errorf("could not read budget header row for width detection: %w", err)
 	}
-	if len(headerResp.Values) == 0 || len(headerResp.Values[0]) == 0 {
+	if len(values) == 0 || len(values[0]) == 0 {
 		return nil, errors.New("no header row found on Budget tab")
 	}
-	headers := headerResp.Values[0]
+	headers := values[0]
 	lastIdx := 0
 	for i, h := range headers {
 		if s := fmt.Sprintf("%v", h); strings.TrimSpace(s) != "" {
@@ -69,27 +69,13 @@ func (bs *BudgetService) NewBudgetSheet(cfg *config.Config) (*BudgetSheet, error
 	return budgetSheet, nil
 }
 
-func (bs *BudgetService) getSheetProperties(tabName string) (*sheets.SheetProperties, error) {
-	spreadsheet, err := bs.Provider.GetSpreadsheet()
-	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve spreadsheet: %w", err)
-	}
-
-	for _, sheet := range spreadsheet.Sheets {
-		if sheet.Properties.Title == tabName {
-			return sheet.Properties, nil
-		}
-	}
-	return nil, fmt.Errorf("could not find sheet: %s", tabName)
-}
-
 func (bs *BudgetService) ReadBudgetSheet(budgetSheet *BudgetSheet) (*BudgetSheet, error) {
 	range_ := fmt.Sprintf("%s!A%d:%s%d", budgetSheet.TabName, budgetSheet.SheetCoords.StartRow, budgetSheet.SheetCoords.EndColumnName, budgetSheet.SheetCoords.EndRow)
-	resp, err := bs.Provider.GetValues(range_)
+	values, err := bs.Provider.GetValues(range_)
 	if err != nil {
 		return nil, fmt.Errorf("could not get sheet values: %w\n", err)
 	}
-	if len(resp.Values) == 0 {
+	if len(values) == 0 {
 		return nil, errors.New("no values found")
 	}
 
@@ -110,7 +96,7 @@ func (bs *BudgetService) ReadBudgetSheet(budgetSheet *BudgetSheet) (*BudgetSheet
 
 	var entries []*BudgetEntry
 	var categoriesMap = make(map[string]*BudgetEntry)
-	for _, values := range resp.Values {
+	for _, values := range values {
 		if bs.isEmptyBudgetRow(values) {
 			continue
 		}
@@ -197,14 +183,14 @@ func (bs *BudgetService) populateBudgetEntry(decoder *rowDecoder, values []any) 
 // name→column decoder from it.
 func (bs *BudgetService) budgetHeaderDecoder(budgetSheet BudgetSheet) (*rowDecoder, error) {
 	headerRange := fmt.Sprintf("%s!A1:%s1", budgetSheet.TabName, budgetSheet.SheetCoords.EndColumnName)
-	headerResp, err := bs.Provider.GetValues(headerRange)
+	values, err := bs.Provider.GetValues(headerRange)
 	if err != nil {
 		return nil, fmt.Errorf("could not read budget header row: %w", err)
 	}
-	if len(headerResp.Values) == 0 {
+	if len(values) == 0 {
 		return nil, errors.New("no header row found on Budget tab")
 	}
-	return newRowDecoder(headerResp.Values[0])
+	return newRowDecoder(values[0])
 }
 
 // --- Budget tab category surgery (Phase 6.5) -------------------------------
@@ -232,11 +218,11 @@ func budgetGroupName(color string) (string, bool) {
 func (bs *BudgetService) BudgetRowFor(budgetSheet BudgetSheet, name string) (int, bool, error) {
 	rng := fmt.Sprintf("%s!A%d:A%d", budgetSheet.TabName,
 		budgetSheet.SheetCoords.StartRow, budgetSheet.SheetCoords.EndRow)
-	resp, err := bs.Provider.GetValues(rng)
+	values, err := bs.Provider.GetValues(rng)
 	if err != nil {
 		return 0, false, fmt.Errorf("could not read budget categories: %w", err)
 	}
-	for i, row := range resp.Values {
+	for i, row := range values {
 		if len(row) > 0 && strings.TrimSpace(fmt.Sprintf("%s", row[0])) == name {
 			return int(budgetSheet.SheetCoords.StartRow) + i, true, nil
 		}
@@ -253,18 +239,18 @@ func (bs *BudgetService) BudgetEntryFor(budgetSheet BudgetSheet, name string) (*
 	}
 	rng := fmt.Sprintf("%s!A%d:%s%d", budgetSheet.TabName, row,
 		budgetSheet.SheetCoords.EndColumnName, row)
-	resp, err := bs.Provider.GetValues(rng)
+	values, err := bs.Provider.GetValues(rng)
 	if err != nil {
 		return nil, false, fmt.Errorf("could not read budget row %d: %w", row, err)
 	}
-	if len(resp.Values) == 0 {
+	if len(values) == 0 {
 		return nil, false, nil
 	}
 	decoder, err := bs.budgetHeaderDecoder(budgetSheet)
 	if err != nil {
 		return nil, false, err
 	}
-	entry, err := bs.populateBudgetEntry(decoder, resp.Values[0])
+	entry, err := bs.populateBudgetEntry(decoder, values[0])
 	if err != nil {
 		return nil, false, err
 	}
@@ -330,14 +316,14 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
 	// immediately above its formula.
 	newTotalsRow := totalsRow + 1
 	frng := fmt.Sprintf("%s!A%d:G%d", budgetSheet.TabName, newTotalsRow, newTotalsRow)
-	resp, err := bs.Provider.GetFormula(frng)
+	values, err := bs.Provider.GetFormula(frng)
 	if err != nil {
 		return fmt.Errorf("could not read budget totals row: %w", err)
 	}
-	if len(resp.Values) == 0 {
+	if len(values) == 0 {
 		return nil
 	}
-	for j, cell := range resp.Values[0] {
+	for j, cell := range values[0] {
 		formula, ok := cell.(string)
 		if !ok || !strings.HasPrefix(formula, "=") {
 			continue

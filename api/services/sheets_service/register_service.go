@@ -73,20 +73,17 @@ func (ss *RegisterService) NewRegisterSheet(cfg *config.Config, columns []models
 		},
 	}
 
-	props, err := ss.getSheetProperties(RegisterTabName)
+	spreadsheet, err := ss.Provider.GetSpreadsheet(RegisterTabName)
 	if err != nil {
 		return nil, err
 	}
-	registerSheet.ID = props.SheetId
-	if props.GridProperties != nil {
-		registerSheet.SheetCoords.RowCount = props.GridProperties.RowCount
-		registerSheet.SheetCoords.ColumnCount = props.GridProperties.ColumnCount
-		if len(columns) == 0 {
-			// no DB columns: the register ends at the sheet's grid edge
-			columnCount := props.GridProperties.ColumnCount
-			registerSheet.SheetCoords.EndColumnName = models.ColumnLetter(int(columnCount))
-			registerSheet.SheetCoords.EndColumnIndex = columnCount - 1
-		}
+	registerSheet.ID = spreadsheet.SheetID
+	registerSheet.SheetCoords.RowCount = spreadsheet.RowCount
+	registerSheet.SheetCoords.ColumnCount = spreadsheet.ColumnCount
+	if len(columns) == 0 {
+		// no DB columns: the register ends at the sheet's grid edge
+		registerSheet.SheetCoords.EndColumnName = models.ColumnLetter(int(spreadsheet.ColumnCount))
+		registerSheet.SheetCoords.EndColumnIndex = spreadsheet.ColumnCount - 1
 	}
 	return registerSheet, nil
 }
@@ -96,16 +93,16 @@ func (ss *RegisterService) ReadRegisterSheet(registerSheet *RegisterSheet) (*Reg
 	var i int64
 
 	var readRange = ss.getReadRange(*registerSheet)
-	resp, err := ss.Provider.GetValues(readRange)
+	values, err := ss.Provider.GetValues(readRange)
 	if err != nil {
 		return nil, fmt.Errorf("could not get sheet values: %w\n", err)
 	}
-	if len(resp.Values) == 0 {
+	if len(values) == 0 {
 		return nil, fmt.Errorf("no data found for read range: %s", ss.getReadRange(*registerSheet))
 	}
 
 	// determine last used row in the spreadsheet
-	registerSheet.SheetCoords.LastRow = ss.getLastRow(*registerSheet, resp.Values)
+	registerSheet.SheetCoords.LastRow = ss.getLastRow(*registerSheet, values)
 	keysMap := make(map[string]bool)
 
 	// The Reconciled..Delta index constants assume fixed positions; verify
@@ -115,7 +112,7 @@ func (ss *RegisterService) ReadRegisterSheet(registerSheet *RegisterSheet) (*Reg
 	}
 
 	for i = 0; i <= registerSheet.SheetCoords.LastRow; i += 2 {
-		row := getRowValues(resp.Values, int(i))
+		row := getRowValues(values, int(i))
 		if ss.isEmptyRow(row) {
 			break
 		}
@@ -132,26 +129,26 @@ func (ss *RegisterService) ReadRegisterSheet(registerSheet *RegisterSheet) (*Reg
 	registerSheet.SheetCoords.FirstRowToUpdate = ss.getFirstRowToUpdate(*registerSheet, i)
 	registerSheet.Register = register
 	registerSheet.KeysMap = keysMap
-	registerSheet.RangeValues = resp.Values
+	registerSheet.RangeValues = values
 
 	return registerSheet, nil
 }
 
 func (ss *RegisterService) ReadCell(registerSheet RegisterSheet, cell string, cellDataType CellDataType) (any, error) {
-	var resp *sheets.ValueRange
+	var values [][]any
 	var err error
 
 	readRange := fmt.Sprintf("%s!%s:%s", registerSheet.TabName, cell, cell)
 
 	if cellDataType == CellDataFormula {
-		resp, err = ss.Provider.GetFormula(readRange)
+		values, err = ss.Provider.GetFormula(readRange)
 	} else {
-		resp, err = ss.Provider.GetValues(readRange)
+		values, err = ss.Provider.GetValues(readRange)
 	}
 	if err != nil {
 		return nil, err
 	}
-	row := getRowValues(resp.Values, 0)
+	row := getRowValues(values, 0)
 	if len(row) == 0 {
 		return nil, fmt.Errorf("no data found for cell: %s", cell)
 	}
@@ -302,20 +299,6 @@ func (ss *RegisterService) populateRegisterEntry(values []any) (*RegisterEntry, 
 	return entry, nil
 }
 
-func (ss *RegisterService) getSheetProperties(tabName string) (*sheets.SheetProperties, error) {
-	spreadsheet, err := ss.Provider.GetSpreadsheet()
-	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve spreadsheet: %w", err)
-	}
-
-	for _, sheet := range spreadsheet.Sheets {
-		if sheet.Properties.Title == tabName {
-			return sheet.Properties, nil
-		}
-	}
-	return nil, fmt.Errorf("could not find sheet: %s", tabName)
-}
-
 func (ss *RegisterService) copyRowsBatchUpdateRequest(registerSheet RegisterSheet, numCopies int) sheets.BatchUpdateSpreadsheetRequest {
 	var requests []*sheets.Request
 
@@ -360,11 +343,11 @@ func (ss *RegisterService) getCopyDestination(registerSheet RegisterSheet, index
 }
 
 func (ss *RegisterService) readRangeFormulas(readRange string) ([]string, error) {
-	resp, err := ss.Provider.GetFormula(readRange)
+	values, err := ss.Provider.GetFormula(readRange)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve data from sheet: %w", err)
 	}
-	rangeValues := resp.Values
+	rangeValues := values
 	if len(rangeValues) == 0 {
 		return nil, fmt.Errorf("no data found for read range: %s", readRange)
 	}
@@ -389,14 +372,14 @@ var registerFixedHeaders = []string{
 // against the positions the index constants assume.
 func (ss *RegisterService) checkRegisterHeaders(registerSheet RegisterSheet) error {
 	headerRange := fmt.Sprintf("%s!A4:J4", registerSheet.TabName)
-	resp, err := ss.Provider.GetValues(headerRange)
+	values, err := ss.Provider.GetValues(headerRange)
 	if err != nil {
 		return fmt.Errorf("could not read register header row: %w", err)
 	}
-	if len(resp.Values) == 0 {
+	if len(values) == 0 {
 		return errors.New("no header row found on Register tab")
 	}
-	decoder, err := newRowDecoder(resp.Values[0])
+	decoder, err := newRowDecoder(values[0])
 	if err != nil {
 		return err
 	}

@@ -3,8 +3,6 @@ package sheets_service
 import (
 	"register/api/providers/sheets_provider"
 	"register/pkg/config"
-
-	"google.golang.org/api/sheets/v4"
 )
 
 const (
@@ -41,7 +39,7 @@ const (
 type CellDataType int
 
 type RegisterService struct {
-	service       *sheets.Service
+	//service       *sheets.Service
 	Provider      sheets_provider.SheetsProviderInterface
 	SpreadsheetID string
 	// IncomeSources are the configured income sources (config.json). Their

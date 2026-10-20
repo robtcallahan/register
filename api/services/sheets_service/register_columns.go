@@ -21,13 +21,13 @@ func (ss *RegisterService) CheckRegisterColumns(registerSheet RegisterSheet, col
 	problems := set.Validate()
 
 	headerRange := fmt.Sprintf("%s!A4:%s4", registerSheet.TabName, registerSheet.SheetCoords.EndColumnName)
-	resp, err := ss.Provider.GetValues(headerRange)
+	values, err := ss.Provider.GetValues(headerRange)
 	if err != nil {
 		return nil, fmt.Errorf("could not read header row: %w", err)
 	}
 	var headerRow []any
-	if len(resp.Values) > 0 {
-		headerRow = resp.Values[0]
+	if len(values) > 0 {
+		headerRow = values[0]
 	}
 	problems = append(problems, compareColumnHeaders(columns, headerRow)...)
 
@@ -278,12 +278,12 @@ func (ss *RegisterService) RenameRegisterColumnHeader(registerSheet RegisterShee
 // row ("" where the cell holds no formula).
 func (ss *RegisterService) readColumnFormulas(registerSheet RegisterSheet, letter string, rowCount int64) ([]string, error) {
 	rng := fmt.Sprintf("%s!%s1:%s%d", registerSheet.TabName, letter, letter, rowCount)
-	resp, err := ss.Provider.GetFormula(rng)
+	values, err := ss.Provider.GetFormula(rng)
 	if err != nil {
 		return nil, fmt.Errorf("could not read formulas from column %s: %w", letter, err)
 	}
 	formulas := make([]string, rowCount)
-	for i, row := range resp.Values {
+	for i, row := range values {
 		if i >= int(rowCount) {
 			break
 		}
