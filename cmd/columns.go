@@ -105,6 +105,10 @@ func init() {
 	_ = columnsAddCmd.MarkFlagRequired("color")
 }
 
+func columnsProvider() (sheets_provider.SheetsProviderInterface, error) {
+	return sheets_provider.New(options.SpreadsheetID, config)
+}
+
 func columnsQuery() (repository.QueryRepo, error) {
 	conn, err := repository.Connect(&config.DB)
 	if err != nil {
@@ -113,33 +117,12 @@ func columnsQuery() (repository.QueryRepo, error) {
 	return mysql.NewMySQLQueryRepo(conn), nil
 }
 
-func columnsSheetService(q repository.QueryRepo) (*sheets_service.SheetsService, error) {
-	columns, err := q.GetColumns()
-	if err != nil {
-		return nil, err
-	}
-	provider, err := sheets_provider.New(options.SpreadsheetID, config)
-	if err != nil {
-		return nil, err
-	}
-	ss := sheets_service.New(provider)
-	if err := ss.NewRegisterSheet(config, columns); err != nil {
-		return nil, err
-	}
-	return ss, nil
+func columnsRegisterSheetService(provider sheets_provider.SheetsProviderInterface) (*sheets_service.SheetsService, error) {
+	return sheets_service.NewRegisterService(provider), nil
 }
 
-// columnsBudgetSheetService is columnsSheetService plus the Budget tab
-// coordinates, for the commands that keep the Budget tab in step.
-func columnsBudgetSheetService(q repository.QueryRepo) (*sheets_service.SheetsService, error) {
-	ss, err := columnsSheetService(q)
-	if err != nil {
-		return nil, err
-	}
-	if err := ss.NewBudgetSheet(config); err != nil {
-		return nil, err
-	}
-	return ss, nil
+func columnsBudgetSheetService(provider sheets_provider.SheetsProviderInterface) *sheets_service.BudgetService {
+	return sheets_service.NewBudgetService(provider)
 }
 
 func listColumns() error {
@@ -208,16 +191,26 @@ func addColumn(name string) error {
 		return err
 	}
 
-	ss, err := columnsBudgetSheetService(q)
+	provider, err := columnsProvider()
 	if err != nil {
 		return err
 	}
-	if err := ss.InsertRegisterColumn(newIndex, name); err != nil {
+	rs, err := columnsRegisterSheetService(provider)
+	if err != nil {
+		return err
+	}
+	bs := columnsBudgetSheetService(provider)
+	budgetSheet, err := bs.NewBudgetSheet(config)
+	if err != nil {
+		return err
+	}
+
+	if err := rs.InsertRegisterColumn(newIndex, name); err != nil {
 		return fmt.Errorf("%q is in the DB at %s (%d) but the sheet update failed: %w",
 			name, set.LetterFor(newIndex), newIndex, err)
 	}
 	if !addNoBudget {
-		if err := ss.InsertBudgetCategory(name, addColor); err != nil {
+		if err := bs.InsertBudgetCategory(budgetSheet, name, addColor); err != nil {
 			return fmt.Errorf("%q added at %s (%d) but the Budget row update failed: %w",
 				name, set.LetterFor(newIndex), newIndex, err)
 		}
@@ -254,14 +247,24 @@ func renameColumn(oldName, newName string) error {
 		return err
 	}
 
-	ss, err := columnsBudgetSheetService(q)
+	provider, err := columnsProvider()
 	if err != nil {
 		return err
 	}
-	if err := ss.RenameRegisterColumnHeader(index, newName); err != nil {
+	rs, err := columnsRegisterSheetService(provider)
+	if err != nil {
+		return err
+	}
+	bs := columnsBudgetSheetService(provider)
+	budgetSheet, err := bs.NewBudgetSheet(config)
+	if err != nil {
+		return err
+	}
+
+	if err := rs.RenameRegisterColumnHeader(index, newName); err != nil {
 		return fmt.Errorf("%q renamed in the DB but the sheet header update failed: %w", oldName, err)
 	}
-	budgetRenamed, err := ss.RenameBudgetCategory(oldName, newName)
+	budgetRenamed, err := bs.RenameBudgetCategory(budgetSheet, oldName, newName)
 	if err != nil {
 		return fmt.Errorf("%q renamed but the Budget row update failed: %w", oldName, err)
 	}
@@ -293,11 +296,21 @@ func deleteColumn(name string) error {
 	}
 	col, _ := set.ByIndex(index)
 
-	ss, err := columnsBudgetSheetService(q)
+	provider, err := columnsProvider()
 	if err != nil {
 		return err
 	}
-	budgetEntry, hasBudget, err := ss.BudgetEntryFor(name)
+	rs, err := columnsRegisterSheetService(provider)
+	if err != nil {
+		return err
+	}
+	bs := columnsBudgetSheetService(provider)
+	budgetSheet, err := bs.NewBudgetSheet(config)
+	if err != nil {
+		return err
+	}
+
+	budgetEntry, hasBudget, err := bs.BudgetEntryFor(budgetSheet, name)
 	if err != nil {
 		return err
 	}
@@ -331,11 +344,11 @@ func deleteColumn(name string) error {
 		return err
 	}
 
-	if err := ss.DeleteRegisterColumn(index); err != nil {
+	if err := rs.DeleteRegisterColumn(index); err != nil {
 		return fmt.Errorf("%q is deleted from the DB but the sheet update failed: %w", name, err)
 	}
 	if hasBudget {
-		if _, err := ss.DeleteBudgetCategory(name); err != nil {
+		if _, err := bs.DeleteBudgetCategory(budgetSheet, name); err != nil {
 			return fmt.Errorf("%q is deleted but its Budget row removal failed: %w", name, err)
 		}
 	}
@@ -376,11 +389,21 @@ func moveColumn(name string) error {
 		return nil
 	}
 
-	ss, err := columnsBudgetSheetService(q)
+	provider, err := columnsProvider()
 	if err != nil {
 		return err
 	}
-	_, hasBudget, err := ss.BudgetRowFor(name)
+	rs, err := columnsRegisterSheetService(provider)
+	if err != nil {
+		return err
+	}
+	bs := columnsBudgetSheetService(provider)
+	budgetSheet, err := bs.NewBudgetSheet(config)
+	if err != nil {
+		return err
+	}
+
+	_, hasBudget, err := bs.BudgetRowFor(budgetSheet, name)
 	if err != nil {
 		return err
 	}
@@ -403,7 +426,7 @@ func moveColumn(name string) error {
 			if c.Color != col.Color {
 				continue
 			}
-			if _, ok, err := ss.BudgetRowFor(c.Name); err != nil {
+			if _, ok, err := bs.BudgetRowFor(budgetSheet, c.Name); err != nil {
 				return err
 			} else if !ok {
 				continue
@@ -416,12 +439,12 @@ func moveColumn(name string) error {
 		}
 		switch {
 		case before != "":
-			if err := ss.MoveBudgetCategoryAfter(name, before); err != nil {
+			if err := bs.MoveBudgetCategoryAfter(budgetSheet, name, before); err != nil {
 				return fmt.Errorf("Budget row move for %q failed (nothing else changed yet): %w", name, err)
 			}
 			budgetNote = " Budget row moved with it."
 		case following != "":
-			if err := ss.MoveBudgetCategoryBefore(name, following); err != nil {
+			if err := bs.MoveBudgetCategoryBefore(budgetSheet, name, following); err != nil {
 				return fmt.Errorf("Budget row move for %q failed (nothing else changed yet): %w", name, err)
 			}
 			budgetNote = " Budget row moved with it."
@@ -438,7 +461,7 @@ func moveColumn(name string) error {
 	if after == 0 {
 		destAfter = len(columns)
 	}
-	if err := ss.MoveRegisterColumn(from, destAfter); err != nil {
+	if err := rs.MoveRegisterColumn(from, destAfter); err != nil {
 		return fmt.Errorf("%q moved to %s (%d) in the DB but the sheet move failed: %w",
 			name, set.LetterFor(to), to, err)
 	}
@@ -456,11 +479,17 @@ func checkColumns() error {
 	if err != nil {
 		return err
 	}
-	ss, err := columnsSheetService(q)
+
+	provider, err := sheets_provider.New(options.SpreadsheetID, config)
 	if err != nil {
 		return err
 	}
-	problems, err := ss.CheckRegisterColumns(columns)
+	rs, err := columnsRegisterSheetService(provider)
+	if err != nil {
+		return err
+	}
+
+	problems, err := rs.CheckRegisterColumns(columns)
 	if err != nil {
 		return err
 	}

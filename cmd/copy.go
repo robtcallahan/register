@@ -57,19 +57,19 @@ func copyRows() error {
 	if err != nil {
 		return err
 	}
-	sheetsService := sheets_service.New(sheetsProvider)
+	sheetsService := sheets_service.NewRegisterService(sheetsProvider)
 	if err != nil {
 		return err
 	}
 	// copy doesn't read the DB; nil columns makes NewRegisterSheet use
 	// the sheet's own grid width for the register extent.
-	err = sheetsService.NewRegisterSheet(config, nil)
+	registerSheet, err := sheetsService.NewRegisterSheet(config, nil)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Reading Register...\n")
-	_, err = sheetsService.ReadRegisterSheet()
+	_, err = sheetsService.ReadRegisterSheet(*registerSheet)
 	if err != nil {
 		return err
 	}

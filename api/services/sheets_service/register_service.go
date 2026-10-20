@@ -50,7 +50,7 @@ type RegisterSheet struct {
 
 // Public methods
 
-func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.Column) error {
+func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.Column) (*RegisterSheet, error) {
 	// The register's last column comes from the columns table (its
 	// highest-indexed column). Callers that don't read the DB (register
 	// copy) pass no columns; they get the sheet's own grid width below.
@@ -63,7 +63,7 @@ func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.C
 			endColumnIndex = int64(set.SliceOffset(end.ColumnIndex))
 		}
 	}
-	ss.RegisterSheet = &RegisterSheet{
+	registerSheet := &RegisterSheet{
 		TabName: RegisterTabName,
 		SheetCoords: SheetCoords{
 			StartRow:       cfg.RegisterStartRow,
@@ -75,23 +75,23 @@ func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.C
 
 	props, err := ss.getSheetProperties(RegisterTabName)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	ss.RegisterSheet.ID = props.SheetId
+	registerSheet.ID = props.SheetId
 	if props.GridProperties != nil {
-		ss.RegisterSheet.SheetCoords.RowCount = props.GridProperties.RowCount
-		ss.RegisterSheet.SheetCoords.ColumnCount = props.GridProperties.ColumnCount
+		registerSheet.SheetCoords.RowCount = props.GridProperties.RowCount
+		registerSheet.SheetCoords.ColumnCount = props.GridProperties.ColumnCount
 		if len(columns) == 0 {
 			// no DB columns: the register ends at the sheet's grid edge
 			columnCount := props.GridProperties.ColumnCount
-			ss.RegisterSheet.SheetCoords.EndColumnName = models.ColumnLetter(int(columnCount))
-			ss.RegisterSheet.SheetCoords.EndColumnIndex = columnCount - 1
+			registerSheet.SheetCoords.EndColumnName = models.ColumnLetter(int(columnCount))
+			registerSheet.SheetCoords.EndColumnIndex = columnCount - 1
 		}
 	}
-	return nil
+	return registerSheet, nil
 }
 
-func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
+func (ss *SheetsService) ReadRegisterSheet(registerSheet RegisterSheet) (*RegisterSheet, error) {
 	var register []*RegisterEntry
 	var i int64
 
@@ -105,7 +105,7 @@ func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
 	}
 
 	// determine last used row in the spreadsheet
-	ss.RegisterSheet.SheetCoords.LastRow = ss.getLastRow(resp.Values)
+	registerSheet.SheetCoords.LastRow = ss.getLastRow(resp.Values)
 	keysMap := make(map[string]bool)
 
 	// The Reconciled..Delta index constants assume fixed positions; verify
@@ -129,12 +129,12 @@ func (ss *SheetsService) ReadRegisterSheet() (*RegisterSheet, error) {
 		register = append(register, registerEntry)
 	}
 
-	ss.RegisterSheet.SheetCoords.FirstRowToUpdate = ss.getFirstRowToUpdate(i)
-	ss.RegisterSheet.Register = register
-	ss.RegisterSheet.KeysMap = keysMap
-	ss.RegisterSheet.RangeValues = resp.Values
+	registerSheet.SheetCoords.FirstRowToUpdate = ss.getFirstRowToUpdate(i)
+	registerSheet.Register = register
+	registerSheet.KeysMap = keysMap
+	registerSheet.RangeValues = resp.Values
 
-	return ss.RegisterSheet, nil
+	return &registerSheet, nil
 }
 
 func (ss *SheetsService) ReadCell(cell string, cellDataType CellDataType) (any, error) {

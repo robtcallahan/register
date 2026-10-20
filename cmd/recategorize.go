@@ -5,8 +5,8 @@ import (
 
 	"register/api/providers/sheets_provider"
 	"register/api/services/sheets_service"
-	"register/pkg/repository"
 	"register/pkg/models"
+	"register/pkg/repository"
 	"register/pkg/repository/mysql"
 
 	"github.com/spf13/cobra"
@@ -67,11 +67,12 @@ func recategorize() error {
 	if err != nil {
 		return err
 	}
-	sheetsService := sheets_service.New(sheetsProvider)
-	if err := sheetsService.NewRegisterSheet(config, cols); err != nil {
+	sheetsService := sheets_service.NewRegisterService(sheetsProvider)
+	registerSheet, err := sheetsService.NewRegisterSheet(config, cols)
+	if err != nil {
 		return err
 	}
-	if _, err := sheetsService.ReadRegisterSheet(); err != nil {
+	if _, err := sheetsService.ReadRegisterSheet(*registerSheet); err != nil {
 		return err
 	}
 

@@ -29,7 +29,6 @@ import (
 	"register/api/providers/sheets_provider"
 	"register/api/services/sheets_service"
 	"register/pkg/banking"
-	cfg "register/pkg/config"
 	"register/pkg/csv"
 	"register/pkg/models"
 	"register/pkg/repository"
@@ -52,9 +51,6 @@ amounts from the appropriate budget category columns.`,
 
 /**/
 func init() {
-	if cfg, err := cfg.ReadConfig(ConfigFile); err == nil {
-		config = cfg
-	}
 	rootCmd.AddCommand(updateCmd)
 
 	updateCmd.Flags().BoolVar(&options.DryRun, "dry-run", false, "Print-only run: no DB or spreadsheet updates performed")
@@ -78,8 +74,12 @@ func update(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	sheetsService := sheets_service.New(sheetsProvider)
+
+	sheetsService := sheets_service.NewRegisterService(sheetsProvider)
 	sheetsService.IncomeSources = config.IncomeSources
+
+	budgetService := sheets_service.NewBudgetService(sheetsProvider)
+
 	if err != nil {
 		return err
 	}
@@ -87,13 +87,13 @@ func update(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	err = sheetsService.NewRegisterSheet(config, columns)
+	registerSheet, err := sheetsService.NewRegisterSheet(config, columns)
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("Reading Register...")
-	_, err = sheetsService.ReadRegisterSheet()
+	_, err = sheetsService.ReadRegisterSheet(*registerSheet)
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func update(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := updateSpreadsheet(client, sheetsService, qHandler, transactions); err != nil {
+	if err := updateSpreadsheet(client, sheetsService, budgetService, qHandler, transactions); err != nil {
 		return err
 	}
 	return nil
@@ -308,17 +308,19 @@ func persistTransactions(client *Client, qHandler repository.QueryRepo, transact
 // updateSpreadsheet writes the transactions into the register sheet and
 // refreshes the bank balances. Skipped when there is nothing to write or on
 // --dry-run runs.
-func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsService, qHandler repository.QueryRepo, transactions []*models.Transaction) error {
+func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsService,
+	budgetService *sheets_service.BudgetService, qHandler repository.QueryRepo, transactions []*models.Transaction) error {
 	if len(transactions) == 0 || options.DryRun {
 		fmt.Println("No updates needed")
 		return nil
 	}
 
 	fmt.Printf("Reading Budget...\n")
-	if err := sheetsService.NewBudgetSheet(config); err != nil {
+	budgetSheet, err := budgetService.NewBudgetSheet(config)
+	if err != nil {
 		return err
 	}
-	if _, err := sheetsService.ReadBudgetSheet(); err != nil {
+	if _, err := budgetService.ReadBudgetSheet(budgetSheet); err != nil {
 		return err
 	}
 

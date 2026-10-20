@@ -35,13 +35,14 @@ func checkBudget() error {
 	if err != nil {
 		return err
 	}
-	ss := sheets_service.New(provider)
+	bs := sheets_service.NewBudgetService(provider)
 
-	if err := ss.NewBudgetSheet(config); err != nil {
+	budgetSheet, err := bs.NewBudgetSheet(config)
+	if err != nil {
 		return fmt.Errorf("could not initialize budget sheet: %w", err)
 	}
 
-	results, err := ss.CheckBudgetLayout()
+	results, err := bs.CheckBudgetLayout(budgetSheet)
 	if err != nil {
 		return err
 	}

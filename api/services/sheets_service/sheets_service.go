@@ -53,8 +53,18 @@ type SheetsService struct {
 	Verbose       bool
 }
 
-func New(provider sheets_provider.SheetsProviderInterface) *SheetsService {
+func NewRegisterService(provider sheets_provider.SheetsProviderInterface) *SheetsService {
 	return &SheetsService{
+		Provider: provider,
+	}
+}
+
+type BudgetService struct {
+	Provider sheets_provider.SheetsProviderInterface
+}
+
+func NewBudgetService(provider sheets_provider.SheetsProviderInterface) *BudgetService {
+	return &BudgetService{
 		Provider: provider,
 	}
 }

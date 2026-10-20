@@ -100,6 +100,9 @@ func (p *providerMock) Update(writeRange string, vRange *sheets.ValueRange) (*sh
 }
 
 var ss *SheetsService
+var bs *BudgetService
+var budgetSheet *BudgetSheet
+var registerSheet *RegisterSheet
 
 func init() {
 	var err error
@@ -118,15 +121,17 @@ func init() {
 		spreadsheetID: "ssID",
 		t:             nil,
 	}
-	ss = New(&provider)
+	ss = NewRegisterService(&provider)
 	if err != nil {
 		fmt.Printf("%s", err.Error())
 		return
 	}
-	ss.RegisterSheet = &RegisterSheet{
+	bs = NewBudgetService(&provider)
+
+	registerSheet = &RegisterSheet{
 		TabName: "Register",
 	}
-	ss.BudgetSheet = &BudgetSheet{
+	budgetSheet = &BudgetSheet{
 		TabName: "Budget",
 		SheetCoords: SheetCoords{
 			StartRow:       3,
@@ -177,7 +182,7 @@ func Test_sheetsService_ReadBudgetSheet(t *testing.T) {
 		return vr, nil
 	}
 
-	got, err := ss.ReadBudgetSheet()
+	got, err := bs.ReadBudgetSheet(budgetSheet)
 	if err != nil {
 		t.Fatalf("ReadBudgetSheet() error = %v", err)
 	}
@@ -205,7 +210,7 @@ func Test_sheetsService_ReadRegisterSheet(t *testing.T) {
 		return vr, nil
 	}
 
-	got, err := ss.ReadRegisterSheet()
+	got, err := ss.ReadRegisterSheet(*registerSheet)
 	if err != nil {
 		t.Fatalf("ReadRegisterSheet() error = %v", err)
 	}
@@ -353,7 +358,7 @@ func Test_sheetsService_getSheetProperties(t *testing.T) {
 }
 
 func TestSheetsService_CopyRows_sheetFull(t *testing.T) {
-	svc := New(&providerMock{t: t})
+	svc := NewRegisterService(&providerMock{t: t})
 	svc.RegisterSheet = &RegisterSheet{
 		TabName: "Register",
 		SheetCoords: SheetCoords{
