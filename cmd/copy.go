@@ -69,13 +69,13 @@ func copyRows() error {
 	}
 
 	fmt.Printf("Reading Register...\n")
-	_, err = sheetsService.ReadRegisterSheet(*registerSheet)
+	registerSheet, err = sheetsService.ReadRegisterSheet(registerSheet)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Copying rows %d times...\n", options.NumCopies)
-	err = sheetsService.CopyRows(options.NumCopies)
+	err = sheetsService.CopyRows(*registerSheet, options.NumCopies)
 	if err != nil {
 		return err
 	}

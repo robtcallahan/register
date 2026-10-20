@@ -72,7 +72,7 @@ func recategorize() error {
 	if err != nil {
 		return err
 	}
-	if _, err := sheetsService.ReadRegisterSheet(*registerSheet); err != nil {
+	if _, err := sheetsService.ReadRegisterSheet(registerSheet); err != nil {
 		return err
 	}
 

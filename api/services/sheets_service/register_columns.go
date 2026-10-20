@@ -70,7 +70,7 @@ func compareColumnHeaders(columns []models.Column, headerRow []any) []string {
 // index, labels it in the row-4 header, and fills its running-total
 // formulas by translating the left neighbor column's formulas. The
 // position math is the caller's (DB) job; this keeps the sheet in step.
-func (ss *SheetsService) InsertRegisterColumn(index int, name string) error {
+func (ss *SheetsService) InsertRegisterColumn(registerSheet RegisterSheet, index int, name string) error {
 	insertReq := sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{{
 			InsertDimension: &sheets.InsertDimensionRequest{
@@ -99,7 +99,7 @@ func (ss *SheetsService) InsertRegisterColumn(index int, name string) error {
 	}
 	if index > 1 && rowCount > 0 {
 		neighborLetter := models.ColumnLetter(index - 1)
-		formulas, err := ss.readColumnFormulas(neighborLetter, rowCount)
+		formulas, err := ss.readColumnFormulas(registerSheet, neighborLetter, rowCount)
 		if err != nil {
 			return err
 		}
@@ -269,15 +269,15 @@ func ApplyColumnMove(columns []models.Column, from, to int) []models.Column {
 
 // RenameRegisterColumnHeader rewrites the row-4 name cell of the column at
 // the given 1-based index.
-func (ss *SheetsService) RenameRegisterColumnHeader(index int, name string) error {
-	_, err := ss.WriteCell(models.ColumnLetter(index)+"4", name)
+func (ss *SheetsService) RenameRegisterColumnHeader(registerSheet RegisterSheet, index int, name string) error {
+	_, err := ss.WriteCell(registerSheet, models.ColumnLetter(index)+"4", name)
 	return err
 }
 
 // readColumnFormulas returns the formulas of one sheet column, one entry per
 // row ("" where the cell holds no formula).
-func (ss *SheetsService) readColumnFormulas(letter string, rowCount int64) ([]string, error) {
-	rng := fmt.Sprintf("%s!%s1:%s%d", ss.RegisterSheet.TabName, letter, letter, rowCount)
+func (ss *SheetsService) readColumnFormulas(registerSheet RegisterSheet, letter string, rowCount int64) ([]string, error) {
+	rng := fmt.Sprintf("%s!%s1:%s%d", registerSheet.TabName, letter, letter, rowCount)
 	resp, err := ss.Provider.GetFormula(rng)
 	if err != nil {
 		return nil, fmt.Errorf("could not read formulas from column %s: %w", letter, err)

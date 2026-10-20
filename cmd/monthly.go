@@ -65,7 +65,7 @@ func monthly() error {
 	}
 
 	fmt.Printf("Reading Register...\n")
-	_, err = sheetsService.ReadRegisterSheet(*registerSheet)
+	_, err = sheetsService.ReadRegisterSheet(registerSheet)
 	if err != nil {
 		return err
 	}

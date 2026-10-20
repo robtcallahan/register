@@ -105,8 +105,6 @@ var budgetSheet *BudgetSheet
 var registerSheet *RegisterSheet
 
 func init() {
-	var err error
-
 	// The categoriesMap fixture lives on Rob's Mac, not in the repo. Tests
 	// that need it skip when it's absent; the rest run with an empty map.
 	var entries map[string]*BudgetEntry
@@ -122,12 +120,10 @@ func init() {
 		t:             nil,
 	}
 	ss = NewRegisterService(&provider)
-	if err != nil {
-		fmt.Printf("%s", err.Error())
-		return
-	}
 	bs = NewBudgetService(&provider)
 
+	//var err error
+	//registerSheet, err = ss.NewRegisterSheet()
 	registerSheet = &RegisterSheet{
 		TabName: "Register",
 	}
@@ -146,9 +142,9 @@ func init() {
 func Test_sheetsService_copyRowsBatchUpdateRequest(t *testing.T) {
 	// Self-contained: verifies the request structure without a JSON golden.
 	// The fixture-based golden was stale (predates refactors).
-	ss.RegisterSheet.SheetCoords.LastRow = 100
+	registerSheet.SheetCoords.LastRow = 100
 
-	got := ss.copyRowsBatchUpdateRequest(3)
+	got := ss.copyRowsBatchUpdateRequest(*registerSheet, 3)
 
 	if len(got.Requests) != 3 {
 		t.Fatalf("got %d requests, want 3", len(got.Requests))
@@ -210,7 +206,7 @@ func Test_sheetsService_ReadRegisterSheet(t *testing.T) {
 		return vr, nil
 	}
 
-	got, err := ss.ReadRegisterSheet(*registerSheet)
+	got, err := ss.ReadRegisterSheet(registerSheet)
 	if err != nil {
 		t.Fatalf("ReadRegisterSheet() error = %v", err)
 	}
@@ -246,7 +242,7 @@ func Test_sheetsService_WriteCell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// TODO: test for error
-			if got, _ := ss.WriteCell(tt.args.cell, tt.args.value); !reflect.DeepEqual(got, tt.want) {
+			if got, _ := ss.WriteCell(*registerSheet, tt.args.cell, tt.args.value); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("WriteCell() = %v, want %v", got, tt.want)
 			}
 		})
@@ -369,13 +365,13 @@ func TestSheetsService_CopyRows_sheetFull(t *testing.T) {
 	}
 
 	// last row 100 + 1 copy (2 rows) = 102 > 101 grid rows: must not fit
-	if err := svc.CopyRows(1); !errors.Is(err, errSheetFull) {
+	if err := svc.CopyRows(*svc.RegisterSheet, 1); !errors.Is(err, errSheetFull) {
 		t.Errorf("CopyRows() error = %v, want errSheetFull", err)
 	}
 
 	// plenty of room: the copy proceeds and the provider accepts it
 	svc.RegisterSheet.SheetCoords.RowCount = 1000
-	if err := svc.CopyRows(10); err != nil {
+	if err := svc.CopyRows(*svc.RegisterSheet, 10); err != nil {
 		t.Errorf("CopyRows() error = %v, want nil", err)
 	}
 }
@@ -686,7 +682,7 @@ func Test_sheetsService_ReadStringCell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// TODO: test error
-			if got, _ := ss.ReadStringCell(tt.args.cell); got != tt.want {
+			if got, _ := ss.ReadStringCell(*registerSheet, tt.args.cell); got != tt.want {
 				t.Errorf("ReadStringCell() = %v, want %v", got, tt.want)
 			}
 		})
@@ -721,7 +717,7 @@ func Test_sheetsService_ReadDateCell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// TODO: test error
-			if got, _ := ss.ReadDateCell(tt.args.cell); got != tt.want {
+			if got, _ := ss.ReadDateCell(*registerSheet, tt.args.cell); got != tt.want {
 				t.Errorf("ReadDateCell() = %v, want %v", got, tt.want)
 			}
 		})
@@ -756,7 +752,7 @@ func Test_sheetsService_ReadDollarsCell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// TODO: test error
-			if got, _ := ss.ReadDollarsCell(tt.args.cell); got != tt.want {
+			if got, _ := ss.ReadDollarsCell(*registerSheet, tt.args.cell); got != tt.want {
 				t.Errorf("ReadDollarsCell() = %v, want %v", got, tt.want)
 			}
 		})
@@ -784,7 +780,7 @@ func Test_sheetsService_ReadFormulaCell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// TODO: test error
-			if got, _ := ss.ReadFormulaCell(tt.args.cell); got != tt.want {
+			if got, _ := ss.ReadFormulaCell(*registerSheet, tt.args.cell); got != tt.want {
 				t.Errorf("ReadFormulaCell() = %v, want %v", got, tt.want)
 			}
 		})
@@ -836,7 +832,7 @@ func Test_sheetsService_readCell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// TODO: test error
-			if got, _ := ss.ReadCell(tt.args.cell, tt.args.dType); !reflect.DeepEqual(got, tt.want) {
+			if got, _ := ss.ReadCell(*registerSheet, tt.args.cell, tt.args.dType); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ReadCell() = %v, want %v", got, tt.want)
 			}
 		})

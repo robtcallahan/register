@@ -91,30 +91,30 @@ func (ss *SheetsService) NewRegisterSheet(cfg *config.Config, columns []models.C
 	return registerSheet, nil
 }
 
-func (ss *SheetsService) ReadRegisterSheet(registerSheet RegisterSheet) (*RegisterSheet, error) {
+func (ss *SheetsService) ReadRegisterSheet(registerSheet *RegisterSheet) (*RegisterSheet, error) {
 	var register []*RegisterEntry
 	var i int64
 
-	var readRange = ss.getReadRange()
+	var readRange = ss.getReadRange(*registerSheet)
 	resp, err := ss.Provider.GetValues(readRange)
 	if err != nil {
 		return nil, fmt.Errorf("could not get sheet values: %w\n", err)
 	}
 	if len(resp.Values) == 0 {
-		return nil, fmt.Errorf("no data found for read range: %s", ss.getReadRange())
+		return nil, fmt.Errorf("no data found for read range: %s", ss.getReadRange(*registerSheet))
 	}
 
 	// determine last used row in the spreadsheet
-	registerSheet.SheetCoords.LastRow = ss.getLastRow(resp.Values)
+	registerSheet.SheetCoords.LastRow = ss.getLastRow(*registerSheet, resp.Values)
 	keysMap := make(map[string]bool)
 
 	// The Reconciled..Delta index constants assume fixed positions; verify
 	// the sheet agrees before trusting them.
-	if err := ss.checkRegisterHeaders(); err != nil {
+	if err := ss.checkRegisterHeaders(*registerSheet); err != nil {
 		return nil, err
 	}
 
-	for i = 0; i <= ss.RegisterSheet.SheetCoords.LastRow; i += 2 {
+	for i = 0; i <= registerSheet.SheetCoords.LastRow; i += 2 {
 		row := getRowValues(resp.Values, int(i))
 		if ss.isEmptyRow(row) {
 			break
@@ -125,23 +125,23 @@ func (ss *SheetsService) ReadRegisterSheet(registerSheet RegisterSheet) (*Regist
 		if err != nil {
 			return nil, err
 		}
-		registerEntry.RowID = ss.getRowID(i)
+		registerEntry.RowID = ss.getRowID(*registerSheet, i)
 		register = append(register, registerEntry)
 	}
 
-	registerSheet.SheetCoords.FirstRowToUpdate = ss.getFirstRowToUpdate(i)
+	registerSheet.SheetCoords.FirstRowToUpdate = ss.getFirstRowToUpdate(*registerSheet, i)
 	registerSheet.Register = register
 	registerSheet.KeysMap = keysMap
 	registerSheet.RangeValues = resp.Values
 
-	return &registerSheet, nil
+	return registerSheet, nil
 }
 
-func (ss *SheetsService) ReadCell(cell string, cellDataType CellDataType) (any, error) {
+func (ss *SheetsService) ReadCell(registerSheet RegisterSheet, cell string, cellDataType CellDataType) (any, error) {
 	var resp *sheets.ValueRange
 	var err error
 
-	readRange := fmt.Sprintf("%s!%s:%s", ss.RegisterSheet.TabName, cell, cell)
+	readRange := fmt.Sprintf("%s!%s:%s", registerSheet.TabName, cell, cell)
 
 	if cellDataType == CellDataFormula {
 		resp, err = ss.Provider.GetFormula(readRange)
@@ -161,11 +161,11 @@ func (ss *SheetsService) ReadCell(cell string, cellDataType CellDataType) (any, 
 // errSheetFull means the copy would run past the end of the sheet's grid.
 var errSheetFull = errors.New("register sheet is full")
 
-func (ss *SheetsService) CopyRows(numCopies int) error {
-	if err := ss.checkRowsFit(numCopies); err != nil {
+func (ss *SheetsService) CopyRows(registerSheet RegisterSheet, numCopies int) error {
+	if err := ss.checkRowsFit(registerSheet, numCopies); err != nil {
 		return err
 	}
-	updateReq := ss.copyRowsBatchUpdateRequest(numCopies)
+	updateReq := ss.copyRowsBatchUpdateRequest(registerSheet, numCopies)
 	_, err := ss.Provider.BatchUpdate(&updateReq)
 	if err != nil {
 		if strings.Contains(err.Error(), "grid limits") {
@@ -176,8 +176,8 @@ func (ss *SheetsService) CopyRows(numCopies int) error {
 	return nil
 }
 
-func (ss *SheetsService) checkRowsFit(numCopies int) error {
-	coords := ss.RegisterSheet.SheetCoords
+func (ss *SheetsService) checkRowsFit(registerSheet RegisterSheet, numCopies int) error {
+	coords := registerSheet.SheetCoords
 	if coords.RowCount == 0 {
 		return nil // grid size unknown; let the API be the judge
 	}
@@ -190,43 +190,43 @@ func (ss *SheetsService) checkRowsFit(numCopies int) error {
 	return fmt.Errorf("%w — add %d rows and re-run (copy needs row %d, sheet has %d rows)", errSheetFull, add, lastNeeded, coords.RowCount)
 }
 
-func (ss *SheetsService) ReadStringCell(cell string) (string, error) {
-	v, err := ss.ReadCell(cell, CellDataString)
+func (ss *SheetsService) ReadStringCell(registerSheet RegisterSheet, cell string) (string, error) {
+	v, err := ss.ReadCell(registerSheet, cell, CellDataString)
 	if err != nil {
 		return "", fmt.Errorf("could not read string cell %s: %w", cell, err)
 	}
 	return readStringValue(v), nil
 }
 
-func (ss *SheetsService) ReadDollarsCell(cell string) (float64, error) {
-	v, err := ss.ReadCell(cell, CellDataDollars)
+func (ss *SheetsService) ReadDollarsCell(registerSheet RegisterSheet, cell string) (float64, error) {
+	v, err := ss.ReadCell(registerSheet, cell, CellDataDollars)
 	if err != nil {
 		return 0, err
 	}
 	return readDollarsValue(v)
 }
 
-func (ss *SheetsService) ReadFormulaCell(cell string) (string, error) {
-	v, err := ss.ReadCell(cell, CellDataFormula)
+func (ss *SheetsService) ReadFormulaCell(registerSheet RegisterSheet, cell string) (string, error) {
+	v, err := ss.ReadCell(registerSheet, cell, CellDataFormula)
 	if err != nil {
 		return "", err
 	}
 	return readStringValue(v), nil
 }
 
-func (ss *SheetsService) ReadDateCell(cell string) (string, error) {
-	v, err := ss.ReadCell(cell, CellDataDate)
+func (ss *SheetsService) ReadDateCell(registerSheet RegisterSheet, cell string) (string, error) {
+	v, err := ss.ReadCell(registerSheet, cell, CellDataDate)
 	if err != nil {
 		return "", err
 	}
 	return readDateValue(v), nil
 }
 
-func (ss *SheetsService) WriteCell(cell string, value any) (*sheets.UpdateValuesResponse, error) {
+func (ss *SheetsService) WriteCell(registerSheet RegisterSheet, cell string, value any) (*sheets.UpdateValuesResponse, error) {
 	var v [][]any
 	v = append(v, []any{value})
 
-	writeRange := fmt.Sprintf("%s!%s:%s", ss.RegisterSheet.TabName, cell, cell)
+	writeRange := fmt.Sprintf("%s!%s:%s", registerSheet.TabName, cell, cell)
 	vRange := &sheets.ValueRange{
 		Values: v,
 	}
@@ -244,21 +244,21 @@ func (ss *SheetsService) isEmptyRow(values []any) bool {
 	return false
 }
 
-func (ss *SheetsService) getFirstRowToUpdate(i int64) int64 {
-	return ss.RegisterSheet.SheetCoords.StartRow + i - 1
+func (ss *SheetsService) getFirstRowToUpdate(registerSheet RegisterSheet, i int64) int64 {
+	return registerSheet.SheetCoords.StartRow + i - 1
 }
 
-func (ss *SheetsService) getLastRow(values [][]any) int64 {
-	return int64(len(values)) + ss.RegisterSheet.SheetCoords.StartRow - 2
+func (ss *SheetsService) getLastRow(registerSheet RegisterSheet, values [][]any) int64 {
+	return int64(len(values)) + registerSheet.SheetCoords.StartRow - 2
 }
 
-func (ss *SheetsService) getReadRange() string {
-	return fmt.Sprintf("%s!A%d:%s%d", ss.RegisterSheet.TabName, ss.RegisterSheet.SheetCoords.StartRow,
-		ss.RegisterSheet.SheetCoords.EndColumnName, ss.RegisterSheet.SheetCoords.EndRow)
+func (ss *SheetsService) getReadRange(registerSheet RegisterSheet) string {
+	return fmt.Sprintf("%s!A%d:%s%d", registerSheet.TabName, registerSheet.SheetCoords.StartRow,
+		registerSheet.SheetCoords.EndColumnName, registerSheet.SheetCoords.EndRow)
 }
 
-func (ss *SheetsService) getRowID(i int64) int64 {
-	return ss.RegisterSheet.SheetCoords.StartRow + i
+func (ss *SheetsService) getRowID(registerSheet RegisterSheet, i int64) int64 {
+	return registerSheet.SheetCoords.StartRow + i
 }
 
 func (ss *SheetsService) populateRegisterEntry(values []any) (*RegisterEntry, error) {
@@ -316,14 +316,14 @@ func (ss *SheetsService) getSheetProperties(tabName string) (*sheets.SheetProper
 	return nil, fmt.Errorf("could not find sheet: %s", tabName)
 }
 
-func (ss *SheetsService) copyRowsBatchUpdateRequest(numCopies int) sheets.BatchUpdateSpreadsheetRequest {
+func (ss *SheetsService) copyRowsBatchUpdateRequest(registerSheet RegisterSheet, numCopies int) sheets.BatchUpdateSpreadsheetRequest {
 	var requests []*sheets.Request
 
-	index := ss.RegisterSheet.SheetCoords.LastRow
+	index := registerSheet.SheetCoords.LastRow
 	for i := 1; i <= numCopies; i++ {
 		copyPasteRequest := sheets.CopyPasteRequest{
-			Source:      ss.getCopySource(index),
-			Destination: ss.getCopyDestination(index),
+			Source:      ss.getCopySource(registerSheet, index),
+			Destination: ss.getCopyDestination(registerSheet, index),
 			PasteType:   "PASTE_NORMAL",
 		}
 		request := sheets.Request{
@@ -339,21 +339,21 @@ func (ss *SheetsService) copyRowsBatchUpdateRequest(numCopies int) sheets.BatchU
 	return updateReq
 }
 
-func (ss *SheetsService) getCopySource(index int64) *sheets.GridRange {
+func (ss *SheetsService) getCopySource(registerSheet RegisterSheet, index int64) *sheets.GridRange {
 	return &sheets.GridRange{
-		SheetId:          ss.RegisterSheet.ID,
+		SheetId:          registerSheet.ID,
 		StartColumnIndex: 0,
-		EndColumnIndex:   ss.RegisterSheet.SheetCoords.EndColumnIndex + 1,
+		EndColumnIndex:   registerSheet.SheetCoords.EndColumnIndex + 1,
 		StartRowIndex:    index - 1,
 		EndRowIndex:      index + 1,
 	}
 }
 
-func (ss *SheetsService) getCopyDestination(index int64) *sheets.GridRange {
+func (ss *SheetsService) getCopyDestination(registerSheet RegisterSheet, index int64) *sheets.GridRange {
 	return &sheets.GridRange{
-		SheetId:          ss.RegisterSheet.ID,
+		SheetId:          registerSheet.ID,
 		StartColumnIndex: 0,
-		EndColumnIndex:   ss.RegisterSheet.SheetCoords.EndColumnIndex + 1,
+		EndColumnIndex:   registerSheet.SheetCoords.EndColumnIndex + 1,
 		StartRowIndex:    index + 1,
 		EndRowIndex:      index + 1,
 	}
@@ -387,8 +387,8 @@ var registerFixedHeaders = []string{
 
 // checkRegisterHeaders verifies the Register tab's fixed column headers
 // against the positions the index constants assume.
-func (ss *SheetsService) checkRegisterHeaders() error {
-	headerRange := fmt.Sprintf("%s!A4:J4", ss.RegisterSheet.TabName)
+func (ss *SheetsService) checkRegisterHeaders(registerSheet RegisterSheet) error {
+	headerRange := fmt.Sprintf("%s!A4:J4", registerSheet.TabName)
 	resp, err := ss.Provider.GetValues(headerRange)
 	if err != nil {
 		return fmt.Errorf("could not read register header row: %w", err)

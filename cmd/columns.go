@@ -199,18 +199,22 @@ func addColumn(name string) error {
 	if err != nil {
 		return err
 	}
+	registerSheet, err := rs.NewRegisterSheet(config, nil)
+	if err != nil {
+		return err
+	}
 	bs := columnsBudgetSheetService(provider)
 	budgetSheet, err := bs.NewBudgetSheet(config)
 	if err != nil {
 		return err
 	}
 
-	if err := rs.InsertRegisterColumn(newIndex, name); err != nil {
+	if err := rs.InsertRegisterColumn(*registerSheet, newIndex, name); err != nil {
 		return fmt.Errorf("%q is in the DB at %s (%d) but the sheet update failed: %w",
 			name, set.LetterFor(newIndex), newIndex, err)
 	}
 	if !addNoBudget {
-		if err := bs.InsertBudgetCategory(budgetSheet, name, addColor); err != nil {
+		if err := bs.InsertBudgetCategory(*budgetSheet, name, addColor); err != nil {
 			return fmt.Errorf("%q added at %s (%d) but the Budget row update failed: %w",
 				name, set.LetterFor(newIndex), newIndex, err)
 		}
@@ -255,16 +259,20 @@ func renameColumn(oldName, newName string) error {
 	if err != nil {
 		return err
 	}
+	registerSheet, err := rs.NewRegisterSheet(config, nil)
+	if err != nil {
+		return err
+	}
 	bs := columnsBudgetSheetService(provider)
 	budgetSheet, err := bs.NewBudgetSheet(config)
 	if err != nil {
 		return err
 	}
 
-	if err := rs.RenameRegisterColumnHeader(index, newName); err != nil {
+	if err := rs.RenameRegisterColumnHeader(*registerSheet, index, newName); err != nil {
 		return fmt.Errorf("%q renamed in the DB but the sheet header update failed: %w", oldName, err)
 	}
-	budgetRenamed, err := bs.RenameBudgetCategory(budgetSheet, oldName, newName)
+	budgetRenamed, err := bs.RenameBudgetCategory(*budgetSheet, oldName, newName)
 	if err != nil {
 		return fmt.Errorf("%q renamed but the Budget row update failed: %w", oldName, err)
 	}
@@ -310,7 +318,7 @@ func deleteColumn(name string) error {
 		return err
 	}
 
-	budgetEntry, hasBudget, err := bs.BudgetEntryFor(budgetSheet, name)
+	budgetEntry, hasBudget, err := bs.BudgetEntryFor(*budgetSheet, name)
 	if err != nil {
 		return err
 	}
@@ -348,7 +356,7 @@ func deleteColumn(name string) error {
 		return fmt.Errorf("%q is deleted from the DB but the sheet update failed: %w", name, err)
 	}
 	if hasBudget {
-		if _, err := bs.DeleteBudgetCategory(budgetSheet, name); err != nil {
+		if _, err := bs.DeleteBudgetCategory(*budgetSheet, name); err != nil {
 			return fmt.Errorf("%q is deleted but its Budget row removal failed: %w", name, err)
 		}
 	}
@@ -403,7 +411,7 @@ func moveColumn(name string) error {
 		return err
 	}
 
-	_, hasBudget, err := bs.BudgetRowFor(budgetSheet, name)
+	_, hasBudget, err := bs.BudgetRowFor(*budgetSheet, name)
 	if err != nil {
 		return err
 	}
@@ -426,7 +434,7 @@ func moveColumn(name string) error {
 			if c.Color != col.Color {
 				continue
 			}
-			if _, ok, err := bs.BudgetRowFor(budgetSheet, c.Name); err != nil {
+			if _, ok, err := bs.BudgetRowFor(*budgetSheet, c.Name); err != nil {
 				return err
 			} else if !ok {
 				continue
@@ -439,12 +447,12 @@ func moveColumn(name string) error {
 		}
 		switch {
 		case before != "":
-			if err := bs.MoveBudgetCategoryAfter(budgetSheet, name, before); err != nil {
+			if err := bs.MoveBudgetCategoryAfter(*budgetSheet, name, before); err != nil {
 				return fmt.Errorf("Budget row move for %q failed (nothing else changed yet): %w", name, err)
 			}
 			budgetNote = " Budget row moved with it."
 		case following != "":
-			if err := bs.MoveBudgetCategoryBefore(budgetSheet, name, following); err != nil {
+			if err := bs.MoveBudgetCategoryBefore(*budgetSheet, name, following); err != nil {
 				return fmt.Errorf("Budget row move for %q failed (nothing else changed yet): %w", name, err)
 			}
 			budgetNote = " Budget row moved with it."

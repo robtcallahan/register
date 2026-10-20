@@ -42,7 +42,7 @@ func checkBudget() error {
 		return fmt.Errorf("could not initialize budget sheet: %w", err)
 	}
 
-	results, err := bs.CheckBudgetLayout(budgetSheet)
+	results, err := bs.CheckBudgetLayout(*budgetSheet)
 	if err != nil {
 		return err
 	}

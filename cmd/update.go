@@ -93,7 +93,7 @@ func update(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("Reading Register...")
-	_, err = sheetsService.ReadRegisterSheet(*registerSheet)
+	_, err = sheetsService.ReadRegisterSheet(registerSheet)
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func update(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	transactions = dedupeAgainstSheet(client, transactions, sheetsService.RegisterSheet.KeysMap)
+	transactions = dedupeAgainstSheet(client, transactions, registerSheet.KeysMap)
 
 	fmt.Println("Filtering out credit card payments...")
 	transactions = client.BankClient.FilterCreditCardPayments(transactions)
@@ -331,8 +331,9 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
 	}
 
 	// add the needed number of rows for transactions
+	registerSheet, err := sheetsService.NewRegisterSheet(config, nil)
 	fmt.Println("Adding rows...")
-	if err := sheetsService.CopyRows(len(transactions)); err != nil {
+	if err := sheetsService.CopyRows(*registerSheet, len(transactions)); err != nil {
 		return err
 	}
 
@@ -352,11 +353,11 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
 		return err
 	}
 
-	lastRowUpdated := sheetsService.RegisterSheet.SheetCoords.FirstRowToUpdate + int64(len(transactions)*2) + 1
-	if _, err := sheetsService.WriteCell(sheets_service.LastUpdateCell, time.Now().Format("01/02/2006")); err != nil {
+	lastRowUpdated := registerSheet.SheetCoords.FirstRowToUpdate + int64(len(transactions)*2) + 1
+	if _, err := sheetsService.WriteCell(*registerSheet, sheets_service.LastUpdateCell, time.Now().Format("01/02/2006")); err != nil {
 		return err
 	}
-	if _, err := sheetsService.WriteCell(sheets_service.CheckingDeltaCell, fmt.Sprintf("=SUM(%s-I%d)", sheets_service.CheckingBalanceCell, lastRowUpdated)); err != nil {
+	if _, err := sheetsService.WriteCell(*registerSheet, sheets_service.CheckingDeltaCell, fmt.Sprintf("=SUM(%s-I%d)", sheets_service.CheckingBalanceCell, lastRowUpdated)); err != nil {
 		return err
 	}
 
@@ -365,16 +366,16 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
 		balances := client.BankClient.GetBalances([]string{banking.WellsFargoID})
 		printBalances(balances)
 		fmt.Println("Updating balances...")
-		if err := updateBalances(sheetsService, balances); err != nil {
+		if err := updateBalances(*sheetsService, *registerSheet, balances); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func updateBalances(sheetsService *sheets_service.SheetsService, balances map[string]banking.Balance) error {
+func updateBalances(sheetsService sheets_service.SheetsService, registerSheet sheets_service.RegisterSheet, balances map[string]banking.Balance) error {
 	if balances[banking.WellsFargoID].Error == nil {
-		if _, err := sheetsService.WriteCell(sheets_service.CheckingBalanceCell, balances[banking.WellsFargoID].Amount); err != nil {
+		if _, err := sheetsService.WriteCell(registerSheet, sheets_service.CheckingBalanceCell, balances[banking.WellsFargoID].Amount); err != nil {
 			return err
 		}
 	}

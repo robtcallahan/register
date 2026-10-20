@@ -93,7 +93,7 @@ func (bs *BudgetService) ReadBudgetSheet(budgetSheet *BudgetSheet) (*BudgetSheet
 		return nil, errors.New("no values found")
 	}
 
-	decoder, err := bs.budgetHeaderDecoder(budgetSheet)
+	decoder, err := bs.budgetHeaderDecoder(*budgetSheet)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ type BudgetCheckResult struct {
 // CheckBudgetLayout validates the Budget tab headers and returns a
 // human-readable report. Unlike ReadBudgetSheet (which fails on the first
 // problem), this collects all issues so they can be fixed in one pabs.
-func (bs *BudgetService) CheckBudgetLayout(budgetSheet *BudgetSheet) ([]BudgetCheckResult, error) {
+func (bs *BudgetService) CheckBudgetLayout(budgetSheet BudgetSheet) ([]BudgetCheckResult, error) {
 	var results []BudgetCheckResult
 
 	decoder, err := bs.budgetHeaderDecoder(budgetSheet)
@@ -195,7 +195,7 @@ func (bs *BudgetService) populateBudgetEntry(decoder *rowDecoder, values []any) 
 
 // budgetHeaderDecoder reads the Budget tab header row (row 1) and builds a
 // name→column decoder from it.
-func (bs *BudgetService) budgetHeaderDecoder(budgetSheet *BudgetSheet) (*rowDecoder, error) {
+func (bs *BudgetService) budgetHeaderDecoder(budgetSheet BudgetSheet) (*rowDecoder, error) {
 	headerRange := fmt.Sprintf("%s!A1:%s1", budgetSheet.TabName, budgetSheet.SheetCoords.EndColumnName)
 	headerResp, err := bs.Provider.GetValues(headerRange)
 	if err != nil {
@@ -229,7 +229,7 @@ func budgetGroupName(color string) (string, bool) {
 // BudgetRowFor returns the 1-based sheet row of the Budget category with
 // the given name, or false if the tab has no such row. Reads fresh: the
 // columns CLI is short-lived and the tab may have been edited by hand.
-func (bs *BudgetService) BudgetRowFor(budgetSheet *BudgetSheet, name string) (int, bool, error) {
+func (bs *BudgetService) BudgetRowFor(budgetSheet BudgetSheet, name string) (int, bool, error) {
 	rng := fmt.Sprintf("%s!A%d:A%d", budgetSheet.TabName,
 		budgetSheet.SheetCoords.StartRow, budgetSheet.SheetCoords.EndRow)
 	resp, err := bs.Provider.GetValues(rng)
@@ -246,7 +246,7 @@ func (bs *BudgetService) BudgetRowFor(budgetSheet *BudgetSheet, name string) (in
 
 // BudgetEntryFor returns the Weekly/Monthly allocations of the named
 // Budget category.
-func (bs *BudgetService) BudgetEntryFor(budgetSheet *BudgetSheet, name string) (*BudgetEntry, bool, error) {
+func (bs *BudgetService) BudgetEntryFor(budgetSheet BudgetSheet, name string) (*BudgetEntry, bool, error) {
 	row, found, err := bs.BudgetRowFor(budgetSheet, name)
 	if err != nil || !found {
 		return nil, found, err
@@ -273,7 +273,7 @@ func (bs *BudgetService) BudgetEntryFor(budgetSheet *BudgetSheet, name string) (
 
 // RenameBudgetCategory renames the Budget row of a category. Reports
 // whether a row existed (payoff columns have none).
-func (bs *BudgetService) RenameBudgetCategory(budgetSheet *BudgetSheet, oldName, newName string) (bool, error) {
+func (bs *BudgetService) RenameBudgetCategory(budgetSheet BudgetSheet, oldName, newName string) (bool, error) {
 	row, found, err := bs.BudgetRowFor(budgetSheet, oldName)
 	if err != nil || !found {
 		return found, err
@@ -288,7 +288,7 @@ func (bs *BudgetService) RenameBudgetCategory(budgetSheet *BudgetSheet, oldName,
 // InsertBudgetCategory adds a zeroed Budget row for a new register
 // category: inside its color group, just before the group's totals row,
 // with the totals formulas extended to cover the new row.
-func (bs *BudgetService) InsertBudgetCategory(budgetSheet *BudgetSheet, name, color string) error {
+func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, color string) error {
 	group, ok := budgetGroupName(color)
 	if !ok {
 		return fmt.Errorf("no budget group for color %q", color)
@@ -358,7 +358,7 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet *BudgetSheet, name, co
 // DeleteBudgetCategory removes the Budget row of a category. Reports
 // whether a row existed. Deleting inside the group's SUM range is safe:
 // Sheets shrinks the range itself.
-func (bs *BudgetService) DeleteBudgetCategory(budgetSheet *BudgetSheet, name string) (bool, error) {
+func (bs *BudgetService) DeleteBudgetCategory(budgetSheet BudgetSheet, name string) (bool, error) {
 	row, found, err := bs.BudgetRowFor(budgetSheet, name)
 	if err != nil || !found {
 		return found, err
@@ -384,7 +384,7 @@ func (bs *BudgetService) DeleteBudgetCategory(budgetSheet *BudgetSheet, name str
 // MoveBudgetCategoryAfter moves the Budget row of name so it sits
 // immediately after the Budget row of afterName. The caller is
 // responsible for keeping the row inside its color group.
-func (bs *BudgetService) MoveBudgetCategoryAfter(budgetSheet *BudgetSheet, name, afterName string) error {
+func (bs *BudgetService) MoveBudgetCategoryAfter(budgetSheet BudgetSheet, name, afterName string) error {
 	row, found, err := bs.BudgetRowFor(budgetSheet, name)
 	if err != nil || !found {
 		if !found {
@@ -407,7 +407,7 @@ func (bs *BudgetService) MoveBudgetCategoryAfter(budgetSheet *BudgetSheet, name,
 
 // MoveBudgetCategoryBefore moves the Budget row of name so it sits
 // immediately above the Budget row of beforeName.
-func (bs *BudgetService) MoveBudgetCategoryBefore(budgetSheet *BudgetSheet, name, beforeName string) error {
+func (bs *BudgetService) MoveBudgetCategoryBefore(budgetSheet BudgetSheet, name, beforeName string) error {
 	row, found, err := bs.BudgetRowFor(budgetSheet, name)
 	if err != nil || !found {
 		if !found {
@@ -430,7 +430,7 @@ func (bs *BudgetService) MoveBudgetCategoryBefore(budgetSheet *BudgetSheet, name
 
 // moveBudgetRow relocates the 1-based Budget row to the given
 // MoveDimension destination (pre-removal coordinates).
-func (bs *BudgetService) moveBudgetRow(budgetSheet *BudgetSheet, row, destinationIndex int) error {
+func (bs *BudgetService) moveBudgetRow(budgetSheet BudgetSheet, row, destinationIndex int) error {
 	moveReq := &sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{{
 			MoveDimension: &sheets.MoveDimensionRequest{
