@@ -99,7 +99,7 @@ func (p *providerMock) Update(writeRange string, vRange *sheets.ValueRange) (*sh
 	return resp, nil
 }
 
-var ss *SheetsService
+var ss *RegisterService
 var bs *BudgetService
 var budgetSheet *BudgetSheet
 var registerSheet *RegisterSheet

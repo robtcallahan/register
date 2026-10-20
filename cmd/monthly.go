@@ -64,6 +64,8 @@ func monthly() error {
 		return err
 	}
 
+	monthlyService := sheets_service.NewMonthlyService(sheetsProvider, config.IncomeSources)
+
 	fmt.Printf("Reading Register...\n")
 	_, err = sheetsService.ReadRegisterSheet(registerSheet)
 	if err != nil {
@@ -71,19 +73,19 @@ func monthly() error {
 	}
 
 	fmt.Println("Aggregating...")
-	catAgg, payeeAgg, err := sheetsService.Aggregate(*registerSheet, cols)
+	catAgg, payeeAgg, err := monthlyService.Aggregate(*registerSheet, cols)
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("Updating...")
-	if err := sheetsService.UpdateMonthlyCategories("MonthlyCategories", catAgg, cols); err != nil {
+	if err := monthlyService.UpdateMonthlyCategories("MonthlyCategories", catAgg, cols); err != nil {
 		return fmt.Errorf("monthly categories: %w", err)
 	}
-	if err := sheetsService.UpdateMonthlyPayees("MonthlyPayees", payeeAgg); err != nil {
+	if err := monthlyService.UpdateMonthlyPayees("MonthlyPayees", payeeAgg); err != nil {
 		return fmt.Errorf("monthly payees: %w", err)
 	}
-	if err := sheetsService.UpdateYearlySummary("YearlySummary", catAgg, cols); err != nil {
+	if err := monthlyService.UpdateYearlySummary("YearlySummary", catAgg, cols); err != nil {
 		return fmt.Errorf("yearly summary: %w", err)
 	}
 	return nil

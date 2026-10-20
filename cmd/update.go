@@ -306,7 +306,7 @@ func persistTransactions(client *Client, qHandler repository.QueryRepo, transact
 // updateSpreadsheet writes the transactions into the register sheet and
 // refreshes the bank balances. Skipped when there is nothing to write or on
 // --dry-run runs.
-func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsService,
+func updateSpreadsheet(client *Client, sheetsService *sheets_service.RegisterService,
 	budgetService *sheets_service.BudgetService, qHandler repository.QueryRepo, transactions []*models.Transaction) error {
 	if len(transactions) == 0 || options.DryRun {
 		fmt.Println("No updates needed")
@@ -375,7 +375,7 @@ func updateSpreadsheet(client *Client, sheetsService *sheets_service.SheetsServi
 	return nil
 }
 
-func updateBalances(sheetsService sheets_service.SheetsService, registerSheet sheets_service.RegisterSheet, balances map[string]banking.Balance) error {
+func updateBalances(sheetsService sheets_service.RegisterService, registerSheet sheets_service.RegisterSheet, balances map[string]banking.Balance) error {
 	if balances[banking.WellsFargoID].Error == nil {
 		if _, err := sheetsService.WriteCell(registerSheet, sheets_service.CheckingBalanceCell, balances[banking.WellsFargoID].Amount); err != nil {
 			return err

@@ -40,7 +40,7 @@ func Test_hasNote(t *testing.T) {
 }
 
 func Test_isIncomeName(t *testing.T) {
-	ss := &SheetsService{IncomeSources: []config.IncomeSource{
+	ss := &RegisterService{IncomeSources: []config.IncomeSource{
 		{Name: "Taylor House Paycheck"},
 		{Name: "Social Security"},
 	}}

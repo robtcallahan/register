@@ -40,7 +40,7 @@ const (
 
 type CellDataType int
 
-type SheetsService struct {
+type RegisterService struct {
 	service       *sheets.Service
 	Provider      sheets_provider.SheetsProviderInterface
 	SpreadsheetID string
@@ -51,8 +51,8 @@ type SheetsService struct {
 	Verbose       bool
 }
 
-func NewRegisterService(provider sheets_provider.SheetsProviderInterface) *SheetsService {
-	return &SheetsService{
+func NewRegisterService(provider sheets_provider.SheetsProviderInterface) *RegisterService {
+	return &RegisterService{
 		Provider: provider,
 	}
 }
@@ -64,5 +64,17 @@ type BudgetService struct {
 func NewBudgetService(provider sheets_provider.SheetsProviderInterface) *BudgetService {
 	return &BudgetService{
 		Provider: provider,
+	}
+}
+
+type MonthlyService struct {
+	Provider      sheets_provider.SheetsProviderInterface
+	IncomeSources []config.IncomeSource
+}
+
+func NewMonthlyService(provider sheets_provider.SheetsProviderInterface, incomeSources []config.IncomeSource) *MonthlyService {
+	return &MonthlyService{
+		Provider:      provider,
+		IncomeSources: incomeSources,
 	}
 }

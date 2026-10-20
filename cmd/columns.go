@@ -117,7 +117,7 @@ func columnsQuery() (repository.QueryRepo, error) {
 	return mysql.NewMySQLQueryRepo(conn), nil
 }
 
-func columnsRegisterSheetService(provider sheets_provider.SheetsProviderInterface) (*sheets_service.SheetsService, error) {
+func columnsRegisterSheetService(provider sheets_provider.SheetsProviderInterface) (*sheets_service.RegisterService, error) {
 	return sheets_service.NewRegisterService(provider), nil
 }
 

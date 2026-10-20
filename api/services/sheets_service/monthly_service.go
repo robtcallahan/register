@@ -11,31 +11,45 @@ import (
 	"google.golang.org/api/sheets/v4"
 )
 
-func (ss *SheetsService) UpdateMonthlyCategories(tabName string, catAgg map[string]map[string]float64, columns []models.Column) error {
+func (ms *MonthlyService) getSheetProperties(tabName string) (*sheets.SheetProperties, error) {
+	spreadsheet, err := ms.Provider.GetSpreadsheet()
+	if err != nil {
+		return nil, fmt.Errorf("unable to retrieve spreadsheet: %w", err)
+	}
+
+	for _, sheet := range spreadsheet.Sheets {
+		if sheet.Properties.Title == tabName {
+			return sheet.Properties, nil
+		}
+	}
+	return nil, fmt.Errorf("could not find sheet: %s", tabName)
+}
+
+func (ms *MonthlyService) UpdateMonthlyCategories(tabName string, catAgg map[string]map[string]float64, columns []models.Column) error {
 	rows := populateMonthlyCategories(catAgg, columns)
-	props, err := ss.getSheetProperties(tabName)
+	props, err := ms.getSheetProperties(tabName)
 	if err != nil {
 		return fmt.Errorf("error: %w\n", err)
 	}
-	return ss.updateMonthly(tabName, props.SheetId, rows)
+	return ms.updateMonthly(tabName, props.SheetId, rows)
 }
 
-func (ss *SheetsService) UpdateMonthlyPayees(tabName string, catAgg map[string]map[string]float64) error {
-	incomeNames := make([]string, len(ss.IncomeSources))
-	for i, s := range ss.IncomeSources {
+func (ms *MonthlyService) UpdateMonthlyPayees(tabName string, catAgg map[string]map[string]float64) error {
+	incomeNames := make([]string, len(ms.IncomeSources))
+	for i, s := range ms.IncomeSources {
 		incomeNames[i] = s.Name
 	}
 	rows := populateMonthlyPayees(catAgg, incomeNames)
-	props, err := ss.getSheetProperties(tabName)
+	props, err := ms.getSheetProperties(tabName)
 	if err != nil {
 		return fmt.Errorf("error: %w\n", err)
 	}
-	return ss.updateMonthly(tabName, props.SheetId, rows)
+	return ms.updateMonthly(tabName, props.SheetId, rows)
 }
 
-func (ss *SheetsService) updateMonthly(tabName string, sheetID int64, rows []*sheets.RowData) error {
+func (ms *MonthlyService) updateMonthly(tabName string, sheetID int64, rows []*sheets.RowData) error {
 	// clear the tab first so stale rows/columns from a previous run don't linger
-	if err := ss.Provider.ClearValues(tabName); err != nil {
+	if err := ms.Provider.ClearValues(tabName); err != nil {
 		return fmt.Errorf("error: %w\n", err)
 	}
 	gc := &sheets.GridCoordinate{
@@ -61,14 +75,14 @@ func (ss *SheetsService) updateMonthly(tabName string, sheetID int64, rows []*sh
 	}
 
 	// execute the request
-	_, err := ss.Provider.BatchUpdate(&batchUpdateRequest)
+	_, err := ms.Provider.BatchUpdate(&batchUpdateRequest)
 	if err != nil {
 		return fmt.Errorf("error: %w\n", err)
 	}
 	return nil
 }
 
-func (ss *SheetsService) Aggregate(registerSheet RegisterSheet, cols []models.Column) (map[string]map[string]float64, map[string]map[string]float64, error) {
+func (ms *MonthlyService) Aggregate(registerSheet RegisterSheet, cols []models.Column) (map[string]map[string]float64, map[string]map[string]float64, error) {
 	// map of register entries by month and category
 	catAgg := make(map[string]map[string]float64)
 
@@ -96,7 +110,7 @@ func (ss *SheetsService) Aggregate(registerSheet RegisterSheet, cols []models.Co
 				catAgg[k] = make(map[string]float64)
 			}
 
-			if isIncomeName(r.Name, ss.IncomeSources) {
+			if isIncomeName(r.Name, ms.IncomeSources) {
 				catAgg[k][r.Name] += r.Deposit
 				continue
 			}
@@ -276,26 +290,26 @@ func addSummarySalaryRow(cellName string, rowNum int, months []string, aggData m
 	return &sheets.RowData{Values: cells}
 }
 
-func (ss *SheetsService) UpdateYearlySummary(tabName string, catAgg map[string]map[string]float64, columns []models.Column) error {
-	incomeNames := make([]string, len(ss.IncomeSources))
-	for i, s := range ss.IncomeSources {
+func (ms *MonthlyService) UpdateYearlySummary(tabName string, catAgg map[string]map[string]float64, columns []models.Column) error {
+	incomeNames := make([]string, len(ms.IncomeSources))
+	for i, s := range ms.IncomeSources {
 		incomeNames[i] = s.Name
 	}
 	rows := populateYearlySummary(catAgg, columns, incomeNames)
-	props, err := ss.getSheetProperties(tabName)
+	props, err := ms.getSheetProperties(tabName)
 	if err != nil {
 		return fmt.Errorf("error: %w\n", err)
 	}
 	// a fresh tab only has 26 columns; the yearly table is wider
-	if err := ss.ensureColumnCount(props, int64(len(rows[0].Values))); err != nil {
+	if err := ms.ensureColumnCount(props, int64(len(rows[0].Values))); err != nil {
 		return fmt.Errorf("error: %w\n", err)
 	}
-	return ss.updateMonthly(tabName, props.SheetId, rows)
+	return ms.updateMonthly(tabName, props.SheetId, rows)
 }
 
 // ensureColumnCount widens the tab when the table needs more columns
 // than the sheet currently has.
-func (ss *SheetsService) ensureColumnCount(props *sheets.SheetProperties, need int64) error {
+func (ms *MonthlyService) ensureColumnCount(props *sheets.SheetProperties, need int64) error {
 	have := int64(26)
 	if props.GridProperties != nil {
 		have = props.GridProperties.ColumnCount
@@ -318,7 +332,7 @@ func (ss *SheetsService) ensureColumnCount(props *sheets.SheetProperties, need i
 			},
 		},
 	}
-	_, err := ss.Provider.BatchUpdate(req)
+	_, err := ms.Provider.BatchUpdate(req)
 	return err
 }
 

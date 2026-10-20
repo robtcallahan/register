@@ -10,7 +10,7 @@ import (
 	"google.golang.org/api/sheets/v4"
 )
 
-func (ss *SheetsService) UpdateRows(registerSheet RegisterSheet, budgetSheet BudgetSheet, columns []models.Column, transNameToColName map[string]string, transactions []*models.Transaction) error {
+func (ss *RegisterService) UpdateRows(registerSheet RegisterSheet, budgetSheet BudgetSheet, columns []models.Column, transNameToColName map[string]string, transactions []*models.Transaction) error {
 	var requests []*sheets.Request
 
 	rb := &RowBuilder{
@@ -54,7 +54,7 @@ func (ss *SheetsService) UpdateRows(registerSheet RegisterSheet, budgetSheet Bud
 
 // Private methods
 
-func (ss *SheetsService) getGridCoordinate(registerSheet RegisterSheet) *sheets.GridCoordinate {
+func (ss *RegisterService) getGridCoordinate(registerSheet RegisterSheet) *sheets.GridCoordinate {
 	return &sheets.GridCoordinate{
 		SheetId:     registerSheet.ID,
 		RowIndex:    registerSheet.SheetCoords.FirstRowToUpdate,
@@ -181,7 +181,7 @@ type CategoryMove struct {
 // contains any of the match strings (case-insensitive) and plans moving each
 // row's category amount into the target column. Rows with no (or ambiguous)
 // category amounts are reported in notes and left alone.
-func (ss *SheetsService) PlanCategoryMoves(registerSheet RegisterSheet, matches []string, target models.Column, cols []models.Column) ([]CategoryMove, []string) {
+func (ss *RegisterService) PlanCategoryMoves(registerSheet RegisterSheet, matches []string, target models.Column, cols []models.Column) ([]CategoryMove, []string) {
 	var moves []CategoryMove
 	var notes []string
 
@@ -251,7 +251,7 @@ func (ss *SheetsService) PlanCategoryMoves(registerSheet RegisterSheet, matches 
 
 // MoveCategoryCells executes planned category moves in a single batch update:
 // each amount is written into its new column and cleared from the old one.
-func (ss *SheetsService) MoveCategoryCells(registerSheet RegisterSheet, moves []CategoryMove) error {
+func (ss *RegisterService) MoveCategoryCells(registerSheet RegisterSheet, moves []CategoryMove) error {
 	var requests []*sheets.Request
 	for _, m := range moves {
 		write := &sheets.UpdateCellsRequest{

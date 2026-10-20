@@ -16,7 +16,7 @@ import (
 // Register tab: structural problems in the DB indexes, a sheet grid wider
 // or narrower than the DB's last column, and row-4 header names that
 // disagree with the DB. Report-only; it never writes anything.
-func (ss *SheetsService) CheckRegisterColumns(registerSheet RegisterSheet, columns []models.Column) ([]string, error) {
+func (ss *RegisterService) CheckRegisterColumns(registerSheet RegisterSheet, columns []models.Column) ([]string, error) {
 	set := models.NewColumnSet(columns)
 	problems := set.Validate()
 
@@ -70,7 +70,7 @@ func compareColumnHeaders(columns []models.Column, headerRow []any) []string {
 // index, labels it in the row-4 header, and fills its running-total
 // formulas by translating the left neighbor column's formulas. The
 // position math is the caller's (DB) job; this keeps the sheet in step.
-func (ss *SheetsService) InsertRegisterColumn(registerSheet RegisterSheet, index int, name string) error {
+func (ss *RegisterService) InsertRegisterColumn(registerSheet RegisterSheet, index int, name string) error {
 	insertReq := sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{{
 			InsertDimension: &sheets.InsertDimensionRequest{
@@ -119,7 +119,7 @@ func (ss *SheetsService) InsertRegisterColumn(registerSheet RegisterSheet, index
 }
 
 // DeleteRegisterColumn removes the sheet column at the given 1-based index.
-func (ss *SheetsService) DeleteRegisterColumn(registerSheet RegisterSheet, index int) error {
+func (ss *RegisterService) DeleteRegisterColumn(registerSheet RegisterSheet, index int) error {
 	deleteReq := sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{{
 			DeleteDimension: &sheets.DeleteDimensionRequest{
@@ -143,7 +143,7 @@ func (ss *SheetsService) DeleteRegisterColumn(registerSheet RegisterSheet, index
 // carrying the column's values, formulas, and header color with it.
 // MoveDimension's DestinationIndex counts positions in pre-removal
 // coordinates, which is exactly what "after column N" means here.
-func (ss *SheetsService) MoveRegisterColumn(registerSheet RegisterSheet, fromIndex, afterIndex int) error {
+func (ss *RegisterService) MoveRegisterColumn(registerSheet RegisterSheet, fromIndex, afterIndex int) error {
 	moveReq := sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{{
 			MoveDimension: &sheets.MoveDimensionRequest{
@@ -269,14 +269,14 @@ func ApplyColumnMove(columns []models.Column, from, to int) []models.Column {
 
 // RenameRegisterColumnHeader rewrites the row-4 name cell of the column at
 // the given 1-based index.
-func (ss *SheetsService) RenameRegisterColumnHeader(registerSheet RegisterSheet, index int, name string) error {
+func (ss *RegisterService) RenameRegisterColumnHeader(registerSheet RegisterSheet, index int, name string) error {
 	_, err := ss.WriteCell(registerSheet, models.ColumnLetter(index)+"4", name)
 	return err
 }
 
 // readColumnFormulas returns the formulas of one sheet column, one entry per
 // row ("" where the cell holds no formula).
-func (ss *SheetsService) readColumnFormulas(registerSheet RegisterSheet, letter string, rowCount int64) ([]string, error) {
+func (ss *RegisterService) readColumnFormulas(registerSheet RegisterSheet, letter string, rowCount int64) ([]string, error) {
 	rng := fmt.Sprintf("%s!%s1:%s%d", registerSheet.TabName, letter, letter, rowCount)
 	resp, err := ss.Provider.GetFormula(rng)
 	if err != nil {
