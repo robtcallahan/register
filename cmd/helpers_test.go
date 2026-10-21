@@ -15,6 +15,8 @@ func TestWeeksAgo(t *testing.T) {
 		t.Fatalf("weeksAgo(12) = %q, unparseable: %v", got, err)
 	}
 	want := time.Now().AddDate(0, 0, -84)
+	wantString := want.Format(PlaidDateFormat)
+	want, _ = time.Parse(PlaidDateFormat, wantString)
 	if diff := want.Sub(gotTime); diff > 24*time.Hour || diff < -24*time.Hour {
 		t.Errorf("weeksAgo(12) = %q, want ~84 days ago", got)
 	}

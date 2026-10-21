@@ -1,53 +1,33 @@
 package sheets_provider
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
-	"register/api/clients/sheets_client"
-
+	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 )
 
-var getRequestFunc func(spreadsheetID string, range_ string) (*sheets.ValueRange, error)
-var getSpreadsheetFunc func(spreadsheetID string) (*sheets.Spreadsheet, error)
-
-type getClientMock struct{}
-
-// We are mocking the client method "Get"
-func (c *getClientMock) Get(ssService *sheets.Service, spreadsheetID string, range_ string) (*sheets.ValueRange, error) {
-	return getRequestFunc(spreadsheetID, range_)
-}
-
-func (c *getClientMock) GetFormula(ssService *sheets.Service, spreadsheetID string, range_ string) (*sheets.ValueRange, error) {
-	return getRequestFunc(spreadsheetID, range_)
-}
-
-func (c *getClientMock) GetSpreadsheet(ssService *sheets.Service, spreadsheetID string) (*sheets.Spreadsheet, error) {
-	return getSpreadsheetFunc(spreadsheetID)
-}
-
-func (c *getClientMock) BatchUpdate(ssService *sheets.Service, spreadsheetID string, updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
-	return nil, errors.New("getClientMock: BatchUpdate not implemented")
-}
-
-func (c *getClientMock) Update(ssService *sheets.Service, spreadsheetID string, writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
-	return nil, errors.New("getClientMock: Update not implemented")
-}
-
-// useMockClient points the package-global client at the mock for the
-// duration of a test and restores the real client afterwards.
-func useMockClient(t *testing.T) {
+func newTestProvider(t *testing.T, handler http.HandlerFunc) *SheetsProvider {
 	t.Helper()
-	original := sheets_client.ClientStruct
-	sheets_client.ClientStruct = &getClientMock{}
-	t.Cleanup(func() { sheets_client.ClientStruct = original })
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	svc, err := sheets.NewService(context.Background(),
+		option.WithEndpoint(server.URL),
+		option.WithoutAuthentication(),
+	)
+	if err != nil {
+		t.Fatalf("could not build test sheets service: %v", err)
+	}
+	return &SheetsProvider{service: svc, spreadsheetID: "ssID"}
 }
 
 func TestSheetsProvider_GetValues(t *testing.T) {
-	useMockClient(t)
-
 	tests := []struct {
 		name     string
 		response *sheets.ValueRange
@@ -71,10 +51,18 @@ func TestSheetsProvider_GetValues(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			getRequestFunc = func(spreadsheetID string, range_ string) (*sheets.ValueRange, error) {
-				return tt.response, tt.respErr
-			}
-			p := &SheetsProvider{service: &sheets.Service{}, spreadsheetID: "ssID"}
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tt.respErr != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(&sheets.ValueRange{
+					Range:  tt.response.Range,
+					Values: tt.response.Values,
+				})
+			})
+			p := newTestProvider(t, handler)
 			got, err := p.GetValues("Register!A1:B2")
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("GetValues() error = %v, wantErr %v", err, tt.wantErr)
@@ -90,38 +78,37 @@ func TestSheetsProvider_GetValues(t *testing.T) {
 }
 
 func TestSheetsProvider_GetSpreadsheet(t *testing.T) {
-	useMockClient(t)
-
-	// The raw spreadsheet data is built in code: no JSON fixture files.
-	getSpreadsheetFunc = func(spreadsheetID string) (*sheets.Spreadsheet, error) {
-		return &sheets.Spreadsheet{
-			Sheets: []*sheets.Sheet{
-				{
-					Properties: &sheets.SheetProperties{
-						Title:          "Budget",
-						SheetId:        987654321,
-						GridProperties: &sheets.GridProperties{RowCount: 100, ColumnCount: 10},
-					},
-				},
-				{
-					Properties: &sheets.SheetProperties{
-						Title:          "Register",
-						SheetId:        617336355,
-						GridProperties: &sheets.GridProperties{RowCount: 1000, ColumnCount: 47},
-					},
-				},
-				{
-					// No GridProperties: the counts must stay at zero.
-					Properties: &sheets.SheetProperties{
-						Title:   "NoGrid",
-						SheetId: 555,
-					},
+	fakeSpreadsheet := &sheets.Spreadsheet{
+		Sheets: []*sheets.Sheet{
+			{
+				Properties: &sheets.SheetProperties{
+					Title:          "Budget",
+					SheetId:        987654321,
+					GridProperties: &sheets.GridProperties{RowCount: 100, ColumnCount: 10},
 				},
 			},
-		}, nil
+			{
+				Properties: &sheets.SheetProperties{
+					Title:          "Register",
+					SheetId:        617336355,
+					GridProperties: &sheets.GridProperties{RowCount: 1000, ColumnCount: 47},
+				},
+			},
+			{
+				// No GridProperties: the counts must stay at zero.
+				Properties: &sheets.SheetProperties{
+					Title:   "NoGrid",
+					SheetId: 555,
+				},
+			},
+		},
 	}
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(fakeSpreadsheet) // the struct you built in code
+	})
+	p := newTestProvider(t, handler)
 
-	p := &SheetsProvider{service: &sheets.Service{}, spreadsheetID: "ssID"}
 	tests := []struct {
 		name    string
 		tabName string

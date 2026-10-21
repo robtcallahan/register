@@ -134,7 +134,7 @@ Phase 14 — Go idioms
 Phase 15 — Layering: what a layer is for
 - [X] 15.1 Split SheetsService god object into RegisterService, BudgetService, MonthlyService (52 methods, temporal coupling)
 - [X] 15.2 Translate Google SDK types at provider boundary — no sheets.* outside provider package
-- [ ] 15.3 Delete sheets_client package (56 lines of pass-through) — fold into provider (Rob approved)
+- [X] 15.3 Delete sheets_client package (56 lines of pass-through) — fold into provider (Rob approved)
 -----------------------------------------------------------------------------------------
 Phase 16 — Structural improvements
 - [ ] 16.1 Thin out cmd/update.go (634 lines) — move pure pipeline to service, keep cmd as composition root
