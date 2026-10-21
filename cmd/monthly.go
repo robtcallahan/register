@@ -53,13 +53,13 @@ func monthly() error {
 	if err != nil {
 		return err
 	}
-	sheetsService := sheets_service.NewRegisterService(sheetsProvider)
-	sheetsService.IncomeSources = config.IncomeSources
+	registerService := sheets_service.NewRegisterService(sheetsProvider)
+	registerService.IncomeSources = config.IncomeSources
 	cols, err := qHandler.GetColumns()
 	if err != nil {
 		return err
 	}
-	registerSheet, err := sheetsService.NewRegisterSheet(config, cols)
+	registerSheet, err := registerService.NewRegisterSheet(config, cols)
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func monthly() error {
 	monthlyService := sheets_service.NewMonthlyService(sheetsProvider, config.IncomeSources)
 
 	fmt.Printf("Reading Register...\n")
-	_, err = sheetsService.ReadRegisterSheet(registerSheet)
+	_, err = registerService.ReadRegisterSheet(registerSheet)
 	if err != nil {
 		return err
 	}

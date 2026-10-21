@@ -67,16 +67,16 @@ func recategorize() error {
 	if err != nil {
 		return err
 	}
-	sheetsService := sheets_service.NewRegisterService(sheetsProvider)
-	registerSheet, err := sheetsService.NewRegisterSheet(config, cols)
+	registerService := sheets_service.NewRegisterService(sheetsProvider)
+	registerSheet, err := registerService.NewRegisterSheet(config, cols)
 	if err != nil {
 		return err
 	}
-	if _, err := sheetsService.ReadRegisterSheet(registerSheet); err != nil {
+	if _, err := registerService.ReadRegisterSheet(registerSheet); err != nil {
 		return err
 	}
 
-	moves, notes := sheetsService.PlanCategoryMoves(*registerSheet, recategorizeMatches, *target, cols)
+	moves, notes := registerService.PlanCategoryMoves(*registerSheet, recategorizeMatches, *target, cols)
 	for _, n := range notes {
 		fmt.Println("note:", n)
 	}
@@ -92,7 +92,7 @@ func recategorize() error {
 		return nil
 	}
 
-	if err := sheetsService.MoveCategoryCells(*registerSheet, moves); err != nil {
+	if err := registerService.MoveCategoryCells(*registerSheet, moves); err != nil {
 		return fmt.Errorf("sheet move failed: %w", err)
 	}
 

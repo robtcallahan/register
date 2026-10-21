@@ -15,7 +15,7 @@ import (
 	"google.golang.org/api/sheets/v4"
 )
 
-const sheetsServiceJSONDir = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
+const registerServiceJSONDir = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
 
 var months = []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
 
@@ -78,7 +78,7 @@ func (p *providerMock) ClearValues(range_ string) error {
 }
 
 func (p *providerMock) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
-	w, err := os.ReadFile(sheetsServiceJSONDir + "WriteCell.json")
+	w, err := os.ReadFile(registerServiceJSONDir + "WriteCell.json")
 	if err != nil {
 		if p.t != nil {
 			p.t.Fatalf("error: %s\n", err.Error())
@@ -209,7 +209,7 @@ func Test_sheetsService_ReadRegisterSheet(t *testing.T) {
 }
 
 func Test_sheetsService_WriteCell(t *testing.T) {
-	w := readTestFixture(t, sheetsServiceJSONDir+"WriteCell.json")
+	w := readTestFixture(t, registerServiceJSONDir+"WriteCell.json")
 	var want *sheets.UpdateValuesResponse
 	err := json.Unmarshal(w, &want)
 	checkTestingError(t, err)
@@ -243,7 +243,7 @@ func Test_sheetsService_WriteCell(t *testing.T) {
 }
 
 func Test_sheetsService_addAmountCell(t *testing.T) {
-	a := readTestFixture(t, sheetsServiceJSONDir+"addAmountCell.json")
+	a := readTestFixture(t, registerServiceJSONDir+"addAmountCell.json")
 	var want []*sheets.CellData
 	err := json.Unmarshal(a, &want)
 	checkTestingError(t, err)
