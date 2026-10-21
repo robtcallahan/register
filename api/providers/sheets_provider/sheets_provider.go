@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 
-	"register/api/clients/sheets_client"
 	"register/pkg/config"
 	"register/pkg/sheets_auth"
 
@@ -62,7 +61,7 @@ func New(spreadsheetID string, cfg *config.Config) (*SheetsProvider, error) {
 }
 
 func (p *SheetsProvider) GetValues(range_ string) ([][]any, error) {
-	resp, err := sheets_client.ClientStruct.Get(p.service, p.spreadsheetID, range_)
+	resp, err := p.service.Spreadsheets.Values.Get(p.spreadsheetID, range_).Do()
 	if err != nil {
 		log.Printf("error when trying to get cell data: %s", err.Error())
 		return nil, err
@@ -71,18 +70,23 @@ func (p *SheetsProvider) GetValues(range_ string) ([][]any, error) {
 }
 
 func (p *SheetsProvider) GetFormula(range_ string) ([][]any, error) {
-	resp, err := sheets_client.ClientStruct.GetFormula(p.service, p.spreadsheetID, range_)
+	call := p.service.Spreadsheets.Values.BatchGet(p.spreadsheetID)
+	call.ValueRenderOption("FORMULA")
+	call.Ranges(range_)
+	resp, err := call.Do()
 	if err != nil {
-		log.Printf("error when trying to get formula cells: %s, range: %s", err.Error(), range_)
 		return nil, err
 	}
-	return resp.Values, nil
+	if resp == nil || len(resp.ValueRanges) == 0 {
+		return nil, errors.New("empty response")
+	}
+	return resp.ValueRanges[0].Values, err
 }
 
 func (p *SheetsProvider) GetSpreadsheet(tabName string) (*Spreadsheet, error) {
-	resp, err := sheets_client.ClientStruct.GetSpreadsheet(p.service, p.spreadsheetID)
+	resp, err := p.service.Spreadsheets.Get(p.spreadsheetID).Do()
 	if err != nil {
-		log.Printf("error when trying to get spreadsheet: %s", err.Error())
+		log.Printf("error when trying to get spreadsheet: %s", err)
 		return nil, err
 	}
 
@@ -103,7 +107,7 @@ func (p *SheetsProvider) GetSpreadsheet(tabName string) (*Spreadsheet, error) {
 }
 
 func (p *SheetsProvider) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
-	resp, err := sheets_client.ClientStruct.BatchUpdate(p.service, p.spreadsheetID, updateReq)
+	resp, err := p.service.Spreadsheets.BatchUpdate(p.spreadsheetID, updateReq).Do()
 	if err != nil {
 		log.Printf("error when try to batch update spreadsheet: %s", err.Error())
 		return nil, err
@@ -112,12 +116,13 @@ func (p *SheetsProvider) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetReq
 }
 
 func (p *SheetsProvider) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
-	resp, err := sheets_client.ClientStruct.Update(p.service, p.spreadsheetID, writeRange, vRange)
+	call := p.service.Spreadsheets.Values.Update(p.spreadsheetID, writeRange, vRange)
+	call.ValueInputOption("USER_ENTERED")
+	resp, err := call.Do()
 	if err != nil {
-		log.Printf("error when try to update spreadsheet: %s", err.Error())
-		return nil, err
+		return resp, fmt.Errorf("unable to write cell data: %w", err)
 	}
-	return resp, nil
+	return resp, err
 }
 
 func (p *SheetsProvider) ClearValues(range_ string) error {
