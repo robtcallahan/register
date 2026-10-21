@@ -14,9 +14,10 @@ func TestWeeksAgo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("weeksAgo(12) = %q, unparseable: %v", got, err)
 	}
+
+	// convert want time to a date string and back so that we can compare days without the time
 	want := time.Now().AddDate(0, 0, -84)
-	wantString := want.Format(PlaidDateFormat)
-	want, _ = time.Parse(PlaidDateFormat, wantString)
+	want, _ = time.Parse(PlaidDateFormat, want.Format(PlaidDateFormat))
 	if diff := want.Sub(gotTime); diff > 24*time.Hour || diff < -24*time.Hour {
 		t.Errorf("weeksAgo(12) = %q, want ~84 days ago", got)
 	}
