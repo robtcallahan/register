@@ -20,7 +20,7 @@ func TestDedupeAgainstSheet(t *testing.T) {
 	}
 
 	bankClient := &banking.Client{}
-	updateService := NewUpdateService(bankClient)
+	updateService := NewUpdateService(bankClient, nil)
 	got := updateService.DedupeAgainstSheet(trans, recorded)
 
 	if len(got) != 2 {
