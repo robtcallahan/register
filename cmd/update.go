@@ -31,7 +31,6 @@ import (
 	"register/api/services/sheets_service"
 	"register/api/services/update_service"
 	"register/pkg/banking"
-	"register/pkg/csv"
 	"register/pkg/models"
 	"register/pkg/repository"
 	"register/pkg/repository/mysql"
@@ -81,7 +80,7 @@ func update() error {
 	budgetService := sheets_service.NewBudgetService(sheetsProvider)
 
 	bankClient := GetBankingClient()
-	updateService := update_service.NewUpdateService(bankClient, qHandler)
+	updateService := update_service.NewUpdateService(config, options, bankClient, qHandler)
 
 	columns, err := qHandler.GetColumns()
 	if err != nil {
@@ -104,7 +103,8 @@ func update() error {
 	// endDate := config.EndDate
 	startDate := weeksAgo(12)
 	endDate := today()
-	transactions, err = fetchTransactions(bankClient, startDate, endDate)
+	bankIDs := []string{"wellsfargo", "chase"}
+	transactions, err = updateService.FetchTransactions(bankClient, bankIDs, startDate, endDate)
 	if err != nil {
 		return err
 	}
@@ -150,31 +150,6 @@ func update() error {
 		return err
 	}
 	return nil
-}
-
-// fetchTransactions gathers transactions from every bank: Fidelity always
-// comes from its CSV (Plaid no longer supports it), while Wells Fargo and
-// Chase come from CSV or Plaid depending on the --csv flag.
-func fetchTransactions(bankClient *banking.Client, startDate, endDate string) ([]*models.Transaction, error) {
-	fmt.Println("Getting Fidelity transactions (CSV)...")
-	transactions, err := getCSVTransactions([]string{"fidelity"})
-	if err != nil {
-		return nil, err
-	}
-
-	options.BankIDs = []string{"wellsfargo", "chase"}
-	var newTrans []*models.Transaction
-	if options.UseCSVFiles {
-		fmt.Println("Getting Wells Fargo & Chase transactions (CSV)...")
-		newTrans, err = getCSVTransactions(options.BankIDs)
-	} else {
-		fmt.Println("Getting Wells Fargo & Chase transactions (Plaid)...")
-		newTrans, err = getTransactions(bankClient, options.BankIDs, startDate, endDate)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return append(transactions, newTrans...), nil
 }
 
 // writeRawTransactionsCSV dumps the fetched transactions to transactions.csv
@@ -330,28 +305,6 @@ func printBalances(balances map[string]banking.Balance) {
 		return
 	}
 	fmt.Printf("    Wells Fargo: $%8.2f\n", b.Amount)
-}
-
-func getTransactions(bankClient *banking.Client, bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
-	transactions, err := bankClient.GetTransactions(bankIDs, startDate, endDate)
-	if err != nil {
-		return nil, err
-	}
-	return transactions, nil
-}
-
-func getCSVTransactions(bankIDs []string) ([]*models.Transaction, error) {
-	client := csv.New(csv.ConfigOptions{
-		FinanceDir: config.FinanceDir,
-		Banks:      config.Banks,
-		BankIDs:    bankIDs,
-	})
-
-	transactions, err := client.GetTransactions()
-	if err != nil {
-		return nil, err
-	}
-	return transactions, nil
 }
 
 func printTransactions(trans []*models.Transaction) {

@@ -2,6 +2,8 @@ package update_service
 
 import (
 	"fmt"
+	cfg "register/pkg/config"
+	"register/pkg/csv"
 	"register/pkg/repository"
 	"strconv"
 	"strings"
@@ -14,13 +16,41 @@ import (
 type UpdateService struct {
 	BankClient *banking.Client
 	QueryRepo  repository.QueryRepo
+	Config     *cfg.Config
+	Options    *cfg.Options
 }
 
-func NewUpdateService(bankClient *banking.Client, queryRepo repository.QueryRepo) *UpdateService {
+func NewUpdateService(config *cfg.Config, options *cfg.Options, bankClient *banking.Client, queryRepo repository.QueryRepo) *UpdateService {
 	return &UpdateService{
 		BankClient: bankClient,
 		QueryRepo:  queryRepo,
+		Config:     config,
+		Options:    options,
 	}
+}
+
+// FetchTransactions gathers transactions from every bank: Fidelity always
+// comes from its CSV (Plaid no longer supports it), while Wells Fargo and
+// Chase come from CSV or Plaid depending on the --csv flag.
+func (s *UpdateService) FetchTransactions(bankClient *banking.Client, bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
+	fmt.Println("Getting Fidelity transactions (CSV)...")
+	transactions, err := getCSVTransactions(s.Config, []string{"fidelity"})
+	if err != nil {
+		return nil, err
+	}
+
+	var newTrans []*models.Transaction
+	if s.Options.UseCSVFiles {
+		fmt.Println("Getting Wells Fargo & Chase transactions (CSV)...")
+		newTrans, err = getCSVTransactions(s.Config, bankIDs)
+	} else {
+		fmt.Println("Getting Wells Fargo & Chase transactions (Plaid)...")
+		newTrans, err = getTransactions(bankClient, bankIDs, startDate, endDate)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return append(transactions, newTrans...), nil
 }
 
 // NormalizeMerchants assigns each transaction its display name, color, and
@@ -58,6 +88,31 @@ func (s *UpdateService) NormalizeMerchants(transactions []*models.Transaction) (
 func (s *UpdateService) DedupeAgainstSheet(transactions []*models.Transaction, keysMap map[string]bool) []*models.Transaction {
 	fmt.Println("Filtering out register transactions...")
 	return s.BankClient.FilterRecordedTransactions(transactions, fuzzyKeySet(keysMap))
+}
+
+// getTransactions connects to the Plaid interface to get the bank's transactions
+func getTransactions(bankClient *banking.Client, bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
+	transactions, err := bankClient.GetTransactions(bankIDs, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	return transactions, nil
+}
+
+// getCSVTransactions reads local CSV files for banks that Plaid cannot talk with
+// or if all CSV files are to be read using the proper flag, currently -c
+func getCSVTransactions(config *cfg.Config, bankIDs []string) ([]*models.Transaction, error) {
+	csvClient := csv.New(csv.ConfigOptions{
+		FinanceDir: config.FinanceDir,
+		Banks:      config.Banks,
+		BankIDs:    bankIDs,
+	})
+
+	transactions, err := csvClient.GetTransactions()
+	if err != nil {
+		return nil, err
+	}
+	return transactions, nil
 }
 
 // fuzzyKeySet returns a copy of keys with each key's date also shifted by -1
