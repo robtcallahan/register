@@ -2,6 +2,7 @@ package update_service
 
 import (
 	"fmt"
+	"register/pkg/repository"
 	"strconv"
 	"strings"
 	"time"
@@ -12,15 +13,45 @@ import (
 
 type UpdateService struct {
 	BankClient *banking.Client
+	QueryRepo  repository.QueryRepo
 }
 
-func NewUpdateService(bankClient *banking.Client) *UpdateService {
+func NewUpdateService(bankClient *banking.Client, queryRepo repository.QueryRepo) *UpdateService {
 	return &UpdateService{
 		BankClient: bankClient,
+		QueryRepo:  queryRepo,
 	}
 }
 
-// dedupeAgainstSheet drops transactions already recorded in the register
+// NormalizeMerchants assigns each transaction its display name, color, and
+// budget column from the merchant lookup data.
+func (s *UpdateService) NormalizeMerchants(transactions []*models.Transaction) ([]*models.Transaction, error) {
+	fmt.Println("Updating merchants...")
+	lookupData, err := s.QueryRepo.GetLookupData()
+	if err != nil {
+		return nil, err
+	}
+
+	matcher, err := banking.NewMerchantMatcher(lookupData)
+	if err != nil {
+		return nil, err
+	}
+
+	income, err := s.BankClient.IncomeMatcher()
+	if err != nil {
+		return nil, err
+	}
+
+	columns, err := s.QueryRepo.GetColumns()
+	if err != nil {
+		return nil, err
+	}
+
+	transactions = s.BankClient.FormatMerchantNames(transactions, matcher, income, columns)
+	return transactions, nil
+}
+
+// DedupeAgainstSheet drops transactions already recorded in the register
 // sheet. Matching tolerates a ±1-day date shift, because some sources (notably
 // Amazon) report the same transaction on a different day from one pull to the
 // next, which changes its dedupe key.

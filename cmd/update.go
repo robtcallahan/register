@@ -81,7 +81,7 @@ func update() error {
 	budgetService := sheets_service.NewBudgetService(sheetsProvider)
 
 	bankClient := GetBankingClient()
-	updateService := update_service.NewUpdateService(bankClient)
+	updateService := update_service.NewUpdateService(bankClient, qHandler)
 
 	columns, err := qHandler.GetColumns()
 	if err != nil {
@@ -118,9 +118,12 @@ func update() error {
 		return err
 	}
 
-	transactions, err = normalizeMerchants(bankClient, qHandler, transactions)
+	transactions, err = updateService.NormalizeMerchants(transactions)
 	if err != nil {
 		return err
+	}
+	if options.Debug {
+		printTransactions(transactions)
 	}
 
 	transactions = updateService.DedupeAgainstSheet(transactions, registerSheet.KeysMap)
@@ -205,37 +208,6 @@ func writeRawTransactionsCSV(transactions []*models.Transaction) error {
 		return fmt.Errorf("error writing to file: %w", err)
 	}
 	return nil
-}
-
-// normalizeMerchants assigns each transaction its display name, color, and
-// budget column from the merchant lookup data.
-func normalizeMerchants(bankClient *banking.Client, qHandler repository.QueryRepo, transactions []*models.Transaction) ([]*models.Transaction, error) {
-	fmt.Println("Updating merchants...")
-	lookupData, err := qHandler.GetLookupData()
-	if err != nil {
-		return nil, err
-	}
-
-	matcher, err := banking.NewMerchantMatcher(lookupData)
-	if err != nil {
-		return nil, err
-	}
-
-	income, err := bankClient.IncomeMatcher()
-	if err != nil {
-		return nil, err
-	}
-
-	columns, err := qHandler.GetColumns()
-	if err != nil {
-		return nil, err
-	}
-
-	transactions = bankClient.FormatMerchantNames(transactions, matcher, income, columns)
-	if options.Debug {
-		printTransactions(transactions)
-	}
-	return transactions, nil
 }
 
 // persistTransactions interactively fills in any missing names and notes,
