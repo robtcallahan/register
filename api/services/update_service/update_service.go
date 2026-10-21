@@ -32,7 +32,7 @@ func NewUpdateService(config *cfg.Config, options *cfg.Options, bankClient *bank
 // FetchTransactions gathers transactions from every bank: Fidelity always
 // comes from its CSV (Plaid no longer supports it), while Wells Fargo and
 // Chase come from CSV or Plaid depending on the --csv flag.
-func (s *UpdateService) FetchTransactions(bankClient *banking.Client, bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
+func (s *UpdateService) FetchTransactions(bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
 	fmt.Println("Getting Fidelity transactions (CSV)...")
 	transactions, err := getCSVTransactions(s.Config, []string{"fidelity"})
 	if err != nil {
@@ -45,7 +45,7 @@ func (s *UpdateService) FetchTransactions(bankClient *banking.Client, bankIDs []
 		newTrans, err = getCSVTransactions(s.Config, bankIDs)
 	} else {
 		fmt.Println("Getting Wells Fargo & Chase transactions (Plaid)...")
-		newTrans, err = getTransactions(bankClient, bankIDs, startDate, endDate)
+		newTrans, err = getTransactions(s.BankClient, bankIDs, startDate, endDate)
 	}
 	if err != nil {
 		return nil, err

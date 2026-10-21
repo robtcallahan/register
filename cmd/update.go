@@ -104,7 +104,7 @@ func update() error {
 	startDate := weeksAgo(12)
 	endDate := today()
 	bankIDs := []string{"wellsfargo", "chase"}
-	transactions, err = updateService.FetchTransactions(bankClient, bankIDs, startDate, endDate)
+	transactions, err = updateService.FetchTransactions(bankIDs, startDate, endDate)
 	if err != nil {
 		return err
 	}
