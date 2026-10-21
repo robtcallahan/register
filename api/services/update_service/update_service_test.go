@@ -7,8 +7,6 @@ import (
 )
 
 func TestDedupeAgainstSheet(t *testing.T) {
-	bankClient := getBankingClient()
-	bankClient := &banking.Client{}
 	recorded := map[string]bool{
 		"amazon:12/31/25:25.00":      true,
 		"wellsfargo:01/05/26:100.00": true,
@@ -21,7 +19,9 @@ func TestDedupeAgainstSheet(t *testing.T) {
 		{Key: "chase:01/01/26:25.00"},       // different source: new
 	}
 
-	got := dedupeAgainstSheet(client, trans, recorded)
+	bankClient := &banking.Client{}
+	updateService := NewUpdateService(bankClient)
+	got := updateService.DedupeAgainstSheet(trans, recorded)
 
 	if len(got) != 2 {
 		t.Fatalf("expected 2 new transactions, got %d", len(got))

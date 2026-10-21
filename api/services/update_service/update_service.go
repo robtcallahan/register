@@ -11,19 +11,22 @@ import (
 )
 
 type UpdateService struct {
+	BankClient *banking.Client
 }
 
-func NewUpdateService() *UpdateService {
-	return &UpdateService{}
+func NewUpdateService(bankClient *banking.Client) *UpdateService {
+	return &UpdateService{
+		BankClient: bankClient,
+	}
 }
 
 // dedupeAgainstSheet drops transactions already recorded in the register
 // sheet. Matching tolerates a ±1-day date shift, because some sources (notably
 // Amazon) report the same transaction on a different day from one pull to the
 // next, which changes its dedupe key.
-func (s *UpdateService) DedupeAgainstSheet(bankClient *banking.Client, transactions []*models.Transaction, keysMap map[string]bool) []*models.Transaction {
+func (s *UpdateService) DedupeAgainstSheet(transactions []*models.Transaction, keysMap map[string]bool) []*models.Transaction {
 	fmt.Println("Filtering out register transactions...")
-	return bankClient.FilterRecordedTransactions(transactions, fuzzyKeySet(keysMap))
+	return s.BankClient.FilterRecordedTransactions(transactions, fuzzyKeySet(keysMap))
 }
 
 // fuzzyKeySet returns a copy of keys with each key's date also shifted by -1

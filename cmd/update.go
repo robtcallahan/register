@@ -79,7 +79,9 @@ func update() error {
 	registerService := sheets_service.NewRegisterService(sheetsProvider)
 	registerService.IncomeSources = config.IncomeSources
 	budgetService := sheets_service.NewBudgetService(sheetsProvider)
-	updateService := update_service.NewUpdateService()
+
+	bankClient := GetBankingClient()
+	updateService := update_service.NewUpdateService(bankClient)
 
 	columns, err := qHandler.GetColumns()
 	if err != nil {
@@ -95,8 +97,6 @@ func update() error {
 	if err != nil {
 		return err
 	}
-
-	bankClient := GetBankingClient()
 
 	// Todo: account for pagination
 	// Due to pagination and no code to account for it, I'm going back about 3 mounths (12 weeks).
@@ -123,7 +123,7 @@ func update() error {
 		return err
 	}
 
-	transactions = updateService.DedupeAgainstSheet(bankClient, transactions, registerSheet.KeysMap)
+	transactions = updateService.DedupeAgainstSheet(transactions, registerSheet.KeysMap)
 
 	fmt.Println("Filtering out credit card payments...")
 	transactions = bankClient.FilterCreditCardPayments(transactions)
