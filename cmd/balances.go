@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	cfg "register/pkg/config"
 
@@ -17,19 +16,16 @@ var balancesCmd = &cobra.Command{
 	},
 }
 
-var ctx = context.Background()
-
 func init() {
-	if cfg, err := cfg.ReadConfig(ConfigFile); err == nil {
-		config = cfg
+	if c, err := cfg.ReadConfig(ConfigFile); err == nil {
+		config = c
 	}
 	rootCmd.AddCommand(balancesCmd)
-
-	client = getBankingClient()
 }
 
 func getBalances() {
-	balances := client.BankClient.GetBalances(options.BankIDs)
+	bankClient := GetBankingClient()
+	balances := bankClient.GetBalances(options.BankIDs)
 
 	for _, balance := range balances {
 		if balance.Error != nil {

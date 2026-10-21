@@ -21,10 +21,8 @@ import (
 	"os"
 	"strings"
 
-	"register/pkg/banking"
 	cfg "register/pkg/config"
 
-	"github.com/plaid/plaid-go/v15/plaid"
 	"github.com/spf13/cobra"
 )
 
@@ -49,12 +47,6 @@ const ConfigFile = "config/config.json"
 
 var options = &cfg.Options{}
 var config = &cfg.Config{}
-
-type Client struct {
-	BankClient *banking.Client
-}
-
-var client = new(Client)
 
 type LinkToken struct {
 	LinkToken string `json:"link_token"`
@@ -96,36 +88,10 @@ func init() {
 	}
 
 	var bankIDs string
-	//flag.StringVarP(&bankIDs, "bank-ids", "b", "wellsfargo,fidelity,chase", "comma-separated list of bank IDs; default: wellsfargo,fidelity,chase")
-	//flag.StringVarP(&options.SpreadsheetID, "ss_id", "s", config.SpreadsheetID, "The Google spreadsheet id")
-	//flag.BoolVarP(&options.Debug, "debug", "d", false, "Debug mode")
-	//flag.Parse()
-
 	rootCmd.PersistentFlags().StringVarP(&bankIDs, "bank-ids", "b", "wellsfargo,fidelity,chase", "comma-separated list of bank IDs")
 	//rootCmd.PersistentFlags().StringVarP(&bankIDs, "bank-ids", "b", "fidelity", "comma-separated list of bank IDs")
 	rootCmd.PersistentFlags().StringVarP(&options.SpreadsheetID, "ss_id", "s", config.SpreadsheetID, "The Google spreadsheet id")
 	rootCmd.PersistentFlags().BoolVarP(&options.Debug, "debug", "d", false, "Debug mode")
 
 	options.BankIDs = strings.Split(bankIDs, ",")
-}
-
-func getBankingClient() *Client {
-	if client.BankClient != nil {
-		return client
-	}
-
-	plaidEnvironment := plaid.Development
-	if config.PlaidEnvironment == "production" {
-		plaidEnvironment = plaid.Production
-	}
-	client.BankClient = banking.NewClient(&banking.ClientOptions{
-		UserID:           config.UserID,
-		Banks:            config.Banks,
-		IncomeSources:    config.IncomeSources,
-		Debug:            options.Debug,
-		PlaidClientID:    config.PlaidClientID,
-		PlaidSecret:      config.PlaidEnvSecrets[config.PlaidEnvironment],
-		PlaidEnvironment: plaidEnvironment,
-	})
-	return client
 }

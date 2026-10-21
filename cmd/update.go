@@ -29,6 +29,7 @@ import (
 
 	"register/api/providers/sheets_provider"
 	"register/api/services/sheets_service"
+	"register/api/services/update_service"
 	"register/pkg/banking"
 	"register/pkg/csv"
 	"register/pkg/models"
@@ -46,7 +47,7 @@ and Citi, both the Register and Budget tabs from your Google Sheets financial sp
 removes duplicates and updates the Register tab with new transactions subtracting those
 amounts from the appropriate budget category columns.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return update(cmd, args)
+		return update()
 	},
 }
 
@@ -58,9 +59,8 @@ func init() {
 	updateCmd.Flags().BoolVarP(&options.UseCSVFiles, "csv", "c", false, "Read CSV files; default=false")
 }
 
-func update(cmd *cobra.Command, args []string) error {
+func update() error {
 	var (
-		client       *Client
 		transactions []*models.Transaction
 		err          error
 	)
@@ -78,8 +78,8 @@ func update(cmd *cobra.Command, args []string) error {
 
 	registerService := sheets_service.NewRegisterService(sheetsProvider)
 	registerService.IncomeSources = config.IncomeSources
-
 	budgetService := sheets_service.NewBudgetService(sheetsProvider)
+	updateService := update_service.NewUpdateService()
 
 	columns, err := qHandler.GetColumns()
 	if err != nil {
@@ -96,7 +96,7 @@ func update(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	client = getBankingClient()
+	bankClient := GetBankingClient()
 
 	// Todo: account for pagination
 	// Due to pagination and no code to account for it, I'm going back about 3 mounths (12 weeks).
@@ -104,7 +104,7 @@ func update(cmd *cobra.Command, args []string) error {
 	// endDate := config.EndDate
 	startDate := weeksAgo(12)
 	endDate := today()
-	transactions, err = fetchTransactions(client, startDate, endDate)
+	transactions, err = fetchTransactions(bankClient, startDate, endDate)
 	if err != nil {
 		return err
 	}
@@ -118,18 +118,18 @@ func update(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	transactions, err = normalizeMerchants(client, qHandler, transactions)
+	transactions, err = normalizeMerchants(bankClient, qHandler, transactions)
 	if err != nil {
 		return err
 	}
 
-	transactions = dedupeAgainstSheet(client, transactions, registerSheet.KeysMap)
+	transactions = updateService.DedupeAgainstSheet(bankClient, transactions, registerSheet.KeysMap)
 
 	fmt.Println("Filtering out credit card payments...")
-	transactions = client.BankClient.FilterCreditCardPayments(transactions)
+	transactions = bankClient.FilterCreditCardPayments(transactions)
 
 	fmt.Println("Sorting...")
-	transactions = client.BankClient.SortTransactions(transactions)
+	transactions = bankClient.SortTransactions(transactions)
 
 	if len(transactions) < 1 {
 		fmt.Println("No transactions")
@@ -138,12 +138,12 @@ func update(cmd *cobra.Command, args []string) error {
 
 	printTransactions(transactions)
 
-	transactions, err = persistTransactions(client, qHandler, transactions)
+	transactions, err = persistTransactions(bankClient, qHandler, transactions)
 	if err != nil {
 		return err
 	}
 
-	if err := updateSpreadsheet(client, registerService, budgetService, qHandler, transactions); err != nil {
+	if err := updateSpreadsheet(bankClient, registerService, budgetService, qHandler, transactions); err != nil {
 		return err
 	}
 	return nil
@@ -152,7 +152,7 @@ func update(cmd *cobra.Command, args []string) error {
 // fetchTransactions gathers transactions from every bank: Fidelity always
 // comes from its CSV (Plaid no longer supports it), while Wells Fargo and
 // Chase come from CSV or Plaid depending on the --csv flag.
-func fetchTransactions(client *Client, startDate, endDate string) ([]*models.Transaction, error) {
+func fetchTransactions(bankClient *banking.Client, startDate, endDate string) ([]*models.Transaction, error) {
 	fmt.Println("Getting Fidelity transactions (CSV)...")
 	transactions, err := getCSVTransactions([]string{"fidelity"})
 	if err != nil {
@@ -166,7 +166,7 @@ func fetchTransactions(client *Client, startDate, endDate string) ([]*models.Tra
 		newTrans, err = getCSVTransactions(options.BankIDs)
 	} else {
 		fmt.Println("Getting Wells Fargo & Chase transactions (Plaid)...")
-		newTrans, err = getTransactions(client, options.BankIDs, startDate, endDate)
+		newTrans, err = getTransactions(bankClient, options.BankIDs, startDate, endDate)
 	}
 	if err != nil {
 		return nil, err
@@ -209,7 +209,7 @@ func writeRawTransactionsCSV(transactions []*models.Transaction) error {
 
 // normalizeMerchants assigns each transaction its display name, color, and
 // budget column from the merchant lookup data.
-func normalizeMerchants(client *Client, qHandler repository.QueryRepo, transactions []*models.Transaction) ([]*models.Transaction, error) {
+func normalizeMerchants(bankClient *banking.Client, qHandler repository.QueryRepo, transactions []*models.Transaction) ([]*models.Transaction, error) {
 	fmt.Println("Updating merchants...")
 	lookupData, err := qHandler.GetLookupData()
 	if err != nil {
@@ -221,7 +221,7 @@ func normalizeMerchants(client *Client, qHandler repository.QueryRepo, transacti
 		return nil, err
 	}
 
-	income, err := client.BankClient.IncomeMatcher()
+	income, err := bankClient.IncomeMatcher()
 	if err != nil {
 		return nil, err
 	}
@@ -231,54 +231,17 @@ func normalizeMerchants(client *Client, qHandler repository.QueryRepo, transacti
 		return nil, err
 	}
 
-	transactions = client.BankClient.FormatMerchantNames(transactions, matcher, income, columns)
+	transactions = bankClient.FormatMerchantNames(transactions, matcher, income, columns)
 	if options.Debug {
 		printTransactions(transactions)
 	}
 	return transactions, nil
 }
 
-// dedupeAgainstSheet drops transactions already recorded in the register
-// sheet. Matching tolerates a ±1-day date shift, because some sources (notably
-// Amazon) report the same transaction on a different day from one pull to the
-// next, which changes its dedupe key.
-func dedupeAgainstSheet(client *Client, transactions []*models.Transaction, keysMap map[string]bool) []*models.Transaction {
-	fmt.Println("Filtering out register transactions...")
-	return client.BankClient.FilterRecordedTransactions(transactions, fuzzyKeySet(keysMap))
-}
-
-// fuzzyKeySet returns a copy of keys with each key's date also shifted by -1
-// and +1 days. Keys that don't parse as source:date:amount are kept as-is.
-func fuzzyKeySet(keys map[string]bool) map[string]bool {
-	fuzzy := make(map[string]bool, len(keys)*3)
-	for k := range keys {
-		parts := strings.SplitN(k, ":", 3)
-		if len(parts) != 3 {
-			fuzzy[k] = true
-			continue
-		}
-		d, err := time.Parse("01/02/06", parts[1])
-		if err != nil {
-			fuzzy[k] = true
-			continue
-		}
-		amt, err := strconv.ParseFloat(parts[2], 64)
-		if err != nil {
-			fuzzy[k] = true
-			continue
-		}
-		for _, shift := range []int{-1, 0, 1} {
-			date := d.AddDate(0, 0, shift).Format("01/02/06")
-			fuzzy[models.TransactionKey(parts[0], date, amt)] = true
-		}
-	}
-	return fuzzy
-}
-
 // persistTransactions interactively fills in any missing names and notes,
 // then saves the transactions to the DB. All questions come first, so the rest
 // of the run is unattended. Skipped entirely on --dry-run runs.
-func persistTransactions(client *Client, qHandler repository.QueryRepo, transactions []*models.Transaction) ([]*models.Transaction, error) {
+func persistTransactions(bankClient *banking.Client, qHandler repository.QueryRepo, transactions []*models.Transaction) ([]*models.Transaction, error) {
 	if options.DryRun {
 		return transactions, nil
 	}
@@ -289,7 +252,7 @@ func persistTransactions(client *Client, qHandler repository.QueryRepo, transact
 			return nil, err
 		}
 		var err error
-		transactions, err = getBankNameToName(client.BankClient, qHandler, transactions)
+		transactions, err = getBankNameToName(bankClient, qHandler, transactions)
 		if err != nil {
 			return nil, err
 		}
@@ -306,7 +269,7 @@ func persistTransactions(client *Client, qHandler repository.QueryRepo, transact
 // updateSpreadsheet writes the transactions into the register sheet and
 // refreshes the bank balances. Skipped when there is nothing to write or on
 // --dry-run runs.
-func updateSpreadsheet(client *Client, registerService *sheets_service.RegisterService,
+func updateSpreadsheet(bankClient *banking.Client, registerService *sheets_service.RegisterService,
 	budgetService *sheets_service.BudgetService, qHandler repository.QueryRepo, transactions []*models.Transaction) error {
 	if len(transactions) == 0 || options.DryRun {
 		fmt.Println("No updates needed")
@@ -365,7 +328,7 @@ func updateSpreadsheet(client *Client, registerService *sheets_service.RegisterS
 
 	if !options.UseCSVFiles {
 		fmt.Println("Getting accounts balances...")
-		balances := client.BankClient.GetBalances([]string{banking.WellsFargoID})
+		balances := bankClient.GetBalances([]string{banking.WellsFargoID})
 		printBalances(balances)
 		fmt.Println("Updating balances...")
 		if err := updateBalances(*registerService, *registerSheet, balances); err != nil {
@@ -397,8 +360,8 @@ func printBalances(balances map[string]banking.Balance) {
 	fmt.Printf("    Wells Fargo: $%8.2f\n", b.Amount)
 }
 
-func getTransactions(client *Client, bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
-	transactions, err := client.BankClient.GetTransactions(bankIDs, startDate, endDate)
+func getTransactions(bankClient *banking.Client, bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
+	transactions, err := bankClient.GetTransactions(bankIDs, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
