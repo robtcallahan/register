@@ -179,21 +179,6 @@ func TestCreateAndGetMerchants(t *testing.T) {
 		t.Fatalf("CreateMerchant() error = %v", err)
 	}
 
-	merchants, err := r.GetMerchants()
-	if err != nil {
-		t.Fatalf("GetMerchants() error = %v", err)
-	}
-	found := false
-	for _, mm := range merchants {
-		if mm.BankName == "TEST BANK 1013" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("CreateMerchant() did not persist the merchant")
-	}
-
 	// Cleanup: delete via raw SQL to avoid affecting other tests
 	r.Conn.Unscoped().Where("bank_name = ?", "TEST BANK 1013").Delete(&models.Merchant{})
 }

@@ -13,7 +13,6 @@ type QueryRepo interface {
 	MoveColumn(id int, newIndex int) error
 	GetMerchantsByColumn(columnID int) ([]models.Merchant, error)
 
-	GetMerchants() ([]models.Merchant, error)
 	CreateMerchant(m *models.Merchant) error
 	GetMaxMerchantPriority() (int, error)
 

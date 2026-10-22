@@ -48,15 +48,6 @@ func (r *mysqlQueryRepo) GetColumns() ([]models.Column, error) {
 	return cols, nil
 }
 
-// GetMerchants ...
-func (r *mysqlQueryRepo) GetMerchants() ([]models.Merchant, error) {
-	var merch []models.Merchant
-	if result := r.Conn.Order("name").Find(&merch); result.Error != nil {
-		return nil, fmt.Errorf("unable to get merchants: %w", result.Error)
-	}
-	return merch, nil
-}
-
 // CreateMerchant ...
 func (r *mysqlQueryRepo) CreateMerchant(m *models.Merchant) error {
 	if m.Pattern == "" {
