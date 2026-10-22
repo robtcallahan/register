@@ -18,8 +18,6 @@ func testTransaction(key, bankName string) *models.Transaction {
 }
 
 func TestFilterRecordedTransactions(t *testing.T) {
-	c := &Client{}
-
 	tests := []struct {
 		name      string
 		trans     []*models.Transaction
@@ -79,7 +77,7 @@ func TestFilterRecordedTransactions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := c.FilterRecordedTransactions(tt.trans, tt.regLookup)
+			got := FilterRecordedTransactions(tt.trans, tt.regLookup, false)
 
 			if len(got) != len(tt.wantKeys) {
 				t.Fatalf("got %d transactions, want %d", len(got), len(tt.wantKeys))
@@ -94,8 +92,6 @@ func TestFilterRecordedTransactions(t *testing.T) {
 }
 
 func TestFilterCreditCardPayments(t *testing.T) {
-	c := &Client{}
-
 	tests := []struct {
 		name     string
 		bankName string
@@ -138,7 +134,7 @@ func TestFilterCreditCardPayments(t *testing.T) {
 			trans := []*models.Transaction{
 				testTransaction("wellsfargo:12/07/20:10.00", tt.bankName),
 			}
-			got := c.FilterCreditCardPayments(trans)
+			got := FilterCreditCardPayments(trans)
 
 			if tt.wantDrop && len(got) != 0 {
 				t.Errorf("expected transaction to be dropped, but got %d", len(got))
@@ -151,8 +147,6 @@ func TestFilterCreditCardPayments(t *testing.T) {
 }
 
 func TestFilterCreditCardPayments_Mixed(t *testing.T) {
-	c := &Client{}
-
 	trans := []*models.Transaction{
 		testTransaction("wellsfargo:12/07/20:10.00", "TARGET"),
 		testTransaction("wellsfargo:12/07/20:500.00", "PAYMENT MADE BY ACCOUNT ENDING IN:5409"),
@@ -161,7 +155,7 @@ func TestFilterCreditCardPayments_Mixed(t *testing.T) {
 		testTransaction("wellsfargo:12/07/20:30.00", "COSTCO"),
 	}
 
-	got := c.FilterCreditCardPayments(trans)
+	got := FilterCreditCardPayments(trans)
 
 	if len(got) != 3 {
 		t.Fatalf("got %d transactions, want 3", len(got))

@@ -77,7 +77,7 @@ func update() error {
 	budgetService := sheets_service.NewBudgetService(sheetsProvider)
 
 	bankClient := GetBankingClient()
-	updateService := update_service.NewUpdateService(registerService, budgetService, bankClient, queryRepo, config, options)
+	updateService := update_service.NewUpdateService(registerService, budgetService, bankClient, queryRepo, config, options.UseCSVFiles, options.DryRun)
 
 	columns, err := queryRepo.GetColumns()
 	if err != nil {
@@ -126,10 +126,11 @@ func update() error {
 	transactions = updateService.DedupeAgainstSheet(transactions, registerSheet.KeysMap)
 
 	fmt.Println("Filtering out credit card payments...")
-	transactions = bankClient.FilterCreditCardPayments(transactions)
+	transactions = banking.FilterCreditCardPayments(transactions)
 
 	fmt.Println("Sorting...")
-	transactions = bankClient.SortTransactions(transactions)
+	//transactions = bankClient.SortTransactions(transactions)
+	transactions = banking.SortTransactions(transactions)
 
 	if len(transactions) < 1 {
 		fmt.Println("No transactions")
@@ -239,7 +240,7 @@ func getUserInput(bankClient *banking.Client, queryRepo repository.QueryRepo, tr
 		}
 
 		// this applies merchant rules to each transaction
-		trans = bankClient.FormatMerchantNames(trans, matcher, income, columns)
+		trans = banking.FormatMerchantNames(trans, matcher, income, columns)
 	}
 	return trans, nil
 }

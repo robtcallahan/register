@@ -28,13 +28,14 @@ import (
 )
 
 const (
-	// Specials in FormatMerchantNames, expressed as lookup values instead of
-	// hardcoded positions: checks (ingested with the name "CHECK") are
-	// categorized by the merchant rule whose bank pattern is CheckBankPattern
-	// — adding such a rule to the DB is how their position changes now.
-	// Income deposits get the income column's index, resolved from the
-	// categories list by the column's name (Phase 5: deposits themselves are
-	// recognized via configured income sources, see Client.IncomeMatcher).
+/*	Specials in FormatMerchantNames, expressed as lookup values instead of
+	hardcoded positions: checks (ingested with the name "CHECK") are
+	categorized by the merchant rule whose bank pattern is CheckBankPattern
+	— adding such a rule to the DB is how their position changes now.
+	Income deposits get the income column's index, resolved from the
+	categories list by the column's name (Phase 5: deposits themselves are
+	recognized via configured income sources, see Client.IncomeMatcher).
+*/
 	CheckTransactionName = "CHECK"
 	CheckBankPattern     = "CHECK"
 	IncomeColumnName     = "Emergency Fund" // column_index 42 in his tables today
@@ -42,11 +43,6 @@ const (
 	WellsFargoID    = "wellsfargo"
 	FidelityID      = "fidelity"
 	ChaseID         = "chase"
-	BankOfAmericaID = "boa"
-	CitiID          = "citi"
-	AllyID          = "ally"
-	ETradeID        = "etrade"
-	BettermentID    = "betterment"
 )
 
 type PlaidHttpBodyResponse struct {

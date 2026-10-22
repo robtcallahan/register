@@ -17,8 +17,6 @@ limitations under the License.
 package banking
 
 import (
-	"fmt"
-
 	"register/pkg/models"
 )
 
@@ -48,7 +46,7 @@ func (c *Client) IncomeMatcher() (*MerchantMatcher, error) {
 // the "Emergency Fund" column. The income fan-out at sheet-write time is
 // keyed by the configured display names, so this index only records where
 // the deposit conceptually lands.
-func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher, income *MerchantMatcher, columns []models.Column) []*models.Transaction {
+func FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher, income *MerchantMatcher, columns []models.Column) []*models.Transaction {
 	for i, t := range trans {
 		if t.Name == CheckTransactionName {
 			trans[i].Color = models.ColorWhite
@@ -69,9 +67,6 @@ func (c *Client) FormatMerchantNames(trans []*models.Transaction, matcher *Merch
 			trans[i].ColumnIndex = l.ColumnIndex
 			trans[i].IsCategory = l.IsCategory
 			trans[i].TaxDeductible = l.TaxDeductible
-		}
-		if c.Debug {
-			fmt.Printf("key: %s, name: %s, bankName: %s, amt: %.2f \n", trans[i].Key, trans[i].Name, trans[i].BankName, trans[i].Amount)
 		}
 	}
 	return trans

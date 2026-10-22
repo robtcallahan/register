@@ -3,7 +3,6 @@ package update_service
 import (
 	"reflect"
 	"register/pkg/banking"
-	cfg "register/pkg/config"
 	"register/pkg/models"
 	"register/pkg/repository"
 	"testing"
@@ -56,7 +55,7 @@ func TestUpdateService_PersistTransactions(t *testing.T) {
 
 	for _, tt := range tests {
 		mock := &RepoMock{}
-		s := NewUpdateService(nil, nil, nil, mock, nil, &cfg.Options{DryRun: tt.dryRun})
+		s := NewUpdateService(nil, nil, nil, mock, nil, false, tt.dryRun)
 		_, err := s.PersistTransactions(tt.trans)
 		if err != nil {
 			t.Fatal(err)
@@ -85,7 +84,7 @@ func TestUpdateService_DedupeAgainstSheet(t *testing.T) {
 	}
 
 	bankClient := &banking.Client{}
-	updateService := NewUpdateService(nil, nil, bankClient, nil, nil, nil)
+	updateService := NewUpdateService(nil, nil, bankClient, nil, nil, false, false)
 	got := updateService.DedupeAgainstSheet(trans, recorded)
 
 	if len(got) != 2 {

@@ -63,14 +63,6 @@ func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([
 	return transactions, nil
 }
 
-func printPlaidTransaction(t plaid.Transaction, bankID string) {
-	fmt.Printf("%-10s %-20s %8.2f\n", bankID, t.Name, t.Amount)
-}
-
-func printTransaction(t *models.Transaction) {
-	fmt.Printf("[%-28s] %6.2f %6.2f %6.2f %6.2f %6.2f %6.2f\n", t.Key, t.Amount, t.Withdrawal, t.Deposit, t.CreditPurchase, t.Budget, t.CreditCard)
-}
-
 func (c *Client) getPlaidTransactions(bankConfig config.Bank, startDate, endDate string) ([]plaid.Transaction, error) {
 	ctx := context.Background()
 
@@ -156,73 +148,10 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.T
 	return tran, nil
 }
 
-func (c *Client) SortTransactions(trans []*models.Transaction) []*models.Transaction {
-	sort.Slice(trans, func(i, j int) bool {
-		if trans[i].Date == trans[j].Date {
-			return trans[i].Name < trans[j].Name
-		}
-		return trans[i].Date < trans[j].Date
-	})
-	return trans
-}
-
 func (c *Client) PrintTransactionHead() {
 	fmt.Printf("    [Num] %-25s %-32s %-40s %-40s %12s %12s %12s %12s %7s %5s\n",
 		"Key", "Name", "Bank Name", "Merchant Name", "Withdrawal", "Deposit", "Credit Card", "Amount", "ColIndx", "Color")
 }
-
-// FilterRecordedTransactions removes transactions that are already contained in the register spreadsheet
-func (c *Client) FilterRecordedTransactions(trans []*models.Transaction, regLookup map[string]bool) []*models.Transaction {
-	var filtered []*models.Transaction
-	i := 0
-	for _, t := range trans {
-		if _, ok := regLookup[t.Key]; !ok {
-			filtered = append(filtered, t)
-			i++
-			if c.Debug {
-				fmt.Printf("    (%2d) NEW [%-28s] %-12s %-10s %8.2f %s\n", i, t.Key, t.Source, t.Date, t.Amount, t.Name)
-			}
-		}
-	}
-	return filtered
-}
-
-// creditCardPaymentPatterns identify card-payment transactions. Those
-// payments also appear as checking-account transactions, so keeping both
-// would double-count them.
-var creditCardPaymentPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`PAYMENT MADE BY ACCOUNT ENDING IN:5409`),
-	regexp.MustCompile(`Payment Thank You - Bill`),
-	regexp.MustCompile(`Payment Thank You Bill`),
-}
-
-// FilterCreditCardPayments drops credit card payment transactions.
-func (c *Client) FilterCreditCardPayments(trans []*models.Transaction) []*models.Transaction {
-	var newTrans []*models.Transaction
-
-	for _, t := range trans {
-		drop := false
-		for _, re := range creditCardPaymentPatterns {
-			if re.MatchString(t.BankName) {
-				drop = true
-				break
-			}
-		}
-		if !drop {
-			newTrans = append(newTrans, t)
-		}
-	}
-	return newTrans
-}
-
-//func (c *Client) getCheckingID(accounts []plaid.Account) (checkingID string) {
-//	for _, acct := range accounts {
-//		if acct.Type == "depository" && acct.Subtype == "checking" {
-//			checkingID = acct.AccountID
-//		}
-//	}
-//	return checkingID
-//}
 
 func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) error {
 	f, err := os.Create("csv/" + fileName)
@@ -242,6 +171,60 @@ func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) error {
 		}
 	}
 	return f.Sync()
+}
+
+func SortTransactions(trans []*models.Transaction) []*models.Transaction {
+	sort.Slice(trans, func(i, j int) bool {
+		if trans[i].Date == trans[j].Date {
+			return trans[i].Name < trans[j].Name
+		}
+		return trans[i].Date < trans[j].Date
+	})
+	return trans
+}
+
+// FilterRecordedTransactions removes transactions that are already contained in the register spreadsheet
+func FilterRecordedTransactions(trans []*models.Transaction, regLookup map[string]bool, debug bool) []*models.Transaction {
+	var filtered []*models.Transaction
+	i := 0
+	for _, t := range trans {
+		if _, ok := regLookup[t.Key]; !ok {
+			filtered = append(filtered, t)
+			i++
+			if debug {
+				fmt.Printf("    (%2d) NEW [%-28s] %-12s %-10s %8.2f %s\n", i, t.Key, t.Source, t.Date, t.Amount, t.Name)
+			}
+		}
+	}
+	return filtered
+}
+
+// creditCardPaymentPatterns identify card-payment transactions. Those
+// payments also appear as checking-account transactions, so keeping both
+// would double-count them.
+var creditCardPaymentPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`PAYMENT MADE BY ACCOUNT ENDING IN:5409`),
+	regexp.MustCompile(`Payment Thank You - Bill`),
+	regexp.MustCompile(`Payment Thank You Bill`),
+}
+
+// FilterCreditCardPayments drops credit card payment transactions.
+func FilterCreditCardPayments(trans []*models.Transaction) []*models.Transaction {
+	var newTrans []*models.Transaction
+
+	for _, t := range trans {
+		drop := false
+		for _, re := range creditCardPaymentPatterns {
+			if re.MatchString(t.BankName) {
+				drop = true
+				break
+			}
+		}
+		if !drop {
+			newTrans = append(newTrans, t)
+		}
+	}
+	return newTrans
 }
 
 func readDateValue(date string) string {

@@ -163,8 +163,8 @@ func TestMoveColumn(t *testing.T) {
 	}
 }
 
-// TestCreateAndGetMerchants verifies merchant CRUD.
-func TestCreateAndGetMerchants(t *testing.T) {
+// TestCreateMerchants verifies merchant CRUD.
+func TestCreateMerchant(t *testing.T) {
 	r := testRepo(t)
 
 	m := &models.Merchant{

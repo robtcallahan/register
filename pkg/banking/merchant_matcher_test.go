@@ -113,7 +113,7 @@ func TestFormatMerchantNames_AppliesRules(t *testing.T) {
 		{BankName: "NOVA BEER LLC PAYROLL"},
 		{BankName: "LOCAL BAKERY"},
 	}
-	got := c.FormatMerchantNames(trans, matcher, income, columns)
+	got := FormatMerchantNames(trans, matcher, income, columns)
 
 	if got[0].Name != "Amazon" || got[0].ColumnIndex != 11 || !got[0].IsCategory || !got[0].TaxDeductible {
 		t.Errorf("matcher rule not applied: %+v", got[0])
