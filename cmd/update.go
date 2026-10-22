@@ -21,11 +21,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"slices"
-	"strconv"
-	"strings"
-	"time"
-
 	"register/api/providers/sheets_provider"
 	"register/api/services/sheets_service"
 	"register/api/services/update_service"
@@ -33,6 +28,9 @@ import (
 	"register/pkg/models"
 	"register/pkg/repository"
 	"register/pkg/repository/mysql"
+	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -79,7 +77,7 @@ func update() error {
 	budgetService := sheets_service.NewBudgetService(sheetsProvider)
 
 	bankClient := GetBankingClient()
-	updateService := update_service.NewUpdateService(config, options, bankClient, queryRepo)
+	updateService := update_service.NewUpdateService(registerService, budgetService, bankClient, queryRepo, config, options)
 
 	columns, err := queryRepo.GetColumns()
 	if err != nil {
@@ -151,8 +149,18 @@ func update() error {
 			return err
 		}
 
-		if err := updateSpreadsheet(bankClient, registerService, budgetService, queryRepo, transactions); err != nil {
+		if err := updateService.UpdateSpreadsheet(transactions); err != nil {
 			return err
+		}
+
+		if !options.UseCSVFiles {
+			fmt.Println("Getting accounts balances...")
+			balances := bankClient.GetBalances([]string{banking.WellsFargoID})
+			printBalances(balances)
+			fmt.Println("Updating balances...")
+			if err := updateService.UpdateBalances(*registerSheet, balances); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
@@ -410,87 +418,6 @@ func readInt(prompt string) (int, error) {
 		return 0, fmt.Errorf("could not convert %s to an int: %w", v, err)
 	}
 	return i, nil
-}
-
-// updateSpreadsheet writes the transactions into the register sheet and
-// refreshes the bank balances. Skipped when there is nothing to write or on
-// --dry-run runs.
-func updateSpreadsheet(bankClient *banking.Client, registerService *sheets_service.RegisterService,
-	budgetService *sheets_service.BudgetService, qHandler repository.QueryRepo, transactions []*models.Transaction) error {
-	if len(transactions) == 0 || options.DryRun {
-		fmt.Println("No updates needed")
-		return nil
-	}
-
-	registerSheet, err := registerService.NewRegisterSheet(config, nil)
-	if err != nil {
-		return err
-	}
-	budgetSheet, err := budgetService.NewBudgetSheet(config)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Reading Budget...\n")
-	if _, err := budgetService.ReadBudgetSheet(budgetSheet); err != nil {
-		return err
-	}
-
-	fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", "Num", "Source", "Date", "Amount", "Name", "Note")
-	fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", dashes(3), dashes(12), dashes(10), dashes(8), dashes(30), dashes(15))
-	for i, r := range transactions {
-		fmt.Printf("    (%3d) %-12s %-10s %8.2f %-30s %s\n", i+1, r.Source, r.Date, -1*r.Amount, r.Name, r.Note)
-	}
-
-	// add the needed number of rows for transactions
-	fmt.Println("Adding rows...")
-	if err := registerService.CopyRows(*registerSheet, len(transactions)); err != nil {
-		return err
-	}
-
-	fmt.Printf("Transaction updates...\n")
-
-	fmt.Printf("Updating spreadsheet...\n")
-	columns, err := qHandler.GetColumns()
-	if err != nil {
-		return err
-	}
-	transNameToColName, err := qHandler.GetNameMapToColumn()
-	if err != nil {
-		return err
-	}
-
-	if err := registerService.UpdateRows(*registerSheet, *budgetSheet, columns, transNameToColName, transactions); err != nil {
-		return err
-	}
-
-	lastRowUpdated := registerSheet.SheetCoords.FirstRowToUpdate + int64(len(transactions)*2) + 1
-	if _, err := registerService.WriteCell(*registerSheet, sheets_service.LastUpdateCell, time.Now().Format("01/02/2006")); err != nil {
-		return err
-	}
-	if _, err := registerService.WriteCell(*registerSheet, sheets_service.CheckingDeltaCell, fmt.Sprintf("=SUM(%s-I%d)", sheets_service.CheckingBalanceCell, lastRowUpdated)); err != nil {
-		return err
-	}
-
-	if !options.UseCSVFiles {
-		fmt.Println("Getting accounts balances...")
-		balances := bankClient.GetBalances([]string{banking.WellsFargoID})
-		printBalances(balances)
-		fmt.Println("Updating balances...")
-		if err := updateBalances(*registerService, *registerSheet, balances); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func updateBalances(registerService sheets_service.RegisterService, registerSheet sheets_service.RegisterSheet, balances map[string]banking.Balance) error {
-	if balances[banking.WellsFargoID].Error == nil {
-		if _, err := registerService.WriteCell(registerSheet, sheets_service.CheckingBalanceCell, balances[banking.WellsFargoID].Amount); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func printBalances(balances map[string]banking.Balance) {

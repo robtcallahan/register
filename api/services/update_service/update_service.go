@@ -4,6 +4,7 @@ import (
 	stdcsv "encoding/csv"
 	"fmt"
 	"os"
+	"register/api/services/sheets_service"
 	cfg "register/pkg/config"
 	"register/pkg/csv"
 	"register/pkg/repository"
@@ -16,18 +17,22 @@ import (
 )
 
 type UpdateService struct {
-	BankClient *banking.Client
-	QueryRepo  repository.QueryRepo
-	Config     *cfg.Config
-	Options    *cfg.Options
+	RegisterService *sheets_service.RegisterService
+	BudgetService   *sheets_service.BudgetService
+	BankClient      *banking.Client
+	QueryRepo       repository.QueryRepo
+	Config          *cfg.Config
+	Options         *cfg.Options
 }
 
-func NewUpdateService(config *cfg.Config, options *cfg.Options, bankClient *banking.Client, queryRepo repository.QueryRepo) *UpdateService {
+func NewUpdateService(registerService *sheets_service.RegisterService, budgetService *sheets_service.BudgetService, bankClient *banking.Client, queryRepo repository.QueryRepo, config *cfg.Config, options *cfg.Options) *UpdateService {
 	return &UpdateService{
-		BankClient: bankClient,
-		QueryRepo:  queryRepo,
-		Config:     config,
-		Options:    options,
+		RegisterService: registerService,
+		BudgetService:   budgetService,
+		BankClient:      bankClient,
+		QueryRepo:       queryRepo,
+		Config:          config,
+		Options:         options,
 	}
 }
 
@@ -140,6 +145,67 @@ func (s *UpdateService) DedupeAgainstSheet(transactions []*models.Transaction, k
 	return s.BankClient.FilterRecordedTransactions(transactions, fuzzyKeySet(keysMap))
 }
 
+// UpdateSpreadsheet writes the transactions into the register sheet and
+// refreshes the bank balances. Skipped when there is nothing to write or on
+// --dry-run runs.
+func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) error {
+	if len(transactions) == 0 || s.Options.DryRun {
+		fmt.Println("No updates needed")
+		return nil
+	}
+
+	registerSheet, err := s.RegisterService.NewRegisterSheet(s.Config, nil)
+	if err != nil {
+		return err
+	}
+	budgetSheet, err := s.BudgetService.NewBudgetSheet(s.Config)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Reading Budget...\n")
+	if _, err := s.BudgetService.ReadBudgetSheet(budgetSheet); err != nil {
+		return err
+	}
+
+	fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", "Num", "Source", "Date", "Amount", "Name", "Note")
+	fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", dashes(3), dashes(12), dashes(10), dashes(8), dashes(30), dashes(15))
+	for i, r := range transactions {
+		fmt.Printf("    (%3d) %-12s %-10s %8.2f %-30s %s\n", i+1, r.Source, r.Date, -1*r.Amount, r.Name, r.Note)
+	}
+
+	// add the needed number of rows for transactions
+	fmt.Println("Adding rows...")
+	if err := s.RegisterService.CopyRows(*registerSheet, len(transactions)); err != nil {
+		return err
+	}
+
+	fmt.Printf("Transaction updates...\n")
+
+	fmt.Printf("Updating spreadsheet...\n")
+	columns, err := s.QueryRepo.GetColumns()
+	if err != nil {
+		return err
+	}
+	transNameToColName, err := s.QueryRepo.GetNameMapToColumn()
+	if err != nil {
+		return err
+	}
+
+	if err := s.RegisterService.UpdateRows(*registerSheet, *budgetSheet, columns, transNameToColName, transactions); err != nil {
+		return err
+	}
+
+	lastRowUpdated := registerSheet.SheetCoords.FirstRowToUpdate + int64(len(transactions)*2) + 1
+	if _, err := s.RegisterService.WriteCell(*registerSheet, sheets_service.LastUpdateCell, time.Now().Format("01/02/2006")); err != nil {
+		return err
+	}
+	if _, err := s.RegisterService.WriteCell(*registerSheet, sheets_service.CheckingDeltaCell, fmt.Sprintf("=SUM(%s-I%d)", sheets_service.CheckingBalanceCell, lastRowUpdated)); err != nil {
+		return err
+	}
+	return nil
+}
+
 // getTransactions connects to the Plaid interface to get the bank's transactions
 func getTransactions(bankClient *banking.Client, bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
 	transactions, err := bankClient.GetTransactions(bankIDs, startDate, endDate)
@@ -191,4 +257,20 @@ func fuzzyKeySet(keys map[string]bool) map[string]bool {
 		}
 	}
 	return fuzzy
+}
+
+// dashes is a simple helper to print out "count" number of dashes to be printed under a column header
+func dashes(count int) string {
+	return strings.Repeat("-", count)
+}
+
+// UpdateBalances takes the Wells Fargo checking account balance and updates the CheckingBalanceCell in the Register spreadsheet
+// as it is used to determine if reconciliation has occurred.
+func (s *UpdateService) UpdateBalances(registerSheet sheets_service.RegisterSheet, balances map[string]banking.Balance) error {
+	if balances[banking.WellsFargoID].Error == nil {
+		if _, err := s.RegisterService.WriteCell(registerSheet, sheets_service.CheckingBalanceCell, balances[banking.WellsFargoID].Amount); err != nil {
+			return err
+		}
+	}
+	return nil
 }
