@@ -29,6 +29,21 @@ func NewUpdateService(config *cfg.Config, options *cfg.Options, bankClient *bank
 	}
 }
 
+// PersistTransactions interactively fills in any missing names and notes,
+// then saves the transactions to the DB. All questions come first, so the rest
+// of the run is unattended. Skipped entirely on --dry-run runs.
+func (s *UpdateService) PersistTransactions(transactions []*models.Transaction) ([]*models.Transaction, error) {
+	if s.Options.DryRun {
+		return transactions, nil
+	}
+
+	fmt.Println("Updating transactions table...")
+	if err := s.QueryRepo.UpdateTransactionTables(transactions); err != nil {
+		return nil, err
+	}
+	return transactions, nil
+}
+
 // FetchTransactions gathers transactions from every bank: Fidelity always
 // comes from its CSV (Plaid no longer supports it), while Wells Fargo and
 // Chase come from CSV or Plaid depending on the --csv flag.

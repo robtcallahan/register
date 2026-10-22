@@ -92,7 +92,8 @@ func (r *mysqlQueryRepo) GetMaxMerchantPriority() (int, error) {
 	return max, nil
 }
 
-// GetLookupData ...
+// GetLookupData queries the columns and merchants tables using foreign keys and creates
+// and array of models.DataRow that contains an aggregate of both tables.
 func (r *mysqlQueryRepo) GetLookupData() ([]*models.DataRow, error) {
 	var merchants []models.Merchant
 
