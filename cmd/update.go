@@ -18,7 +18,6 @@ package cmd
 
 import (
 	"bufio"
-	stdcsv "encoding/csv"
 	"fmt"
 	"math"
 	"os"
@@ -114,7 +113,7 @@ func update() error {
 		return nil
 	}
 
-	if err := writeRawTransactionsCSV(transactions); err != nil {
+	if err := updateService.WriteRawTransactionsCSV(transactions); err != nil {
 		return err
 	}
 
@@ -411,39 +410,6 @@ func readInt(prompt string) (int, error) {
 		return 0, fmt.Errorf("could not convert %s to an int: %w", v, err)
 	}
 	return i, nil
-}
-
-// writeRawTransactionsCSV dumps the fetched transactions to transactions.csv
-// in the finance directory. It runs before merchant normalization and sheet
-// dedupe, so the file holds every transaction pulled from the banks,
-// including ones already recorded in the register. encoding/csv quotes the
-// fields, so bank names containing commas can't shift the columns.
-func writeRawTransactionsCSV(transactions []*models.Transaction) error {
-	fmt.Println("Writing raw transactions CSV file...")
-	file, err := os.Create(config.FinanceDir + "/transactions.csv")
-	if err != nil {
-		return fmt.Errorf("error creating file %s: %w", config.FinanceDir+"/transactions.csv", err)
-	}
-	defer file.Close()
-
-	w := stdcsv.NewWriter(file)
-	for _, t := range transactions {
-		record := []string{
-			t.Source, t.Date, t.BankName,
-			strconv.FormatFloat(t.Amount, 'f', 2, 64),
-			strconv.FormatFloat(t.Deposit, 'f', 2, 64),
-			strconv.FormatFloat(t.Withdrawal, 'f', 2, 64),
-			strconv.FormatFloat(t.CreditCard, 'f', 2, 64),
-		}
-		if err := w.Write(record); err != nil {
-			return fmt.Errorf("error writing to file: %w", err)
-		}
-	}
-	w.Flush()
-	if err := w.Error(); err != nil {
-		return fmt.Errorf("error writing to file: %w", err)
-	}
-	return nil
 }
 
 // updateSpreadsheet writes the transactions into the register sheet and
