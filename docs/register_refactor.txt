@@ -137,7 +137,7 @@ Phase 15 — Layering: what a layer is for
 - [X] 15.3 Delete sheets_client package (56 lines of pass-through) — fold into provider (Rob approved)
 -----------------------------------------------------------------------------------------
 Phase 16 — Structural improvements
-- [ ] 16.1 Thin out cmd/update.go (634 lines) — move pure pipeline to service, keep cmd as composition root
+- [X] 16.1 Thin out cmd/update.go (634 lines) — move pure pipeline to service, keep cmd as composition root
 - [ ] 16.2 Trim QueryRepo to used methods only — remove CreateDB, SaveTransaction, GetMerchants, PrintData, PrintTable
 - [ ] 16.3 Convert banking.Client pure methods to package functions (SortTransactions, Filter*, FormatMerchantNames)
 - [ ] 16.4 Consolidate three readDateValues into one pkg-level helper with distinct names

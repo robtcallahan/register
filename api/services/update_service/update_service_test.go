@@ -1,12 +1,77 @@
 package update_service
 
 import (
+	"reflect"
 	"register/pkg/banking"
+	cfg "register/pkg/config"
 	"register/pkg/models"
+	"register/pkg/repository"
 	"testing"
 )
 
-func TestDedupeAgainstSheet(t *testing.T) {
+type RepoMock struct {
+	repository.QueryRepo
+	count int
+	trans []*models.Transaction
+}
+
+func (db *RepoMock) UpdateTransactionTables(trans []*models.Transaction) error {
+	db.count = db.count + 1
+	db.trans = trans
+	return nil
+}
+
+func TestUpdateService_PersistTransactions(t *testing.T) {
+	trans := &models.Transaction{
+		Source:     "FooBank",
+		Name:       "Amazon",
+		CreditCard: 299.99,
+	}
+	type Want struct {
+		count int
+		trans []*models.Transaction
+	}
+	tests := []struct {
+		dryRun bool
+		trans  []*models.Transaction
+		want   *Want
+	}{
+		{
+			dryRun: true,
+			trans:  []*models.Transaction{trans},
+			want: &Want{
+				count: 0,
+				trans: nil,
+			},
+		},
+		{
+			dryRun: false,
+			trans:  []*models.Transaction{trans},
+			want: &Want{
+				count: 1,
+				trans: []*models.Transaction{trans},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		mock := &RepoMock{}
+		s := NewUpdateService(nil, nil, nil, mock, nil, &cfg.Options{DryRun: tt.dryRun})
+		_, err := s.PersistTransactions(tt.trans)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mock.count != tt.want.count {
+			t.Errorf("count = %d, want %d", mock.count, tt.want.count)
+		}
+		if !reflect.DeepEqual(mock.trans, tt.want.trans) {
+			t.Errorf("trans = %v want %v", mock.trans, tt.want.trans)
+		}
+	}
+
+}
+
+func TestUpdateService_DedupeAgainstSheet(t *testing.T) {
 	recorded := map[string]bool{
 		"amazon:12/31/25:25.00":      true,
 		"wellsfargo:01/05/26:100.00": true,

@@ -206,6 +206,17 @@ func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) er
 	return nil
 }
 
+// UpdateBalances takes the Wells Fargo checking account balance and updates the CheckingBalanceCell in the Register spreadsheet
+// as it is used to determine if reconciliation has occurred.
+func (s *UpdateService) UpdateBalances(registerSheet sheets_service.RegisterSheet, balances map[string]banking.Balance) error {
+	if balances[banking.WellsFargoID].Error == nil {
+		if _, err := s.RegisterService.WriteCell(registerSheet, sheets_service.CheckingBalanceCell, balances[banking.WellsFargoID].Amount); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // getTransactions connects to the Plaid interface to get the bank's transactions
 func getTransactions(bankClient *banking.Client, bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
 	transactions, err := bankClient.GetTransactions(bankIDs, startDate, endDate)
@@ -262,15 +273,4 @@ func fuzzyKeySet(keys map[string]bool) map[string]bool {
 // dashes is a simple helper to print out "count" number of dashes to be printed under a column header
 func dashes(count int) string {
 	return strings.Repeat("-", count)
-}
-
-// UpdateBalances takes the Wells Fargo checking account balance and updates the CheckingBalanceCell in the Register spreadsheet
-// as it is used to determine if reconciliation has occurred.
-func (s *UpdateService) UpdateBalances(registerSheet sheets_service.RegisterSheet, balances map[string]banking.Balance) error {
-	if balances[banking.WellsFargoID].Error == nil {
-		if _, err := s.RegisterService.WriteCell(registerSheet, sheets_service.CheckingBalanceCell, balances[banking.WellsFargoID].Amount); err != nil {
-			return err
-		}
-	}
-	return nil
 }
