@@ -55,7 +55,7 @@ func TestUpdateService_PersistTransactions(t *testing.T) {
 
 	for _, tt := range tests {
 		mock := &RepoMock{}
-		s := NewUpdateService(nil, nil, nil, mock, nil, false, tt.dryRun)
+		s := NewUpdateService(nil, nil, nil, mock, nil, nil)
 		_, err := s.PersistTransactions(tt.trans)
 		if err != nil {
 			t.Fatal(err)
@@ -84,7 +84,7 @@ func TestUpdateService_DedupeAgainstSheet(t *testing.T) {
 	}
 
 	bankClient := &banking.Client{}
-	updateService := NewUpdateService(nil, nil, bankClient, nil, nil, false, false)
+	updateService := NewUpdateService(nil, nil, bankClient, nil, nil, nil)
 	got := updateService.DedupeAgainstSheet(trans, recorded)
 
 	if len(got) != 2 {

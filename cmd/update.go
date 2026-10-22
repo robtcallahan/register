@@ -77,7 +77,7 @@ func update() error {
 	budgetService := sheets_service.NewBudgetService(sheetsProvider)
 
 	bankClient := GetBankingClient()
-	updateService := update_service.NewUpdateService(registerService, budgetService, bankClient, queryRepo, config, options.UseCSVFiles, options.DryRun)
+	updateService := update_service.NewUpdateService(registerService, budgetService, bankClient, queryRepo, config, options)
 
 	columns, err := queryRepo.GetColumns()
 	if err != nil {

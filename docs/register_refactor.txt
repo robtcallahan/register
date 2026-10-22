@@ -139,7 +139,7 @@ Phase 15 — Layering: what a layer is for
 Phase 16 — Structural improvements
 - [X] 16.1 Thin out cmd/update.go (634 lines) — move pure pipeline to service, keep cmd as composition root
 - [X] 16.2 Trim QueryRepo to used methods only — remove CreateDB, SaveTransaction, PrintData, PrintTable
-- [X] 16.3 Convert banking.Client pure methods to package functions (SortTransactions, Filter*, FormatMerchantNames)
+-
 - [ ] 16.4 Consolidate three readDateValues into one pkg-level helper with distinct names
 - [ ] 16.5 Fix N+1 Sheets calls in moveColumn — read column A once into map
 - [ ] 16.6 Make fuzzy date matching merchant-specific — currently fuzzyKeySet applies ±1 day to EVERY transaction; scope it to Amazon merchants (or make the window configurable per merchant/source)

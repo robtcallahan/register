@@ -22,20 +22,17 @@ type UpdateService struct {
 	BankClient      *banking.Client
 	QueryRepo       repository.QueryRepo
 	Config          *cfg.Config
-	UseCSVFiles     bool
-	DryRun          bool
-
+	Options         *cfg.Options
 }
 
-func NewUpdateService(registerService *sheets_service.RegisterService, budgetService *sheets_service.BudgetService, bankClient *banking.Client, queryRepo repository.QueryRepo, config *cfg.Config, useCSVFiles, dryRun bool) *UpdateService {
+func NewUpdateService(registerService *sheets_service.RegisterService, budgetService *sheets_service.BudgetService, bankClient *banking.Client, queryRepo repository.QueryRepo, config *cfg.Config, options *cfg.Options) *UpdateService {
 	return &UpdateService{
 		RegisterService: registerService,
 		BudgetService:   budgetService,
 		BankClient:      bankClient,
 		QueryRepo:       queryRepo,
 		Config:          config,
-		UseCSVFiles:     useCSVFiles,
-		DryRun:          dryRun,
+		Options:         options,
 	}
 }
 
@@ -43,7 +40,7 @@ func NewUpdateService(registerService *sheets_service.RegisterService, budgetSer
 // then saves the transactions to the DB. All questions come first, so the rest
 // of the run is unattended. Skipped entirely on --dry-run runs.
 func (s *UpdateService) PersistTransactions(transactions []*models.Transaction) ([]*models.Transaction, error) {
-	if s.DryRun {
+	if s.Options.DryRun {
 		return transactions, nil
 	}
 
@@ -65,7 +62,7 @@ func (s *UpdateService) FetchTransactions(bankIDs []string, startDate, endDate s
 	}
 
 	var newTrans []*models.Transaction
-	if s.UseCSVFiles {
+	if s.Options.UseCSVFiles {
 		fmt.Println("Getting Wells Fargo & Chase transactions (CSV)...")
 		newTrans, err = getCSVTransactions(s.Config, bankIDs)
 	} else {
@@ -145,14 +142,14 @@ func (s *UpdateService) NormalizeMerchants(transactions []*models.Transaction) (
 // next, which changes its dedupe key.
 func (s *UpdateService) DedupeAgainstSheet(transactions []*models.Transaction, keysMap map[string]bool) []*models.Transaction {
 	fmt.Println("Filtering out register transactions...")
-	return banking.FilterRecordedTransactions(transactions, fuzzyKeySet(keysMap), s.DryRun)
+	return banking.FilterRecordedTransactions(transactions, fuzzyKeySet(keysMap), s.Options.Debug)
 }
 
 // UpdateSpreadsheet writes the transactions into the register sheet and
 // refreshes the bank balances. Skipped when there is nothing to write or on
 // --dry-run runs.
 func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) error {
-	if len(transactions) == 0 || s.DryRun {
+	if len(transactions) == 0 || s.Options.DryRun {
 		fmt.Println("No updates needed")
 		return nil
 	}
