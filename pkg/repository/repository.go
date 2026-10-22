@@ -2,14 +2,10 @@ package repository
 
 import (
 	"register/pkg/models"
-
-	"gorm.io/gorm"
 )
 
 // QueryRepo represent the repositories
 type QueryRepo interface {
-	CreateDB(dbName string) (*gorm.DB, error)
-
 	GetColumns() ([]models.Column, error)
 	AddColumn(col *models.Column) error
 	RenameColumn(id int, name string) error
@@ -22,14 +18,10 @@ type QueryRepo interface {
 	GetMaxMerchantPriority() (int, error)
 
 	GetTransactions() ([]models.Transaction, error)
-	SaveTransaction(trans *models.Transaction) error
 	UpdateTransactionTables(trans []*models.Transaction) error
 
 	GetLookupData() ([]*models.DataRow, error)
 	GetNameMapToColumn() (map[string]string, error)
-
-	PrintData() error
-	PrintTable(table string) error
 }
 
 func ColumnNames(cats []models.Column) []string {

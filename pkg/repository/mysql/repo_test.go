@@ -4,9 +4,10 @@ import (
 	"os"
 	"testing"
 
+	"register/pkg/models"
+
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"register/pkg/models"
 )
 
 // testRepo returns a mysqlQueryRepo against the test DB, or skips the test
@@ -220,46 +221,6 @@ func TestGetMerchantsByColumn(t *testing.T) {
 			t.Errorf("GetMerchantsByColumn(11) returned merchant with ColumnID %d", m.ColumnID)
 		}
 	}
-}
-
-// TestSaveAndGetTransactions verifies transaction persistence.
-func TestSaveAndGetTransactions(t *testing.T) {
-	r := testRepo(t)
-
-	// Ensure the table exists (the dump may not include it)
-	if err := r.Conn.AutoMigrate(&models.Transaction{}); err != nil {
-		t.Fatalf("AutoMigrate() error = %v", err)
-	}
-
-	tx := &models.Transaction{
-		Key:      "test:1013:1",
-		Source:   "TestBank",
-		Date:     "10/13/26",
-		Name:     "Test Transaction",
-		Amount:   42.00,
-		Withdrawal: 42.00,
-	}
-	if err := r.SaveTransaction(tx); err != nil {
-		t.Fatalf("SaveTransaction() error = %v", err)
-	}
-
-	trans, err := r.GetTransactions()
-	if err != nil {
-		t.Fatalf("GetTransactions() error = %v", err)
-	}
-	found := false
-	for _, tr := range trans {
-		if tr.Key == "test:1013:1" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("SaveTransaction() did not persist the transaction")
-	}
-
-	// Cleanup
-	r.Conn.Unscoped().Where("`key` = ?", "test:1013:1").Delete(&models.Transaction{})
 }
 
 // TestGetLookupData verifies the lookup data query.

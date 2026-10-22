@@ -28,13 +28,6 @@ func (r *mysqlQueryRepo) GetTransactions() ([]models.Transaction, error) {
 	return trans, nil
 }
 
-func (r *mysqlQueryRepo) SaveTransaction(trans *models.Transaction) error {
-	if result := r.Conn.Save(trans); result.Error != nil {
-		return fmt.Errorf("unable to save transaction: %w", result.Error)
-	}
-	return nil
-}
-
 func (r *mysqlQueryRepo) UpdateTransactionTables(transactions []*models.Transaction) error {
 	return r.Conn.Transaction(func(tx *gorm.DB) error {
 		for _, t := range transactions {
@@ -44,12 +37,6 @@ func (r *mysqlQueryRepo) UpdateTransactionTables(transactions []*models.Transact
 		}
 		return nil
 	})
-}
-
-// CreateDB ...
-func (r *mysqlQueryRepo) CreateDB(dbName string) (*gorm.DB, error) {
-	db := r.Conn.Exec("CREATE DATABASE " + dbName)
-	return db, db.Error
 }
 
 // GetColumns ...
@@ -260,35 +247,4 @@ func (r *mysqlQueryRepo) GetMerchantsByColumn(columnID int) ([]models.Merchant, 
 		return nil, fmt.Errorf("unable to get merchants for column: %w", result.Error)
 	}
 	return merchants, nil
-}
-
-// PrintData ...
-func (r *mysqlQueryRepo) PrintData() error {
-	var merchants []models.Merchant
-	if result := r.Conn.Preload("Column").Find(&merchants); result.Error != nil {
-		return fmt.Errorf("unable to get merchants: %w", result.Error)
-	}
-
-	fmt.Printf("[Num] %-35s %-30s %-30s %-s\n", "Bank Name", "Name", "Column Name", "Column Index")
-	for i, m := range merchants {
-		fmt.Printf("[%3d] %-35s %-30s %-30s %2d\n", i+1, m.BankName, m.Name, m.Column.Name, m.Column.ColumnIndex)
-	}
-	return nil
-}
-
-// PrintTable ...
-func (r *mysqlQueryRepo) PrintTable(table string) error {
-	switch table {
-	case "merchants":
-		var merchants []models.Merchant
-		result := r.Conn.Find(&merchants)
-		if result.Error != nil {
-			return fmt.Errorf("unable to get merchants: %w", result.Error)
-		}
-		fmt.Printf("%d rows found\n", result.RowsAffected)
-		for _, m := range merchants {
-			fmt.Printf("%d %s %s %s\n", m.ID, m.BankName, m.Name, m.Column.Name)
-		}
-	}
-	return nil
 }
