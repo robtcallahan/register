@@ -979,40 +979,6 @@ func Test_readDollarsValue(t *testing.T) {
 	}
 }
 
-func Test_readDateValue(t *testing.T) {
-	type args struct {
-		dateStr any
-	}
-	tests := []struct {
-		name string
-		args args
-		want string
-	}{
-		{
-			name: "Test 2 digit year",
-			args: args{dateStr: "01/02/03"},
-			want: "01/02/03",
-		},
-		{
-			name: "Test 2 digit month and day",
-			args: args{dateStr: "1/2/03"},
-			want: "01/02/03",
-		},
-		{
-			name: "Test 4 digit year",
-			args: args{dateStr: "1/2/2003"},
-			want: "01/02/03",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := readDateValue(tt.args.dateStr); got != tt.want {
-				t.Errorf("readDateValue() = %+v, want %+v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_addDeposit(t *testing.T) {
 	s := ""
 	v := 101.56

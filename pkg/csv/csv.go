@@ -7,10 +7,10 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"strings"
+
 	"register/pkg/config"
 	"register/pkg/models"
-	"strconv"
-	"strings"
 
 	"github.com/gocarina/gocsv"
 )
@@ -242,9 +242,9 @@ func processWellsFargoData(wellsFargo []*WellsFargo, bankID string) []*models.Tr
 	var trans []*models.Transaction
 	for _, wf := range wellsFargo {
 		t := &models.Transaction{
-			Key:      models.TransactionKey(bankID, readDateValue(wf.Date), wf.Amount),
+			Key:      models.TransactionKey(bankID, models.ReadDateValue(wf.Date), wf.Amount),
 			Source:   "WellsFargo",
-			Date:     readDateValue(wf.Date),
+			Date:     models.ReadDateValue(wf.Date),
 			Amount:   wf.Amount,
 			BankName: wf.Description,
 			Budget:   wf.Amount,
@@ -310,7 +310,7 @@ func processFidelityData(fidelity []*FidelityVisa, bankID string) []*models.Tran
 	for _, f := range fidelity {
 		t := &models.Transaction{
 			Source:         "Fidelity",
-			Date:           readDateValue(f.Date),
+			Date:           models.ReadDateValue(f.Date),
 			BankName:       f.Name,
 			Amount:         f.Amount,      // amount stays as is
 			CreditPurchase: -1 * f.Amount, // convert to positive
@@ -350,9 +350,9 @@ func processChaseData(chase []*ChaseVisa, bankID string) []*models.Transaction {
 		}
 
 		t := &models.Transaction{
-			Key:            models.TransactionKey(bankID, readDateValue(c.TransactionDate), -1*c.Amount),
+			Key:            models.TransactionKey(bankID, models.ReadDateValue(c.TransactionDate), -1*c.Amount),
 			Source:         "Chase",
-			Date:           readDateValue(c.TransactionDate),
+			Date:           models.ReadDateValue(c.TransactionDate),
 			Amount:         c.Amount, // amount stays as is
 			CreditPurchase: c.Amount, // convert to positive to be added to CreditCard column (like Deposit/Withdrawal)
 			CreditCard:     c.Amount, // convert to positive
@@ -393,9 +393,9 @@ func processBankOfAmericaData(boa []*BankOfAmerica, bankID string) []*models.Tra
 		}
 
 		t := &models.Transaction{
-			Key:        models.TransactionKey(bankID, readDateValue(b.PostedDate), b.Amount),
+			Key:        models.TransactionKey(bankID, models.ReadDateValue(b.PostedDate), b.Amount),
 			Source:     bankID,
-			Date:       readDateValue(b.PostedDate),
+			Date:       models.ReadDateValue(b.PostedDate),
 			Amount:     -b.Amount,
 			CreditCard: -b.Amount,
 			BankName:   b.Payee,
@@ -403,28 +403,6 @@ func processBankOfAmericaData(boa []*BankOfAmerica, bankID string) []*models.Tra
 		trans = append(trans, t)
 	}
 	return trans
-}
-
-func readDateValue(date string) string {
-	var d string
-	re := regexp.MustCompile(`(\d+)/(\d+)/(20)?(\d+)`)
-	m := re.FindAllStringSubmatch(date, -1)
-	if m != nil {
-		mm, _ := strconv.Atoi(m[0][1])
-		dd, _ := strconv.Atoi(m[0][2])
-		yy, _ := strconv.Atoi(m[0][4])
-		d = fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
-	} else {
-		re := regexp.MustCompile(`(20)?(\d+)-(\d+)-(\d+)`)
-		m := re.FindAllStringSubmatch(date, -1)
-		if m != nil {
-			mm, _ := strconv.Atoi(m[0][3])
-			dd, _ := strconv.Atoi(m[0][4])
-			yy, _ := strconv.Atoi(m[0][2])
-			d = fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
-		}
-	}
-	return d
 }
 
 func readFileContents(path string) ([]byte, error) {

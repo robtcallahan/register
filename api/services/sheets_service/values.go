@@ -39,20 +39,6 @@ func readDollarsValue(value any) (float64, error) {
 	return f, nil
 }
 
-func readDateValue(dateStr any) string {
-	date := readStringValue(dateStr)
-	re := regexp.MustCompile(`(\d+)/(\d+)/(20)?(\d+)`)
-	m := re.FindAllStringSubmatch(date, -1)
-	if len(m) == 0 {
-		return ""
-	}
-	mm, _ := strconv.Atoi(m[0][1])
-	dd, _ := strconv.Atoi(m[0][2])
-	yy, _ := strconv.Atoi(m[0][4])
-	d := fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
-	return d
-}
-
 func getStringField(values []any, i int) string {
 	if i >= 0 && i < len(values) {
 		return readStringValue(values[i])
@@ -80,7 +66,7 @@ func getDateField(values []any) string {
 	if dateString == "" {
 		return ""
 	}
-	return readDateValue(dateString)
+	return models.ReadDateValue(dateString)
 }
 
 func getAmountString(values []any) string {

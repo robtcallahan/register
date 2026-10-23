@@ -216,7 +216,7 @@ func (ss *RegisterService) ReadDateCell(registerSheet RegisterSheet, cell string
 	if err != nil {
 		return "", err
 	}
-	return readDateValue(v), nil
+	return models.ReadDateValue(readStringValue(v)), nil
 }
 
 func (ss *RegisterService) WriteCell(registerSheet RegisterSheet, cell string, value any) (*sheets.UpdateValuesResponse, error) {

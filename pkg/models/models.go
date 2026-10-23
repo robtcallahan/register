@@ -53,13 +53,6 @@ type Column struct {
 // budget category; positions 1-10 (A-J) are the fixed register block.
 const FirstCategoryIndex = 11
 
-// IsCategory reports whether the column sits in the category block. It
-// replaces the old is_category database flag: position alone decides, so
-// the two can never disagree.
-func (c Column) IsCategory() bool {
-	return c.ColumnIndex >= FirstCategoryIndex
-}
-
 // Column colors: stored on each columns row, and the names of the cell
 // background palette. Grey is reserved for the payoff columns (Credit
 // Cards, AppleCard) and is never offered for a new category.
@@ -86,4 +79,11 @@ type DataRow struct {
 	Priority      int
 	MatchType     string
 	Pattern       string
+}
+
+// IsCategory reports whether the column sits in the category block. It
+// replaces the old is_category database flag: position alone decides, so
+// the two can never disagree.
+func (c Column) IsCategory() bool {
+	return c.ColumnIndex >= FirstCategoryIndex
 }

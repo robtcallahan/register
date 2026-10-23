@@ -23,7 +23,6 @@ import (
 	"os"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	"register/pkg/config"
@@ -92,7 +91,7 @@ func (c *Client) getPlaidTransactions(bankConfig config.Bank, startDate, endDate
 
 func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.Transaction, error) {
 	tran := &models.Transaction{
-		Date:     readDateValue(p.Date),
+		Date:     models.ReadDateValue(p.Date),
 		Name:     "",
 		BankName: p.Name,
 	}
@@ -114,10 +113,10 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.T
 		tran.Amount = p.Amount
 		if p.Amount < 0 {
 			tran.Deposit = -1 * p.Amount // covert to positive
-			tran.Key = models.TransactionKey(tran.Source, readDateValue(p.Date), tran.Deposit)
+			tran.Key = models.TransactionKey(tran.Source, models.ReadDateValue(p.Date), tran.Deposit)
 		} else {
 			tran.Withdrawal = p.Amount
-			tran.Key = models.TransactionKey(tran.Source, readDateValue(p.Date), tran.Withdrawal)
+			tran.Key = models.TransactionKey(tran.Source, models.ReadDateValue(p.Date), tran.Withdrawal)
 		}
 		tran.Budget = -1 * p.Amount
 	case FidelityID:
@@ -225,16 +224,4 @@ func FilterCreditCardPayments(trans []*models.Transaction) []*models.Transaction
 		}
 	}
 	return newTrans
-}
-
-func readDateValue(date string) string {
-	m := dateValueRE.FindStringSubmatch(date)
-	if m == nil {
-		return ""
-	}
-	yy, _ := strconv.Atoi(m[2])
-	mm, _ := strconv.Atoi(m[3])
-	dd, _ := strconv.Atoi(m[4])
-	d := fmt.Sprintf("%02d/%02d/%02d", mm, dd, yy)
-	return d
 }
