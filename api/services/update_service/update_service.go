@@ -168,6 +168,12 @@ func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) er
 		return err
 	}
 
+	fmt.Printf("Reading Register...\n")
+	registerSheet, err = s.RegisterService.ReadRegisterSheet(registerSheet)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", "Num", "Source", "Date", "Amount", "Name", "Note")
 	fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", dashes(3), dashes(12), dashes(10), dashes(8), dashes(30), dashes(15))
 	for i, r := range transactions {
