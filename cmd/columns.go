@@ -204,7 +204,7 @@ func addColumn(name string) error {
 		return err
 	}
 	bs := columnsBudgetSheetService(provider)
-	budgetSheet, err := bs.NewBudgetSheet(config)
+	budgetSheet, err := bs.NewBudgetSheet(*config)
 	if err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func renameColumn(oldName, newName string) error {
 		return err
 	}
 	bs := columnsBudgetSheetService(provider)
-	budgetSheet, err := bs.NewBudgetSheet(config)
+	budgetSheet, err := bs.NewBudgetSheet(*config)
 	if err != nil {
 		return err
 	}
@@ -317,7 +317,7 @@ func deleteColumn(name string) error {
 		return err
 	}
 	bs := columnsBudgetSheetService(provider)
-	budgetSheet, err := bs.NewBudgetSheet(config)
+	budgetSheet, err := bs.NewBudgetSheet(*config)
 	if err != nil {
 		return err
 	}
@@ -414,7 +414,7 @@ func moveColumn(name string) error {
 		return err
 	}
 	bs := columnsBudgetSheetService(provider)
-	budgetSheet, err := bs.NewBudgetSheet(config)
+	budgetSheet, err := bs.NewBudgetSheet(*config)
 	if err != nil {
 		return err
 	}

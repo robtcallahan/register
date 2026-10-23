@@ -158,7 +158,7 @@ func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) er
 	if err != nil {
 		return err
 	}
-	budgetSheet, err := s.BudgetService.NewBudgetSheet(s.Config)
+	budgetSheet, err := s.BudgetService.NewBudgetSheet(*s.Config)
 	if err != nil {
 		return err
 	}

@@ -37,7 +37,7 @@ func checkBudget() error {
 	}
 	bs := sheets_service.NewBudgetService(provider)
 
-	budgetSheet, err := bs.NewBudgetSheet(config)
+	budgetSheet, err := bs.NewBudgetSheet(*config)
 	if err != nil {
 		return fmt.Errorf("could not initialize budget sheet: %w", err)
 	}

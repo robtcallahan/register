@@ -31,7 +31,7 @@ type BudgetSheet struct {
 	CategoriesMap map[string]*BudgetEntry
 }
 
-func (bs *BudgetService) NewBudgetSheet(cfg *config.Config) (*BudgetSheet, error) {
+func (bs *BudgetService) NewBudgetSheet(cfg config.Config) (*BudgetSheet, error) {
 	budgetSheet := &BudgetSheet{
 		TabName: BudgetTabName,
 		SheetCoords: SheetCoords{
