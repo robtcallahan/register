@@ -193,7 +193,7 @@ func (bs *BudgetService) budgetHeaderDecoder(budgetSheet BudgetSheet) (*rowDecod
 	return newRowDecoder(values[0])
 }
 
-// BudgetRows alls the Google Sheets API and reads the Budget tab to
+// BudgetRows calls the Google Sheets API and reads the Budget tab to
 // obtain all the categories in Column A. It then creates a map[category_name]row_number which is returned.
 func (bs *BudgetService) BudgetRows(budgetSheet BudgetSheet) (map[string]int, error) {
 	rng := fmt.Sprintf("%s!A%d:A%d", budgetSheet.TabName,
