@@ -193,23 +193,25 @@ func (bs *BudgetService) budgetHeaderDecoder(budgetSheet BudgetSheet) (*rowDecod
 	return newRowDecoder(values[0])
 }
 
-// --- Budget tab category surgery (Phase 6.5) -------------------------------
-// The columns CLI keeps the Budget tab in step with the Register columns:
-// the salary fan-out reads budget rows by name, so a register category with
-// no budget row silently stops receiving allocations.
+// BudgetRows alls the Google Sheets API and reads the Budget tab to
+// obtain all the categories in Column A. It then creates a map[category_name]row_number which is returned.
+func (bs *BudgetService) BudgetRows(budgetSheet BudgetSheet) (map[string]int, error) {
+	rng := fmt.Sprintf("%s!A%d:A%d", budgetSheet.TabName,
+		budgetSheet.SheetCoords.StartRow, budgetSheet.SheetCoords.EndRow)
+	values, err := bs.Provider.GetValues(rng)
 
-// budgetGroupName maps a register column color to the label of the Budget
-// group whose totals row ends its block.
-func budgetGroupName(color string) (string, bool) {
-	switch color {
-	case models.ColorGreen:
-		return "Discretionary", true
-	case models.ColorYellow:
-		return "Non-Discretionary", true
-	case models.ColorBlue:
-		return "Savings Categories", true
+	if err != nil {
+		return nil, fmt.Errorf("could not read budget categories: %w", err)
 	}
-	return "", false
+
+	rows := make(map[string]int)
+	for i, row := range values {
+		if len(row) > 0 {
+			name := strings.TrimSpace(fmt.Sprintf("%s", row[0]))
+			rows[name] = int(budgetSheet.SheetCoords.StartRow) + i
+		}
+	}
+	return rows, nil
 }
 
 // BudgetRowFor returns the 1-based sheet row of the Budget category with
@@ -228,6 +230,25 @@ func (bs *BudgetService) BudgetRowFor(budgetSheet BudgetSheet, name string) (int
 		}
 	}
 	return 0, false, nil
+}
+
+// --- Budget tab category surgery (Phase 6.5) -------------------------------
+// The columns CLI keeps the Budget tab in step with the Register columns:
+// the salary fan-out reads budget rows by name, so a register category with
+// no budget row silently stops receiving allocations.
+
+// budgetGroupName maps a register column color to the label of the Budget
+// group whose totals row ends its block.
+func budgetGroupName(color string) (string, bool) {
+	switch color {
+	case models.ColorGreen:
+		return "Discretionary", true
+	case models.ColorYellow:
+		return "Non-Discretionary", true
+	case models.ColorBlue:
+		return "Savings Categories", true
+	}
+	return "", false
 }
 
 // BudgetEntryFor returns the Weekly/Monthly allocations of the named

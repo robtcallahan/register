@@ -17,8 +17,6 @@ import (
 
 const registerServiceJSONDir = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
 
-var months = []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
-
 type providerMock struct {
 	service       *sheets.Service
 	spreadsheetID string

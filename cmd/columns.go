@@ -369,6 +369,13 @@ func deleteColumn(name string) error {
 	return nil
 }
 
+// moveColumn moves the named register column to a new position (after
+// the column named by the --after flag, or to the end), keeping three
+// stores in sync: the category's Budget row moves to mirror the new
+// register order, the DB column_index values shift via MoveColumn,
+// and the Register tab's dimension moves via MoveRegisterColumn.
+// The Budget move happens first, so its failure leaves everything
+// untouched; a sheet failure after the DB move is reported as such.
 func moveColumn(name string) error {
 	q, err := columnsQuery()
 	if err != nil {
@@ -419,7 +426,7 @@ func moveColumn(name string) error {
 		return err
 	}
 
-	_, hasBudget, err := bs.BudgetRowFor(*budgetSheet, name)
+	budgetRowsMap, err := bs.BudgetRows(*budgetSheet)
 	if err != nil {
 		return err
 	}
@@ -430,6 +437,8 @@ func moveColumn(name string) error {
 	// columns (Credit Cards, AppleCard, Taxes) have no row to move,
 	// and moving one never rearranges anyone's budget.
 	budgetNote := ""
+	_, hasBudget := budgetRowsMap[name]
+
 	if hasBudget {
 		final := sheets_service.ApplyColumnMove(columns, from, to)
 		before, following := "", ""
@@ -442,9 +451,8 @@ func moveColumn(name string) error {
 			if c.Color != col.Color {
 				continue
 			}
-			if _, ok, err := bs.BudgetRowFor(*budgetSheet, c.Name); err != nil {
-				return err
-			} else if !ok {
+			_, hasBudget = budgetRowsMap[c.Name]
+			if !hasBudget {
 				continue
 			}
 			if !seen {
