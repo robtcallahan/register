@@ -4,16 +4,16 @@ import (
 	stdcsv "encoding/csv"
 	"fmt"
 	"os"
-	"register/api/services/sheets_service"
-	cfg "register/pkg/config"
-	"register/pkg/csv"
-	"register/pkg/repository"
 	"strconv"
 	"strings"
 	"time"
 
+	"register/api/services/sheets_service"
 	"register/pkg/banking"
+	cfg "register/pkg/config"
+	"register/pkg/csv"
 	"register/pkg/models"
+	"register/pkg/repository"
 )
 
 type UpdateService struct {
@@ -136,13 +136,33 @@ func (s *UpdateService) NormalizeMerchants(transactions []*models.Transaction) (
 	return transactions, nil
 }
 
+func (s *UpdateService) ExpandFuzzyKeys(registerEntries []*sheets_service.RegisterEntry, fuzzyMerchants map[string]bool) map[string]bool {
+	fmt.Println("Expanding fuzzy keys...")
+
+	fuzziedKeysMap := make(map[string]bool)
+	keysToExpand := make(map[string]bool)
+
+	for _, entry := range registerEntries {
+		if !fuzzyMerchants[entry.Name] {
+			fuzziedKeysMap[entry.Key] = true
+			continue
+		}
+		keysToExpand[entry.Key] = true
+	}
+	fuzzyMap := s.FuzzyKeySet(keysToExpand)
+	for fuzzyKey := range fuzzyMap {
+		fuzziedKeysMap[fuzzyKey] = true
+	}
+	return fuzziedKeysMap
+}
+
 // DedupeAgainstSheet drops transactions already recorded in the register
 // sheet. Matching tolerates a ±1-day date shift, because some sources (notably
 // Amazon) report the same transaction on a different day from one pull to the
 // next, which changes its dedupe key.
 func (s *UpdateService) DedupeAgainstSheet(transactions []*models.Transaction, keysMap map[string]bool) []*models.Transaction {
 	fmt.Println("Filtering out register transactions...")
-	return banking.FilterRecordedTransactions(transactions, fuzzyKeySet(keysMap), s.Options.Debug)
+	return banking.FilterRecordedTransactions(transactions, keysMap, s.Options.Debug)
 }
 
 // UpdateSpreadsheet writes the transactions into the register sheet and
@@ -223,34 +243,9 @@ func (s *UpdateService) UpdateBalances(registerSheet sheets_service.RegisterShee
 	return nil
 }
 
-// getTransactions connects to the Plaid interface to get the bank's transactions
-func getTransactions(bankClient *banking.Client, bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
-	transactions, err := bankClient.GetTransactions(bankIDs, startDate, endDate)
-	if err != nil {
-		return nil, err
-	}
-	return transactions, nil
-}
-
-// getCSVTransactions reads local CSV files for banks that Plaid cannot talk with
-// or if all CSV files are to be read using the proper flag, currently -c
-func getCSVTransactions(config *cfg.Config, bankIDs []string) ([]*models.Transaction, error) {
-	csvClient := csv.New(csv.ConfigOptions{
-		FinanceDir: config.FinanceDir,
-		Banks:      config.Banks,
-		BankIDs:    bankIDs,
-	})
-
-	transactions, err := csvClient.GetTransactions()
-	if err != nil {
-		return nil, err
-	}
-	return transactions, nil
-}
-
-// fuzzyKeySet returns a copy of keys with each key's date also shifted by -1
+// FuzzyKeySet returns a copy of keys with each key's date also shifted by -1
 // and +1 days. Keys that don't parse as source:date:amount are kept as-is.
-func fuzzyKeySet(keys map[string]bool) map[string]bool {
+func (s *UpdateService) FuzzyKeySet(keys map[string]bool) map[string]bool {
 	fuzzy := make(map[string]bool, len(keys)*3)
 	for k := range keys {
 		parts := strings.SplitN(k, ":", 3)
@@ -274,6 +269,31 @@ func fuzzyKeySet(keys map[string]bool) map[string]bool {
 		}
 	}
 	return fuzzy
+}
+
+// getTransactions connects to the Plaid interface to get the bank's transactions
+func getTransactions(bankClient *banking.Client, bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
+	transactions, err := bankClient.GetTransactions(bankIDs, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	return transactions, nil
+}
+
+// getCSVTransactions reads local CSV files for banks that Plaid cannot talk with
+// or if all CSV files are to be read using the proper flag, currently -c
+func getCSVTransactions(config *cfg.Config, bankIDs []string) ([]*models.Transaction, error) {
+	csvClient := csv.New(csv.ConfigOptions{
+		FinanceDir: config.FinanceDir,
+		Banks:      config.Banks,
+		BankIDs:    bankIDs,
+	})
+
+	transactions, err := csvClient.GetTransactions()
+	if err != nil {
+		return nil, err
+	}
+	return transactions, nil
 }
 
 // dashes is a simple helper to print out "count" number of dashes to be printed under a column header

@@ -45,27 +45,28 @@ type DBConfig struct {
 
 // Config ...
 type Config struct {
-	UserID                      string                   `json:"user_id"`
-	JSONDir                     string                   `json:"json_dir"`
-	DB                          DBConfig                 `json:"db"`
-	StartDate                   string                   `json:"start_date"`
-	EndDate                     string                   `json:"end_date"`
-	PlaidClientID               string                   `json:"plaid_client_id"`
-	PlaidEnvironment            string                   `json:"plaid_environment"`
-	PlaidEnvSecrets             map[string]string        `json:"plaid_env_secrets"`
-	KeyFile                     string                   `json:"key_file"`
-	CertFile                    string                   `json:"cert_file"`
-	GoogleCredentialsFile       string                   `json:"google_credentials_file"`
-	Banks                       map[string]Bank          `json:"banks"`
-	SpreadsheetID               string                   `json:"spreadsheet_id"`
-	FinanceDir                  string                   `json:"finance_dir"`
-	BudgetStartRow              int64                    `json:"budget_start_row"`
-	BudgetEndRow                int64                    `json:"budget_end_row"`
-	RegisterStartRow            int64                    `json:"register_start_row"`
-	RegisterEndRow              int64                    `json:"register_end_row"`
-	MonthlyStartRow             int64                    `json:"monthly_start_row"`
-	MonthlyEndRow               int64                    `json:"monthly_end_row"`
-	IncomeSources               []IncomeSource           `json:"income_sources"`
+	UserID                string            `json:"user_id"`
+	JSONDir               string            `json:"json_dir"`
+	DB                    DBConfig          `json:"db"`
+	StartDate             string            `json:"start_date"`
+	EndDate               string            `json:"end_date"`
+	PlaidClientID         string            `json:"plaid_client_id"`
+	PlaidEnvironment      string            `json:"plaid_environment"`
+	PlaidEnvSecrets       map[string]string `json:"plaid_env_secrets"`
+	KeyFile               string            `json:"key_file"`
+	CertFile              string            `json:"cert_file"`
+	GoogleCredentialsFile string            `json:"google_credentials_file"`
+	Banks                 map[string]Bank   `json:"banks"`
+	SpreadsheetID         string            `json:"spreadsheet_id"`
+	FinanceDir            string            `json:"finance_dir"`
+	BudgetStartRow        int64             `json:"budget_start_row"`
+	BudgetEndRow          int64             `json:"budget_end_row"`
+	RegisterStartRow      int64             `json:"register_start_row"`
+	RegisterEndRow        int64             `json:"register_end_row"`
+	MonthlyStartRow       int64             `json:"monthly_start_row"`
+	MonthlyEndRow         int64             `json:"monthly_end_row"`
+	FuzzyMerchants        map[string]bool   `json:"fuzzy_merchants"`
+	IncomeSources         []IncomeSource    `json:"income_sources"`
 }
 
 // IncomeSource describes one configured source of income (a paycheck, a

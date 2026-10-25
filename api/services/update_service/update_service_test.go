@@ -2,6 +2,7 @@ package update_service
 
 import (
 	"reflect"
+	"register/api/services/sheets_service"
 	"register/pkg/banking"
 	cfg "register/pkg/config"
 	"register/pkg/models"
@@ -72,24 +73,35 @@ func TestUpdateService_PersistTransactions(t *testing.T) {
 }
 
 func TestUpdateService_DedupeAgainstSheet(t *testing.T) {
-	recorded := map[string]bool{
-		"amazon:12/31/25:25.00":      true,
-		"wellsfargo:01/05/26:100.00": true,
+	fuzzyMerchants := map[string]bool{
+		"Amazon":             true,
+		"Amazon Marketplace": true,
+	}
+	regEntries := []*sheets_service.RegisterEntry{
+		{
+			Key:  "amazon:12/31/25:25.00",
+			Name: "Amazon",
+		}, {
+			Key:  "wellsfargo:01/05/26:100.00",
+			Name: "T-Mobile",
+		},
 	}
 	trans := []*models.Transaction{
 		{Key: "amazon:01/01/26:25.00"},      // +1 day shift: duplicate
 		{Key: "amazon:12/30/25:25.00"},      // -1 day shift: duplicate
 		{Key: "wellsfargo:01/05/26:100.00"}, // exact match: duplicate
+		{Key: "wellsfargo:01/06/26:100.00"}, // ±1 shift, non-listed merchant: new
 		{Key: "amazon:01/01/26:30.00"},      // different amount: new
 		{Key: "chase:01/01/26:25.00"},       // different source: new
 	}
 
 	bankClient := &banking.Client{}
 	updateService := NewUpdateService(nil, nil, bankClient, nil, nil, &cfg.Options{DryRun: false})
-	got := updateService.DedupeAgainstSheet(trans, recorded)
+	fuzziedKeysMap := updateService.ExpandFuzzyKeys(regEntries, fuzzyMerchants)
+	got := updateService.DedupeAgainstSheet(trans, fuzziedKeysMap)
 
-	if len(got) != 2 {
-		t.Fatalf("expected 2 new transactions, got %d", len(got))
+	if len(got) != 3 {
+		t.Fatalf("expected 3 new transactions, got %d", len(got))
 	}
 	if got[0].Key != "amazon:01/01/26:30.00" || got[1].Key != "chase:01/01/26:25.00" {
 		t.Errorf("unexpected survivors: %s, %s", got[0].Key, got[1].Key)
@@ -102,7 +114,8 @@ func TestFuzzyKeySet(t *testing.T) {
 		"badkey":                true,
 		"chase:01/01/26:10.00":  true,
 	}
-	fuzzy := fuzzyKeySet(keys)
+	us := &UpdateService{nil, nil, nil, nil, nil, nil}
+	fuzzy := us.FuzzyKeySet(keys)
 
 	for _, want := range []string{
 		"amazon:12/30/25:25.00",

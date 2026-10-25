@@ -123,7 +123,8 @@ func update() error {
 		printTransactions(transactions)
 	}
 
-	transactions = updateService.DedupeAgainstSheet(transactions, registerSheet.KeysMap)
+	dedupeKeys := updateService.ExpandFuzzyKeys(registerSheet.Register, config.FuzzyMerchants)
+	transactions = updateService.DedupeAgainstSheet(transactions, dedupeKeys)
 
 	fmt.Println("Filtering out credit card payments...")
 	transactions = banking.FilterCreditCardPayments(transactions)

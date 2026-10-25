@@ -7,9 +7,9 @@ import (
 	"log"
 	"os"
 	"reflect"
-	"register/api/providers/sheets_provider"
 	"testing"
 
+	"register/api/providers/sheets_provider"
 	"register/pkg/models"
 
 	"google.golang.org/api/sheets/v4"

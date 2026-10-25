@@ -39,7 +39,6 @@ const (
 type CellDataType int
 
 type RegisterService struct {
-	//service       *sheets.Service
 	Provider      sheets_provider.SheetsProviderInterface
 	SpreadsheetID string
 	// IncomeSources are the configured income sources (config.json). Their

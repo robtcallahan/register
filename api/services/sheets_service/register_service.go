@@ -44,7 +44,6 @@ type RegisterSheet struct {
 	Spreadsheet sheets.Spreadsheet
 	SheetCoords SheetCoords
 	Register    []*RegisterEntry
-	KeysMap     map[string]bool
 	RangeValues [][]any
 }
 
@@ -103,7 +102,6 @@ func (ss *RegisterService) ReadRegisterSheet(registerSheet *RegisterSheet) (*Reg
 
 	// determine last used row in the spreadsheet
 	registerSheet.SheetCoords.LastRow = ss.getLastRow(*registerSheet, values)
-	keysMap := make(map[string]bool)
 
 	// The Reconciled..Delta index constants assume fixed positions; verify
 	// the sheet agrees before trusting them.
@@ -116,8 +114,6 @@ func (ss *RegisterService) ReadRegisterSheet(registerSheet *RegisterSheet) (*Reg
 		if ss.isEmptyRow(row) {
 			break
 		}
-		transactionKey := getTransactionKey(row)
-		keysMap[transactionKey] = true
 		registerEntry, err := ss.populateRegisterEntry(row)
 		if err != nil {
 			return nil, err
@@ -128,7 +124,6 @@ func (ss *RegisterService) ReadRegisterSheet(registerSheet *RegisterSheet) (*Reg
 
 	registerSheet.SheetCoords.FirstRowToUpdate = ss.getFirstRowToUpdate(*registerSheet, i)
 	registerSheet.Register = register
-	registerSheet.KeysMap = keysMap
 	registerSheet.RangeValues = values
 
 	return registerSheet, nil
