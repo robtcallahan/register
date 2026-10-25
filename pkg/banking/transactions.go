@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -150,26 +149,6 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.T
 func (c *Client) PrintTransactionHead() {
 	fmt.Printf("    [Num] %-25s %-32s %-40s %-40s %12s %12s %12s %12s %7s %5s\n",
 		"Key", "Name", "Bank Name", "Merchant Name", "Withdrawal", "Deposit", "Credit Card", "Amount", "ColIndx", "Color")
-}
-
-func (c *Client) WriteCSV(fileName string, trans []plaid.Transaction) error {
-	f, err := os.Create("csv/" + fileName)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = f.WriteString("Date,Amount,Description\n")
-	if err != nil {
-		return err
-	}
-	for _, t := range trans {
-		_, err = f.WriteString(fmt.Sprintf("%s,%.2f,%s,%v\n", t.Date, t.Amount, t.Name, t.MerchantName))
-		if err != nil {
-			return err
-		}
-	}
-	return f.Sync()
 }
 
 func SortTransactions(trans []*models.Transaction) []*models.Transaction {

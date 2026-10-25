@@ -38,10 +38,6 @@ specified using the -c <num> or --copy <num> options. `,
 
 func init() {
 	rootCmd.AddCommand(copyCmd)
-
-	//flag.IntVarP(&options.NumCopies, "number", "n", 10, "he number of times to copy the last 2 rows; default=10")
-	//flag.Parse()
-
 	copyCmd.Flags().IntVarP(&options.NumCopies, "number", "n", 10, "he number of times to copy the last 2 rows; default=10")
 }
 

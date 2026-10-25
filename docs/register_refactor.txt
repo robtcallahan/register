@@ -149,7 +149,7 @@ Phase 17 — Cleanup
 - [X] 17.2 Replace magic strings with existing constants (CHECK, WellsFargo, white/grey)
 - [X] 17.3 Replace string(rune('A'+j)) with models.ColumnLetter
 - [ ] 17.4 Extract long functions (InsertBudgetCategory, addSummaryRows, moveColumn, etc.)
-- [ ] 17.5 Delete commented-out and dead code (getPlaidTransactions, printRegister, WriteCSV, etc.)
+- [X] 17.5 Delete commented-out and dead code (WriteCSV, etc.)
 - [ ] 17.6 Split sheets_service_test.go by service (register/budget/monthly + shared helpers in helpers_test.go)
 - [ ] 17.7 Replace gorm.Model with explicit fields (deferred 12.6)
 - [ ] 17.8 Drop dead is_category DB column via goose migration

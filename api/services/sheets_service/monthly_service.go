@@ -258,25 +258,6 @@ func addSummarySalaryRow(cellName string, rowNum int, months []string, aggData m
 
 	cells = makeSummaryCells(rowNum, cells, cellName, bgColor, aggData, months)
 
-	//// 1st column: category name
-	//cells = append(cells, mkBoldFormat(cellName, "left", bgColor, false))
-	//
-	//// remaining columns: $value for each month
-	//for i := range months {
-	//	m := months[i]
-	//	cells = append(cells, mkCellDataDollars(aggData[m][cellName], "right", bgColor, false))
-	//}
-	//
-	//// add the totals and average in last 2 columns; the month block
-	//// runs B..endCol, derived from the actual month count
-	//endCol := models.ColumnLetter(len(months) + 1) // B is 1-based index 2
-	//f := mkCellDataFormula(fmt.Sprintf("=SUM(B%d:%s%d) * -1", rowNum, endCol, rowNum), "right", bgColor, false)
-	//f.UserEnteredFormat.TextFormat.Bold = true
-	//cells = append(cells, f)
-	//f = mkCellDataFormula(fmt.Sprintf("=AVERAGE(B%d:%s%d) * -1", rowNum, endCol, rowNum), "right", bgColor, false)
-	//f.UserEnteredFormat.TextFormat.Bold = true
-	//cells = append(cells, f)
-
 	// add the cells to the row
 	return &sheets.RowData{Values: cells}
 }

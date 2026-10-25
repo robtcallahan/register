@@ -47,7 +47,6 @@ amounts from the appropriate budget category columns.`,
 	},
 }
 
-/**/
 func init() {
 	rootCmd.AddCommand(updateCmd)
 
@@ -96,8 +95,6 @@ func update() error {
 
 	// Todo: account for pagination
 	// Due to pagination and no code to account for it, I'm going back about 3 mounths (12 weeks).
-	// startDate := config.StartDate
-	// endDate := config.EndDate
 	startDate := weeksAgo(12)
 	endDate := today()
 	bankIDs := []string{models.WellsFargoID, models.ChaseID}
