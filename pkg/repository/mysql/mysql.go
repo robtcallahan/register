@@ -127,8 +127,6 @@ func (r *mysqlQueryRepo) AddColumn(col *models.Column) error {
 				return fmt.Errorf("unable to shift column %s: %w", shifting[i].Name, err)
 			}
 		}
-		// is_category is still NOT NULL in the DDL (until Rob drops the
-		// column), so the insert writes the value derived from position.
 		row := map[string]any{
 			"name":         col.Name,
 			"color":        col.Color,
