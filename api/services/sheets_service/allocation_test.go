@@ -115,9 +115,9 @@ func TestAddSalaryCells_GappedColumns(t *testing.T) {
 	// Columns with a gap in ColumnIndex: the gap should produce an empty
 	// cell, not shift subsequent amounts left.
 	columns := []models.Column{
-		{Name: "Grocery", ColumnIndex: 11, Color: "blue"},
-		{Name: "Rent", ColumnIndex: 13, Color: "blue"}, // gap at 12
-		{Name: "Gas", ColumnIndex: 14, Color: "blue"},
+		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
+		{Name: "Rent", ColumnIndex: 13, Color: models.ColorBlue}, // gap at 12
+		{Name: "Gas", ColumnIndex: 14, Color: models.ColorBlue},
 	}
 
 	categoriesMap := map[string]*BudgetEntry{

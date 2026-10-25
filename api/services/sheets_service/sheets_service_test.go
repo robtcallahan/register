@@ -261,7 +261,7 @@ func Test_sheetsService_addAmountCell(t *testing.T) {
 			args: args{
 				cells:   []*sheets.CellData{},
 				trans:   &models.Transaction{},
-				bgColor: "white",
+				bgColor: models.ColorWhite,
 			},
 			want: want,
 		},
@@ -279,8 +279,8 @@ func Test_sheetsService_addSalaryCells(t *testing.T) {
 	// 10.10: Rewritten with inline data. Verifies salary cells are placed
 	// by ColumnIndex with gaps leaving empty fillers.
 	columns := []models.Column{
-		{Name: "Grocery", ColumnIndex: 11, Color: "blue"},
-		{Name: "Rent", ColumnIndex: 13, Color: "blue"}, // gap at 12
+		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
+		{Name: "Rent", ColumnIndex: 13, Color: models.ColorBlue}, // gap at 12
 	}
 	categoriesMap := map[string]*BudgetEntry{
 		"Grocery": {Category: "Grocery", Weekly: 120.00, Monthly: 520.00},

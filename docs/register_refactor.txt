@@ -146,7 +146,7 @@ Phase 16 — Structural improvements
 -----------------------------------------------------------------------------------------
 Phase 17 — Cleanup
 - [X] 17.1 Remove dead struct fields (SheetsService.service, SpreadsheetID fields)
-- [ ] 17.2 Replace magic strings with existing constants (CHECK, WellsFargo, white/grey)
+- [X] 17.2 Replace magic strings with existing constants (CHECK, WellsFargo, white/grey)
 - [X] 17.3 Replace string(rune('A'+j)) with models.ColumnLetter
 - [ ] 17.4 Extract long functions (InsertBudgetCategory, addSummaryRows, moveColumn, etc.)
 - [ ] 17.5 Delete commented-out and dead code (getPlaidTransactions, printRegister, WriteCSV, etc.)

@@ -51,7 +51,7 @@ func TestAddRenameDeleteColumn(t *testing.T) {
 	r := testRepo(t)
 
 	// Add a column at index 11 (first category slot)
-	newCol := &models.Column{Name: "TestCol1013", Color: "blue", ColumnIndex: 11}
+	newCol := &models.Column{Name: "TestCol1013", Color: models.ColorBlue, ColumnIndex: 11}
 	if err := r.AddColumn(newCol); err != nil {
 		t.Fatalf("AddColumn() error = %v", err)
 	}
@@ -110,8 +110,8 @@ func TestMoveColumn(t *testing.T) {
 	r := testRepo(t)
 
 	// Add two test columns
-	c1 := &models.Column{Name: "TestMoveA", Color: "blue", ColumnIndex: 11}
-	c2 := &models.Column{Name: "TestMoveB", Color: "blue", ColumnIndex: 12}
+	c1 := &models.Column{Name: "TestMoveA", Color: models.ColorBlue, ColumnIndex: 11}
+	c2 := &models.Column{Name: "TestMoveB", Color: models.ColorBlue, ColumnIndex: 12}
 	if err := r.AddColumn(c1); err != nil {
 		t.Fatalf("AddColumn() error = %v", err)
 	}

@@ -202,7 +202,7 @@ func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float6
 		var cells []*sheets.CellData
 
 		// getOddOrEvenRowColor(rowIndex, even_color, odd_color)
-		bgColor := getOddOrEvenRowColor(i, "white", "lightgrey")
+		bgColor := getOddOrEvenRowColor(i, models.ColorWhite, models.ColorLightGrey)
 
 		cells = makeSummaryCells(row, cells, cellName, bgColor, aggData, months)
 		row++
@@ -231,7 +231,7 @@ func aggDataHasName(aggData map[string]map[string]float64, name string) bool {
 }
 
 func addSummaryTopRow(months []string) *sheets.RowData {
-	bgColor := "grey"
+	bgColor := models.ColorGrey
 
 	// create first row of months
 	var cells []*sheets.CellData
@@ -253,7 +253,7 @@ func addSummaryTopRow(months []string) *sheets.RowData {
 }
 
 func addSummarySalaryRow(cellName string, rowNum int, months []string, aggData map[string]map[string]float64) *sheets.RowData {
-	bgColor := "grey"
+	bgColor := models.ColorGrey
 	var cells []*sheets.CellData
 
 	cells = makeSummaryCells(rowNum, cells, cellName, bgColor, aggData, months)
@@ -344,7 +344,7 @@ func populateYearlySummary(catAgg map[string]map[string]float64, cols []models.C
 
 	r := 2
 	for i, m := range months {
-		bgColor := getOddOrEvenRowColor(i, "white", "lightgrey")
+		bgColor := getOddOrEvenRowColor(i, models.ColorWhite, models.ColorLightGrey)
 		var cells []*sheets.CellData
 		cells = append(cells, mkBoldFormat(m, "left", bgColor, false))
 		for _, h := range headers {
@@ -359,7 +359,7 @@ func populateYearlySummary(catAgg map[string]map[string]float64, cols []models.C
 	}
 
 	// totals row
-	bgColor := "grey"
+	bgColor := models.ColorGrey
 	var cells []*sheets.CellData
 	cells = append(cells, mkBoldFormat("Total", "left", bgColor, false))
 	for j := range headers {
@@ -378,7 +378,7 @@ func populateYearlySummary(catAgg map[string]map[string]float64, cols []models.C
 }
 
 func addYearlyTopRow(headers []string) *sheets.RowData {
-	bgColor := "grey"
+	bgColor := models.ColorGrey
 	var cells []*sheets.CellData
 	cells = append(cells, mkBoldFormat("Month", "left", bgColor, false))
 	for _, h := range headers {

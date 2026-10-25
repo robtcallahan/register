@@ -63,9 +63,9 @@ func (rb *RowBuilder) populateCells(transactions []*models.Transaction) ([]*shee
 func (rb *RowBuilder) makeNoteRow(note string) *sheets.RowData {
 	var cells = make([]*sheets.CellData, 0, rb.EndColumnIndex)
 	for i := 1; i < 4; i++ {
-		cells = append(cells, mkCellDataString("", "left", "lightgrey", false))
+		cells = append(cells, mkCellDataString("", "left", models.ColorLightGrey, false))
 	}
-	cells = append(cells, mkCellDataString(note, "left", "lightgrey", false))
+	cells = append(cells, mkCellDataString(note, "left", models.ColorLightGrey, false))
 	return &sheets.RowData{
 		Values: cells,
 	}

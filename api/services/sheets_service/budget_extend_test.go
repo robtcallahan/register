@@ -1,6 +1,9 @@
 package sheets_service
 
-import "testing"
+import (
+	"register/pkg/models"
+	"testing"
+)
 
 func Test_extendRangeEnd(t *testing.T) {
 	tests := []struct {
@@ -33,13 +36,13 @@ func Test_extendRangeEnd(t *testing.T) {
 
 func Test_budgetGroupName(t *testing.T) {
 	for color, want := range map[string]string{
-		"green": "Discretionary", "yellow": "Non-Discretionary", "blue": "Savings Categories",
+		models.ColorGreen: "Discretionary", models.ColorYellow: "Non-Discretionary", models.ColorBlue: "Savings Categories",
 	} {
 		if got, ok := budgetGroupName(color); !ok || got != want {
 			t.Errorf("budgetGroupName(%q) = (%q, %v), want (%q, true)", color, got, ok, want)
 		}
 	}
-	if _, ok := budgetGroupName("black"); ok {
+	if _, ok := budgetGroupName(models.ColorBlack); ok {
 		t.Error("budgetGroupName(black) should not map to a group")
 	}
 }

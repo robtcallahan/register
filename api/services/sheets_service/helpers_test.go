@@ -109,12 +109,12 @@ func Test_getBackgroundColor(t *testing.T) {
 		{
 			name: "Test getBackgroundColor for paycheck",
 			args: args{trans: &models.Transaction{Name: "Taylor House Paycheck"}, income: true},
-			want: "green",
+			want: models.ColorGreen,
 		},
 		{
 			name: "Test getBackgroundColor for normal",
 			args: args{trans: &models.Transaction{Name: "Amazon"}},
-			want: "white",
+			want: models.ColorWhite,
 		},
 	}
 	for _, tt := range tests {
@@ -249,7 +249,7 @@ func Test_mkColor(t *testing.T) {
 	}{
 		{
 			name: "Test color white",
-			args: args{name: "white"},
+			args: args{name: models.ColorWhite},
 			want: &sheets.Color{
 				Alpha: 1,
 				Blue:  1,
@@ -258,7 +258,7 @@ func Test_mkColor(t *testing.T) {
 		},
 		{
 			name: "Test color green",
-			args: args{name: "green"},
+			args: args{name: models.ColorGreen},
 			want: &sheets.Color{
 				Alpha: 1,
 				Blue:  0,
@@ -268,7 +268,7 @@ func Test_mkColor(t *testing.T) {
 		},
 		{
 			name: "Test color black",
-			args: args{name: "black"},
+			args: args{name: models.ColorBlack},
 			want: &sheets.Color{
 				Alpha: 1,
 				Blue:  0,
@@ -278,7 +278,7 @@ func Test_mkColor(t *testing.T) {
 		},
 		{
 			name: "Test color yellow",
-			args: args{name: "yellow"},
+			args: args{name: models.ColorYellow},
 			want: &sheets.Color{
 				Alpha: 1,
 				Blue:  0.6,
@@ -288,7 +288,7 @@ func Test_mkColor(t *testing.T) {
 		},
 		{
 			name: "Test color blue",
-			args: args{name: "blue"},
+			args: args{name: models.ColorBlue},
 			want: &sheets.Color{
 				Alpha: 1,
 				Blue:  1,
@@ -325,15 +325,15 @@ func Test_mkBorders(t *testing.T) {
 			args: args{on: true},
 			want: &sheets.Borders{
 				Left: &sheets.Border{
-					Color: mkColor("black"),
+					Color: mkColor(models.ColorBlack),
 					Style: "SOLID",
 				},
 				Right: &sheets.Border{
-					Color: mkColor("black"),
+					Color: mkColor(models.ColorBlack),
 					Style: "SOLID",
 				},
 				Bottom: &sheets.Border{
-					Color: mkColor("black"),
+					Color: mkColor(models.ColorBlack),
 					Style: "SOLID",
 				},
 			},
@@ -361,7 +361,7 @@ func Test_mkCellFormat(t *testing.T) {
 	}{
 		{
 			name: "Test mkCellFormat",
-			args: args{align: "left", colorName: "blue", bordersOn: true},
+			args: args{align: "left", colorName: models.ColorBlue, bordersOn: true},
 			want: &sheets.CellFormat{
 				HorizontalAlignment: "LEFT",
 				TextFormat: &sheets.TextFormat{
@@ -376,15 +376,15 @@ func Test_mkCellFormat(t *testing.T) {
 				},
 				Borders: &sheets.Borders{
 					Left: &sheets.Border{
-						Color: mkColor("black"),
+						Color: mkColor(models.ColorBlack),
 						Style: "SOLID",
 					},
 					Right: &sheets.Border{
-						Color: mkColor("black"),
+						Color: mkColor(models.ColorBlack),
 						Style: "SOLID",
 					},
 					Bottom: &sheets.Border{
-						Color: mkColor("black"),
+						Color: mkColor(models.ColorBlack),
 						Style: "SOLID",
 					},
 				},
@@ -468,7 +468,7 @@ func Test_mkCellDataString(t *testing.T) {
 	}{
 		{
 			name: "Test return complete CellData from string",
-			args: args{value: v, align: "left", color: "green", bordersOn: false},
+			args: args{value: v, align: "left", color: models.ColorGreen, bordersOn: false},
 			want: &sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
 					StringValue: &v,
@@ -514,7 +514,7 @@ func Test_mkBoldFormat(t *testing.T) {
 	}{
 		{
 			name: "Test return complete bold-formatted CellData from string",
-			args: args{value: v, align: "left", color: "green", bordersOn: false},
+			args: args{value: v, align: "left", color: models.ColorWhite, bordersOn: false},
 			want: &sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
 					StringValue: &v,
@@ -528,8 +528,8 @@ func Test_mkBoldFormat(t *testing.T) {
 					},
 					BackgroundColor: &sheets.Color{
 						Alpha: 1,
-						Blue:  0,
-						Red:   0.5,
+						Blue:  1,
+						Red:   1,
 						Green: 1,
 					},
 					Borders: &sheets.Borders{},
@@ -561,7 +561,7 @@ func Test_mkCellDataNumber(t *testing.T) {
 	}{
 		{
 			name: "Test return complete CellData from dollars string",
-			args: args{value: 100.1234, align: "left", color: "green", bordersOn: false},
+			args: args{value: 100.1234, align: "left", color: models.ColorWhite, bordersOn: false},
 			want: &sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
 					NumberValue: &v,
@@ -574,8 +574,8 @@ func Test_mkCellDataNumber(t *testing.T) {
 					},
 					BackgroundColor: &sheets.Color{
 						Alpha: 1,
-						Blue:  0,
-						Red:   0.5,
+						Blue:  1,
+						Red:   1,
 						Green: 1,
 					},
 					Borders: &sheets.Borders{},
@@ -607,7 +607,7 @@ func Test_mkCellDataDollars(t *testing.T) {
 	}{
 		{
 			name: "Test return complete CellData dollars string",
-			args: args{value: v, align: "left", colorName: "white", bordersOn: false},
+			args: args{value: v, align: "left", colorName: models.ColorWhite, bordersOn: false},
 			want: &sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
 					NumberValue: &v,
@@ -657,7 +657,7 @@ func Test_mkCellDataEmpty(t *testing.T) {
 	}{
 		{
 			name: "Test return complete CellData for dollars formatted empty cell",
-			args: args{value: v, align: "right", colorName: "green", bordersOn: false},
+			args: args{value: v, align: "right", colorName: models.ColorWhite, bordersOn: false},
 			want: &sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
 					StringValue: &v,
@@ -674,8 +674,8 @@ func Test_mkCellDataEmpty(t *testing.T) {
 					},
 					BackgroundColor: &sheets.Color{
 						Alpha: 1,
-						Blue:  0,
-						Red:   0.5,
+						Blue:  1,
+						Red:   1,
 						Green: 1,
 					},
 					Borders: &sheets.Borders{},
@@ -707,7 +707,7 @@ func Test_getCellDataFormula(t *testing.T) {
 	}{
 		{
 			name: "Test return complete CellData from formula string",
-			args: args{value: f, align: "center", colorName: "green", bordersOn: false},
+			args: args{value: f, align: "center", colorName: models.ColorWhite, bordersOn: false},
 			want: &sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
 					FormulaValue: &f,
@@ -724,8 +724,8 @@ func Test_getCellDataFormula(t *testing.T) {
 					},
 					BackgroundColor: &sheets.Color{
 						Alpha: 1,
-						Blue:  0,
-						Red:   0.5,
+						Blue:  1,
+						Red:   1,
 						Green: 1,
 					},
 					Borders: &sheets.Borders{},
@@ -757,7 +757,7 @@ func Test_getCellDataReconcileColumn(t *testing.T) {
 	}{
 		{
 			name: "Test return complete CellData for reconcile cell",
-			args: args{value: v, align: "right", colorName: "green", bordersOn: true},
+			args: args{value: v, align: "right", colorName: models.ColorWhite, bordersOn: true},
 			want: &sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
 					StringValue: &v,
@@ -770,21 +770,21 @@ func Test_getCellDataReconcileColumn(t *testing.T) {
 					},
 					BackgroundColor: &sheets.Color{
 						Alpha: 1,
-						Blue:  0,
-						Red:   0.5,
+						Blue:  1,
+						Red:   1,
 						Green: 1,
 					},
 					Borders: &sheets.Borders{
 						Left: &sheets.Border{
-							Color: mkColor("black"),
+							Color: mkColor(models.ColorBlack),
 							Style: "SOLID",
 						},
 						Right: &sheets.Border{
-							Color: mkColor("black"),
+							Color: mkColor(models.ColorBlack),
 							Style: "SOLID",
 						},
 						Bottom: &sheets.Border{
-							Color: mkColor("black"),
+							Color: mkColor(models.ColorBlack),
 							Style: "SOLID",
 						},
 					},
@@ -839,7 +839,7 @@ func Test_getCellDataDate(t *testing.T) {
 	}{
 		{
 			name: "Test return fully formatted date cell",
-			args: args{dateString: "01/02/2020", align: "center", colorName: "green", bordersOn: false},
+			args: args{dateString: "01/02/2020", align: "center", colorName: models.ColorWhite, bordersOn: false},
 			want: &sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
 					NumberValue: &f,
@@ -856,8 +856,8 @@ func Test_getCellDataDate(t *testing.T) {
 					},
 					BackgroundColor: &sheets.Color{
 						Alpha: 1,
-						Blue:  0,
-						Red:   0.5,
+						Blue:  1,
+						Red:   1,
 						Green: 1,
 					},
 					Borders: &sheets.Borders{},
@@ -866,7 +866,7 @@ func Test_getCellDataDate(t *testing.T) {
 		},
 		{
 			name:  "Test return time.Parse error",
-			args:  args{dateString: "01/02/2", align: "center", colorName: "green", bordersOn: false},
+			args:  args{dateString: "01/02/2", align: "center", colorName: models.ColorWhite, bordersOn: false},
 			error: "time.Parse error",
 		},
 	}
@@ -1039,7 +1039,7 @@ func Test_addDeposit(t *testing.T) {
 	}{
 		{
 			name: "Test add a deposit row entry",
-			args: args{amount: v, bgColor: "white", cells: []*sheets.CellData{}},
+			args: args{amount: v, bgColor: models.ColorWhite, cells: []*sheets.CellData{}},
 			want: want,
 		},
 	}
@@ -1113,7 +1113,7 @@ func Test_addWithdrawal(t *testing.T) {
 	}{
 		{
 			name: "Test add a withdrawal row entry",
-			args: args{amount: v, bgColor: "white", cells: []*sheets.CellData{}},
+			args: args{amount: v, bgColor: models.ColorWhite, cells: []*sheets.CellData{}},
 			want: want,
 		},
 	}
@@ -1269,12 +1269,12 @@ func Test_addCheckingTransaction(t *testing.T) {
 	}{
 		{
 			name: "Test add a deposit checking row entry",
-			args: args{trans: &models.Transaction{Deposit: v}, bgColor: "white", cells: []*sheets.CellData{}},
+			args: args{trans: &models.Transaction{Deposit: v}, bgColor: models.ColorWhite, cells: []*sheets.CellData{}},
 			want: wantDeposit,
 		},
 		{
 			name: "Test add a withdrawal checking row entry",
-			args: args{trans: &models.Transaction{Withdrawal: v}, bgColor: "white", cells: []*sheets.CellData{}},
+			args: args{trans: &models.Transaction{Withdrawal: v}, bgColor: models.ColorWhite, cells: []*sheets.CellData{}},
 			want: wantWithdrawal,
 		},
 	}
@@ -1373,7 +1373,7 @@ func Test_addCCTransaction(t *testing.T) {
 	}{
 		{
 			name: "Test add a credit card row entry",
-			args: args{trans: &models.Transaction{CreditPurchase: v}, bgColor: "white", cells: []*sheets.CellData{}},
+			args: args{trans: &models.Transaction{CreditPurchase: v}, bgColor: models.ColorWhite, cells: []*sheets.CellData{}},
 			want: want,
 		},
 	}
@@ -1765,7 +1765,7 @@ func Test_addSourceDateNameCells(t *testing.T) {
 	}{
 		{
 			name: "Test add reconcile, source, date, & name cells",
-			args: args{cells: []*sheets.CellData{}, bgColor: "white", trans: &models.Transaction{
+			args: args{cells: []*sheets.CellData{}, bgColor: models.ColorWhite, trans: &models.Transaction{
 				Source: "Fidelity",
 				Date:   "01/02/2023",
 				Name:   "Amazon",
@@ -2010,17 +2010,17 @@ func Test_addAmountCell(t *testing.T) {
 	}{
 		{
 			name: "Test add a checking withdrawal column amount",
-			args: args{cells: []*sheets.CellData{}, trans: &transWithdrawal, bgColor: "white"},
+			args: args{cells: []*sheets.CellData{}, trans: &transWithdrawal, bgColor: models.ColorWhite},
 			want: wantWithdrawal,
 		},
 		{
 			name: "Test add a checking deposit column amount",
-			args: args{cells: []*sheets.CellData{}, trans: &transDeposit, bgColor: "white"},
+			args: args{cells: []*sheets.CellData{}, trans: &transDeposit, bgColor: models.ColorWhite},
 			want: wantDeposit,
 		},
 		{
 			name: "Test add a credit card column amount",
-			args: args{cells: []*sheets.CellData{}, trans: &transCC, bgColor: "white"},
+			args: args{cells: []*sheets.CellData{}, trans: &transCC, bgColor: models.ColorWhite},
 			want: wantCC,
 		},
 	}
@@ -2051,8 +2051,8 @@ func Test_addCategoryCells(t *testing.T) {
 	// 10.10: Rewritten with inline data. Verifies category cells are placed
 	// by ColumnIndex.
 	columns := []models.Column{
-		{Name: "Grocery", ColumnIndex: 11, Color: "blue"},
-		{Name: "Rent", ColumnIndex: 12, Color: "blue"},
+		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
+		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
 	}
 	trans := &models.Transaction{
 		ColumnIndex: 11,
