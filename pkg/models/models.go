@@ -1,12 +1,13 @@
 package models
 
 import (
+	"time"
+
 	"gorm.io/gorm"
 )
 
 // Transaction ...
 type Transaction struct {
-	gorm.Model
 	Key            string `gorm:"size:255;uniqueIndex"`
 	Source         string
 	Date           string
@@ -24,11 +25,13 @@ type Transaction struct {
 	IsCategory     bool
 	TaxDeductible  bool
 	IsCheck        bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      gorm.DeletedAt
 }
 
 // Merchant ...
 type Merchant struct {
-	gorm.Model
 	ID            int
 	BankName      string
 	Name          string
@@ -38,15 +41,20 @@ type Merchant struct {
 	Priority      int    // when several rules match, the highest priority wins
 	MatchType     string // "exact", "substring", or "regex"; "" is treated as "substring" (pre-Phase-4 rows)
 	Pattern       string `gorm:"column:match_pattern"` // what the matcher compares; BankName stays the raw observed name
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     gorm.DeletedAt
 }
 
 // Column ...
 type Column struct {
-	gorm.Model
 	ID          int
 	Name        string
 	Color       string
 	ColumnIndex int
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   gorm.DeletedAt
 }
 
 // FirstCategoryIndex is the first 1-based Register position that holds a
