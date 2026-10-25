@@ -133,7 +133,6 @@ func (r *mysqlQueryRepo) AddColumn(col *models.Column) error {
 			"name":         col.Name,
 			"color":        col.Color,
 			"column_index": col.ColumnIndex,
-			"is_category":  col.IsCategory(),
 		}
 		if err := tx.Table("columns").Create(row).Error; err != nil {
 			return fmt.Errorf("unable to create column %s: %w", col.Name, err)

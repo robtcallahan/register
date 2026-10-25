@@ -152,7 +152,7 @@ Phase 17 — Cleanup
 - [X] 17.5 Delete commented-out and dead code (WriteCSV, etc.)
 - [ ] 17.6 Split sheets_service_test.go by service (register/budget/monthly + shared helpers in helpers_test.go)
 - [X] 17.7 Replace gorm.Model with explicit fields (deferred 12.6)
-- [ ] 17.8 Drop dead is_category DB column via goose migration
+- [X] 17.8 Drop dead is_category DB column via goose migration
 - [ ] moveColumn(name, moveAfter string) signature fix
 - [ ] Shared bufio.Reader for readString/readInt (one reader, created once)
 - [ ] Printing policy design item (progress callback)
