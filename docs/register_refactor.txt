@@ -147,9 +147,13 @@ Phase 16 — Structural improvements
 Phase 17 — Cleanup
 - [ ] 17.1 Remove dead struct fields (SheetsService.service, SpreadsheetID fields)
 - [ ] 17.2 Replace magic strings with existing constants (CHECK, WellsFargo, white/grey)
-- [ ] 17.3 Replace string(rune('A'+j)) with models.ColumnLetter (budget_service.go:273)
+- [X] 17.3 Replace string(rune('A'+j)) with models.ColumnLetter
 - [ ] 17.4 Extract long functions (InsertBudgetCategory, addSummaryRows, moveColumn, etc.)
 - [ ] 17.5 Delete commented-out and dead code (getPlaidTransactions, printRegister, WriteCSV, etc.)
-- [ ] 17.6 Fix naming nits (snake_case packages, range_ params, Day capitalization, "covert" typo)
-- [ ] 17.7 Replace gorm.Model with explicit ID/CreatedAt/UpdatedAt/DeletedAt fields (no more hidden columns)
-- [ ] 17.8 Drop is_category column via goose migration (dead since 6.4; Up: ALTER TABLE columns DROP COLUMN is_category, Down: re-add TINYINT(1) NOT NULL DEFAULT 0; record in migrations/README.md)
+- [ ] 17.6 Split sheets_service_test.go by service (register/budget/monthly + shared helpers in helpers_test.go)
+- [ ] 17.7 Replace gorm.Model with explicit fields (deferred 12.6)
+- [ ] 17.8 Drop dead is_category DB column via goose migration
+- [ ] moveColumn(name, moveAfter string) signature fix
+- [ ] Shared bufio.Reader for readString/readInt (one reader, created once)
+- [ ] Printing policy design item (progress callback)
+- [ ] IncomeSource.Match → MatchPattern rename (deferred)

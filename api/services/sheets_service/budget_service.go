@@ -354,7 +354,7 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
 			continue
 		}
 		cellRef := fmt.Sprintf("%s!%s%d", budgetSheet.TabName,
-			string(rune('A'+j)), newTotalsRow)
+			models.ColumnLetter(j+1), newTotalsRow)
 		if _, err := bs.Provider.Update(cellRef, &sheets.ValueRange{Values: [][]any{{extended}}}); err != nil {
 			return fmt.Errorf("could not extend budget totals formula at %s: %w", cellRef, err)
 		}
