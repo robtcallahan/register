@@ -103,8 +103,8 @@ func TestUpdateService_DedupeAgainstSheet(t *testing.T) {
 	if len(got) != 3 {
 		t.Fatalf("expected 3 new transactions, got %d", len(got))
 	}
-	if got[0].Key != "amazon:01/01/26:30.00" || got[1].Key != "chase:01/01/26:25.00" {
-		t.Errorf("unexpected survivors: %s, %s", got[0].Key, got[1].Key)
+	if got[0].Key != "wellsfargo:01/06/26:100.00" || got[1].Key != "amazon:01/01/26:30.00" || got[2].Key != "chase:01/01/26:25.00" {
+		t.Errorf("unexpected survivors: %s, %s, %s", got[0].Key, got[1].Key, got[2].Key)
 	}
 }
 

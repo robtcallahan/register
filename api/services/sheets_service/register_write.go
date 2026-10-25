@@ -190,7 +190,7 @@ func (ss *RegisterService) PlanCategoryMoves(registerSheet RegisterSheet, matche
 		lowered[i] = strings.ToLower(m)
 	}
 
-	for _, e := range registerSheet.Register {
+	for _, e := range registerSheet.Entries {
 		matched := false
 		name := strings.ToLower(e.Name)
 		for _, m := range lowered {

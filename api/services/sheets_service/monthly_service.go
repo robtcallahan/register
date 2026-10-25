@@ -82,7 +82,7 @@ func (ms *MonthlyService) Aggregate(registerSheet RegisterSheet, cols []models.C
 
 	rangeValues := registerSheet.RangeValues
 	re := regexp.MustCompile(`(\d\d)/\d\d/(\d\d)`)
-	for i, r := range registerSheet.Register {
+	for i, r := range registerSheet.Entries {
 		// skip fund reallocations and deposits/transfers: they move money
 		// between categories or into the account, but aren't spending
 		if r.Name == "Reallocation" || r.Deposit != 0 {

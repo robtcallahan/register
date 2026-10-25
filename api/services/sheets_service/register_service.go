@@ -43,7 +43,7 @@ type RegisterSheet struct {
 	TabName     string
 	Spreadsheet sheets.Spreadsheet
 	SheetCoords SheetCoords
-	Register    []*RegisterEntry
+	Entries     []*RegisterEntry
 	RangeValues [][]any
 }
 
@@ -88,7 +88,7 @@ func (ss *RegisterService) NewRegisterSheet(cfg *config.Config, columns []models
 }
 
 func (ss *RegisterService) ReadRegisterSheet(registerSheet *RegisterSheet) (*RegisterSheet, error) {
-	var register []*RegisterEntry
+	var entries []*RegisterEntry
 	var i int64
 
 	var readRange = ss.getReadRange(*registerSheet)
@@ -119,11 +119,11 @@ func (ss *RegisterService) ReadRegisterSheet(registerSheet *RegisterSheet) (*Reg
 			return nil, err
 		}
 		registerEntry.RowID = ss.getRowID(*registerSheet, i)
-		register = append(register, registerEntry)
+		entries = append(entries, registerEntry)
 	}
 
 	registerSheet.SheetCoords.FirstRowToUpdate = ss.getFirstRowToUpdate(*registerSheet, i)
-	registerSheet.Register = register
+	registerSheet.Entries = entries
 	registerSheet.RangeValues = values
 
 	return registerSheet, nil
