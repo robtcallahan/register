@@ -39,12 +39,10 @@ const (
 type CellDataType int
 
 type RegisterService struct {
-	Provider      sheets_provider.SheetsProviderInterface
-	SpreadsheetID string
+	Provider sheets_provider.SheetsProviderInterface
 	// IncomeSources are the configured income sources (config.json). Their
 	// display names mark register rows as income deposits.
 	IncomeSources []config.IncomeSource
-	Debug         bool
 }
 
 func NewRegisterService(provider sheets_provider.SheetsProviderInterface) *RegisterService {

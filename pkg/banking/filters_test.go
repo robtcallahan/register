@@ -77,7 +77,7 @@ func TestFilterRecordedTransactions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FilterRecordedTransactions(tt.trans, tt.regLookup, false)
+			got := FilterRecordedTransactions(tt.trans, tt.regLookup)
 
 			if len(got) != len(tt.wantKeys) {
 				t.Fatalf("got %d transactions, want %d", len(got), len(tt.wantKeys))

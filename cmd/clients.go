@@ -15,7 +15,6 @@ func GetBankingClient() *banking.Client {
 		UserID:           config.UserID,
 		Banks:            config.Banks,
 		IncomeSources:    config.IncomeSources,
-		Debug:            options.Debug,
 		PlaidClientID:    config.PlaidClientID,
 		PlaidSecret:      config.PlaidEnvSecrets[config.PlaidEnvironment],
 		PlaidEnvironment: plaidEnvironment,

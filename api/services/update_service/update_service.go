@@ -162,7 +162,7 @@ func (s *UpdateService) ExpandFuzzyKeys(registerEntries []*sheets_service.Regist
 // next, which changes its dedupe key.
 func (s *UpdateService) DedupeAgainstSheet(transactions []*models.Transaction, keysMap map[string]bool) []*models.Transaction {
 	fmt.Println("Filtering out register transactions...")
-	return banking.FilterRecordedTransactions(transactions, keysMap, s.Options.Debug)
+	return banking.FilterRecordedTransactions(transactions, keysMap)
 }
 
 // UpdateSpreadsheet writes the transactions into the register sheet and

@@ -62,8 +62,6 @@ type ClientOptions struct {
 	UserID           string
 	Banks            map[string]config.Bank
 	IncomeSources    []config.IncomeSource
-	Debug            bool
-	Verbose          bool
 }
 
 type Client struct {
@@ -74,8 +72,6 @@ type Client struct {
 	UserID        string
 	Banks         map[string]config.Bank
 	IncomeSources []config.IncomeSource
-	Debug         bool
-	Verbose       bool
 }
 
 type Balance struct {
@@ -92,7 +88,6 @@ func NewClient(o *ClientOptions) *Client {
 		UserID:        o.UserID,
 		Banks:         o.Banks,
 		IncomeSources: o.IncomeSources,
-		Debug:         o.Debug,
 	}
 	configuration := plaid.NewConfiguration()
 	configuration.AddDefaultHeader("PLAID-CLIENT-ID", o.PlaidClientID)
