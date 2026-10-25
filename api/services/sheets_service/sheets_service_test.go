@@ -336,7 +336,6 @@ func TestSheetsService_CopyRows_sheetFull(t *testing.T) {
 func Test_sheetsService_populateCells(t *testing.T) {
 	type fields struct {
 		service       *sheets.Service
-		SpreadsheetID string
 		BudgetSheet   *BudgetSheet
 		RegisterSheet *RegisterSheet
 	}
@@ -384,7 +383,6 @@ func Test_sheetsService_updateMonthly(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			//ss := &sheetsService{
 			//	service:       tt.fields.service,
-			//	SpreadsheetID: tt.fields.SpreadsheetID,
 			//	BudgetSheet:   tt.fields.BudgetSheet,
 			//	RegisterSheet: tt.fields.RegisterSheet,
 			//}
