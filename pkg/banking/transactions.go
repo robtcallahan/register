@@ -97,12 +97,12 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.T
 	}
 
 	switch bankID {
-	case WellsFargoID:
+	case models.WellsFargoID:
 		if p.CheckNumber.IsSet() {
 			tran.Source = *p.CheckNumber.Get()
 			tran.IsCheck = true
-			tran.Name = "CHECK"
-			tran.BankName = "CHECK"
+			tran.Name = models.CheckRegisterName
+			tran.BankName = models.CheckTransactionName
 		} else {
 			tran.Source = "WellsFargo"
 			if tran.Name == "" {
@@ -119,7 +119,7 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.T
 			tran.Key = models.TransactionKey(tran.Source, models.ReadDateValue(p.Date), tran.Withdrawal)
 		}
 		tran.Budget = -1 * p.Amount
-	case FidelityID:
+	case models.FidelityID:
 		tran.Source = "Fidelity"
 		tran.Amount = p.Amount         // amount stays as is (positive)
 		cc := p.Amount                 // keep positive
@@ -130,7 +130,7 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.T
 		if tran.Name == "" {
 			tran.Name = tran.BankName
 		}
-	case ChaseID:
+	case models.ChaseID:
 		tran.Source = "Chase"
 		tran.Amount = p.Amount         // amount stays as is (positive)
 		cc := p.Amount                 // keep positive

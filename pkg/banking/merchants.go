@@ -42,15 +42,15 @@ func (c *Client) IncomeMatcher() (*MerchantMatcher, error) {
 // sets the display name, color, and budget column. Rules come from the
 // matcher (first-match-wins by priority). The CHECK and income specials
 // resolve their column by lookup, not by hardcoded index: checks take the
-// position of the "CHECK" merchant rule, income deposits the position of
+// position of the models.CheckTransactionName merchant rule, income deposits the position of
 // the "Emergency Fund" column. The income fan-out at sheet-write time is
 // keyed by the configured display names, so this index only records where
 // the deposit conceptually lands.
 func FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher, income *MerchantMatcher, columns []models.Column) []*models.Transaction {
 	for i, t := range trans {
-		if t.Name == CheckTransactionName {
+		if t.Name == models.CheckRegisterName {
 			trans[i].Color = models.ColorWhite
-			if l, ok := matcher.FindByBankPattern(CheckBankPattern); ok {
+			if l, ok := matcher.FindByBankPattern(models.CheckRegisterName); ok {
 				trans[i].ColumnIndex = l.ColumnIndex
 			}
 			trans[i].IsCategory = false
@@ -58,7 +58,7 @@ func FormatMerchantNames(trans []*models.Transaction, matcher *MerchantMatcher, 
 		} else if src, ok := income.Match(t.BankName); ok {
 			trans[i].Name = src.Name
 			trans[i].Color = models.ColorGreen
-			trans[i].ColumnIndex = ColumnIndexForName(columns, IncomeColumnName)
+			trans[i].ColumnIndex = ColumnIndexForName(columns, models.IncomeColumnName)
 			trans[i].IsCategory = false
 			trans[i].TaxDeductible = false
 		} else if l, ok := matcher.Match(t.BankName); ok {

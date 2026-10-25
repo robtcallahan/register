@@ -19,7 +19,7 @@ func TestProcessWellsFargoData(t *testing.T) {
 			rows: []*WellsFargo{
 				{Date: "12/07/2020", Description: "TARGET", Amount: -46.80, CheckNumber: "", Status: "posted"},
 			},
-			bankID:   "wellsfargo",
+			bankID:   models.WellsFargoID,
 			checkIdx: 0,
 			checkTx: &models.Transaction{
 				Source:     "WellsFargo",
@@ -36,7 +36,7 @@ func TestProcessWellsFargoData(t *testing.T) {
 			rows: []*WellsFargo{
 				{Date: "12/01/2020", Description: "DIRECT DEPOSIT", Amount: 1500.00, CheckNumber: "", Status: "posted"},
 			},
-			bankID:   "wellsfargo",
+			bankID:   models.WellsFargoID,
 			checkIdx: 0,
 			checkTx: &models.Transaction{
 				Source:   "WellsFargo",
@@ -53,14 +53,14 @@ func TestProcessWellsFargoData(t *testing.T) {
 			rows: []*WellsFargo{
 				{Date: "12/15/2020", Description: "CHECK # 1234", Amount: -250.00, CheckNumber: "CHECK # 1234", Status: "posted"},
 			},
-			bankID:   "wellsfargo",
+			bankID:   models.WellsFargoID,
 			checkIdx: 0,
 			checkTx: &models.Transaction{
 				Source:     "1234",
 				Date:       "12/15/20",
 				Amount:     -250.00,
-				Name:       "CHECK",
-				BankName:   "CHECK",
+				Name:       models.CheckRegisterName,
+				BankName:   models.CheckTransactionName,
 				IsCheck:    true,
 				Budget:     -250.00,
 				Withdrawal: 250.00,
@@ -126,16 +126,16 @@ func TestProcessCheck(t *testing.T) {
 			checkNumber:  "CHECK # 1234",
 			wantSource:   "1234",
 			wantIsCheck:  true,
-			wantName:     "CHECK",
-			wantBankName: "CHECK",
+			wantName:     models.CheckRegisterName,
+			wantBankName: models.CheckTransactionName,
 		},
 		{
 			name:         "three digit check",
 			checkNumber:  "CHECK # 123",
 			wantSource:   "123",
 			wantIsCheck:  true,
-			wantName:     "CHECK",
-			wantBankName: "CHECK",
+			wantName:     models.CheckRegisterName,
+			wantBankName: models.CheckTransactionName,
 		},
 		{
 			name:         "no check number",
@@ -186,7 +186,7 @@ func TestProcessWellsFargoData_Multiple(t *testing.T) {
 		{Date: "12/01/2020", Description: "PAYCHECK", Amount: 2000.00},
 	}
 
-	got := processWellsFargoData(rows, "wellsfargo")
+	got := processWellsFargoData(rows, models.WellsFargoID)
 
 	if len(got) != 3 {
 		t.Fatalf("got %d transactions, want 3", len(got))

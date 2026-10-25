@@ -92,7 +92,7 @@ func TestNewMerchantMatcher_BadRegex(t *testing.T) {
 func TestFormatMerchantNames_AppliesRules(t *testing.T) {
 	matcher, err := NewMerchantMatcher([]*models.DataRow{
 		{ID: 1, BankName: "AMAZON", Name: "Amazon", ColumnIndex: 11, Color: "black", IsCategory: true, TaxDeductible: true},
-		{ID: 2, BankName: "CHECK", Name: "Check", ColumnIndex: 10, Color: "white"},
+		{ID: 2, BankName: models.CheckTransactionName, Name: models.CheckRegisterName, ColumnIndex: 10, Color: "white"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +109,7 @@ func TestFormatMerchantNames_AppliesRules(t *testing.T) {
 
 	trans := []*models.Transaction{
 		{BankName: "AMAZON.COM*AMZN MKTP"},
-		{Name: "CHECK", BankName: "CHECK #1042"},
+		{Name: models.CheckTransactionName, BankName: "CHECK #1042"},
 		{BankName: "NOVA BEER LLC PAYROLL"},
 		{BankName: "LOCAL BAKERY"},
 	}

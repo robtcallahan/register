@@ -56,7 +56,7 @@ func (s *UpdateService) PersistTransactions(transactions []*models.Transaction) 
 // Chase come from CSV or Plaid depending on the --csv flag.
 func (s *UpdateService) FetchTransactions(bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
 	fmt.Println("Getting Fidelity transactions (CSV)...")
-	transactions, err := getCSVTransactions(s.Config, []string{"fidelity"})
+	transactions, err := getCSVTransactions(s.Config, []string{models.FidelityID})
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +226,7 @@ func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) er
 	if _, err := s.RegisterService.WriteCell(*registerSheet, sheets_service.LastUpdateCell, time.Now().Format("01/02/2006")); err != nil {
 		return err
 	}
-	if _, err := s.RegisterService.WriteCell(*registerSheet, sheets_service.CheckingDeltaCell, fmt.Sprintf("=SUM(%s-I%d)", sheets_service.CheckingBalanceCell, lastRowUpdated)); err != nil {
+	if _, err := s.RegisterService.WriteCell(*registerSheet, models.CheckingDeltaCell, fmt.Sprintf("=SUM(%s-I%d)", models.CheckingBalanceCell, lastRowUpdated)); err != nil {
 		return err
 	}
 	return nil
@@ -235,8 +235,8 @@ func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) er
 // UpdateBalances takes the Wells Fargo checking account balance and updates the CheckingBalanceCell in the Register spreadsheet
 // as it is used to determine if reconciliation has occurred.
 func (s *UpdateService) UpdateBalances(registerSheet sheets_service.RegisterSheet, balances map[string]banking.Balance) error {
-	if balances[banking.WellsFargoID].Error == nil {
-		if _, err := s.RegisterService.WriteCell(registerSheet, sheets_service.CheckingBalanceCell, balances[banking.WellsFargoID].Amount); err != nil {
+	if balances[models.WellsFargoID].Error == nil {
+		if _, err := s.RegisterService.WriteCell(registerSheet, models.CheckingBalanceCell, balances[models.WellsFargoID].Amount); err != nil {
 			return err
 		}
 	}

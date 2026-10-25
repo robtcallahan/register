@@ -145,7 +145,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 
 	for _, bankID := range c.BankIDs {
 		switch bankID {
-		case "fidelity":
+		case models.FidelityID:
 			{
 				fmt.Printf("    Fidelity\n")
 				trans, err := c.readFidelityCSV()
@@ -154,7 +154,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 				}
 				csvTrans = append(csvTrans, trans...)
 			}
-		case "wellsfargo":
+		case models.WellsFargoID:
 			{
 				fmt.Printf("    Wells Fargo\n")
 				trans, err := c.readWellsFargoCSV()
@@ -163,7 +163,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 				}
 				csvTrans = append(csvTrans, trans...)
 			}
-		case "chase":
+		case models.ChaseID:
 			{
 				fmt.Printf("    Chase\n")
 				trans, err := c.readChaseCSV()
@@ -172,7 +172,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 				}
 				csvTrans = append(csvTrans, trans...)
 			}
-		case "boa":
+		case models.BoAID:
 			{
 				fmt.Printf("    Bank of America\n")
 				trans, err := c.readBankOfAmericaCSV()
@@ -188,7 +188,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 }
 
 func (c *Client) readWellsFargoCSV() ([]*models.Transaction, error) {
-	bank := c.Banks["wellsfargo"]
+	bank := c.Banks[models.WellsFargoID]
 	csvFile := c.FinanceDir + "/" + bank.CSVFileName
 
 	fileBytes, err := readFileContents(csvFile)
@@ -207,19 +207,19 @@ func (c *Client) readWellsFargoCSV() ([]*models.Transaction, error) {
 }
 
 func (c *Client) readFidelityCSV() ([]*models.Transaction, error) {
-	bank := c.Banks["fidelity"]
+	bank := c.Banks[models.FidelityID]
 	trans, err := readFidelityCSVRows(c.FinanceDir+"/"+bank.CSVFileName, bank.ID)
 	return trans, err
 }
 
 func (c *Client) readChaseCSV() ([]*models.Transaction, error) {
-	bank := c.Banks["chase"]
+	bank := c.Banks[models.ChaseID]
 	trans, err := readChaseCSVRows(c.FinanceDir+"/"+bank.CSVFileName, bank.ID)
 	return trans, err
 }
 
 func (c *Client) readBankOfAmericaCSV() ([]*models.Transaction, error) {
-	bank := c.Banks["boa"]
+	bank := c.Banks[models.BoAID]
 	trans, err := readBankOfAmericaCSVRows(c.FinanceDir+"/"+bank.CSVFileName, bank.ID)
 	return trans, err
 }
@@ -266,8 +266,8 @@ func processCheck(name string, t *models.Transaction) *models.Transaction {
 	if len(m) > 0 {
 		t.Source = m[1]
 		t.IsCheck = true
-		t.Name = "CHECK"
-		t.BankName = "CHECK"
+		t.Name = models.CheckRegisterName
+		t.BankName = models.CheckTransactionName
 	}
 	return t
 }

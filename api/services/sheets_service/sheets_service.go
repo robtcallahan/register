@@ -26,9 +26,7 @@ const (
 	BudgetTabName   = "Budget"
 
 	// Summary cells at the top of the Register tab.
-	LastUpdateCell      = "F1" // date stamp of the last update run
-	CheckingBalanceCell = "G1" // Wells Fargo ending balance
-	CheckingDeltaCell   = "G2" // running check: balance minus cleared total
+	LastUpdateCell = "F1" // date stamp of the last update run
 
 	CellDataString  = 1
 	CellDataDollars = 2

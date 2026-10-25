@@ -17,7 +17,7 @@ func plaidTransaction(name string, amount float64, date string) plaid.Transactio
 }
 
 func plaidCheckTransaction(checkNumber, date string, amount float64) plaid.Transaction {
-	t := plaidTransaction("CHECK", amount, date)
+	t := plaidTransaction(models.CheckTransactionName, amount, date)
 	t.CheckNumber.Set(&checkNumber)
 	return t
 }
@@ -64,8 +64,8 @@ func TestBuildTransaction_WellsFargo(t *testing.T) {
 			checkTran: &models.Transaction{
 				Source:     "1234",
 				Date:       "12/15/20",
-				Name:       "CHECK",
-				BankName:   "CHECK",
+				Name:       models.CheckRegisterName,
+				BankName:   models.CheckTransactionName,
 				IsCheck:    true,
 				Amount:     250.00,
 				Withdrawal: 250.00,
@@ -77,7 +77,7 @@ func TestBuildTransaction_WellsFargo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := c.buildTransaction(WellsFargoID, tt.plaidTx)
+			got, err := c.buildTransaction(models.WellsFargoID, tt.plaidTx)
 			if err != nil {
 				t.Fatalf("buildTransaction failed: %v", err)
 			}
@@ -122,7 +122,7 @@ func TestBuildTransaction_Fidelity(t *testing.T) {
 
 	// Fidelity transactions are credit purchases (positive amounts stay positive)
 	plaidTx := plaidTransaction("AMAZON", 29.66, "2020-12-10")
-	got, err := c.buildTransaction(FidelityID, plaidTx)
+	got, err := c.buildTransaction(models.FidelityID, plaidTx)
 	if err != nil {
 		t.Fatalf("buildTransaction failed: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestBuildTransaction_Chase(t *testing.T) {
 
 	// Chase transactions are credit purchases (same as Fidelity)
 	plaidTx := plaidTransaction("WHOLE FOODS", 85.42, "2020-12-12")
-	got, err := c.buildTransaction(ChaseID, plaidTx)
+	got, err := c.buildTransaction(models.ChaseID, plaidTx)
 	if err != nil {
 		t.Fatalf("buildTransaction failed: %v", err)
 	}

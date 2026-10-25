@@ -27,24 +27,6 @@ import (
 	"github.com/plaid/plaid-go/v15/plaid"
 )
 
-const (
-	/*	Specials in FormatMerchantNames, expressed as lookup values instead of
-		hardcoded positions: checks (ingested with the name "CHECK") are
-		categorized by the merchant rule whose bank pattern is CheckBankPattern
-		— adding such a rule to the DB is how their position changes now.
-		Income deposits get the income column's index, resolved from the
-		categories list by the column's name (Phase 5: deposits themselves are
-		recognized via configured income sources, see Client.IncomeMatcher).
-	*/
-	CheckTransactionName = "CHECK"
-	CheckBankPattern     = "CHECK"
-	IncomeColumnName     = "Emergency Fund" // column_index 42 in his tables today
-
-	WellsFargoID = "wellsfargo"
-	FidelityID   = "fidelity"
-	ChaseID      = "chase"
-)
-
 type PlaidHttpBodyResponse struct {
 	DisplayMessage   plaid.NullableString `json:"display_message"`
 	DocumentationUrl string               `json:"documentation_url"`

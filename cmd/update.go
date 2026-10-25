@@ -100,7 +100,7 @@ func update() error {
 	// endDate := config.EndDate
 	startDate := weeksAgo(12)
 	endDate := today()
-	bankIDs := []string{"wellsfargo", "chase"}
+	bankIDs := []string{models.WellsFargoID, models.ChaseID}
 	transactions, err = updateService.FetchTransactions(bankIDs, startDate, endDate)
 	if err != nil {
 		return err
@@ -157,7 +157,7 @@ func update() error {
 
 		if !options.UseCSVFiles {
 			fmt.Println("Getting accounts balances...")
-			balances := bankClient.GetBalances([]string{banking.WellsFargoID})
+			balances := bankClient.GetBalances([]string{models.WellsFargoID})
 			printBalances(balances)
 			fmt.Println("Updating balances...")
 			if err := updateService.UpdateBalances(*registerSheet, balances); err != nil {
@@ -305,7 +305,7 @@ func categoryColumns(columns []models.Column) []models.Column {
 // describe what the user bought.
 func getTransactionNotes(trans []*models.Transaction) []*models.Transaction {
 	for i, t := range trans {
-		if t.Name == "CHECK" || t.Name == "Amazon" || t.Name == "Amazon Marketplace" {
+		if t.Name == models.CheckRegisterName || t.Name == "Amazon" || t.Name == "Amazon Marketplace" {
 			fmt.Printf("Source: %s, Name: %s, Date: %s, Amt: $%0.2f\n", t.Source, t.Name, t.Date, t.Amount)
 			trans[i].Note = readString("    Note: ")
 		}
@@ -423,7 +423,7 @@ func readInt(prompt string) (int, error) {
 }
 
 func printBalances(balances map[string]banking.Balance) {
-	b := balances[banking.WellsFargoID]
+	b := balances[models.WellsFargoID]
 	if b.Error != nil {
 		fmt.Printf("    Wells Fargo: balance unavailable: %v\n", b.Error)
 		return

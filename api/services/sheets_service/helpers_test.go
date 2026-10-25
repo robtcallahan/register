@@ -1561,7 +1561,7 @@ func Test_getSourceField(t *testing.T) {
 		{
 			name: "Test get source field",
 			args: args{values: values},
-			want: "fidelity",
+			want: models.FidelityID,
 		},
 	}
 	for _, tt := range tests {

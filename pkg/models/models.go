@@ -57,6 +57,17 @@ const FirstCategoryIndex = 11
 // background palette. Grey is reserved for the payoff columns (Credit
 // Cards, AppleCard) and is never offered for a new category.
 const (
+	CheckTransactionName = "CHECK"
+	CheckRegisterName    = "Check"
+	IncomeColumnName     = "Emergency Fund" // column_index 42 in his tables today
+
+	WellsFargoID        = "wellsfargo"
+	FidelityID          = "fidelity"
+	ChaseID             = "chase"
+	BoAID               = "boa"
+	CheckingBalanceCell = "G1" // Wells Fargo ending balance
+	CheckingDeltaCell   = "G2" // running check: balance minus cleared total
+
 	ColorBlack     = "black"
 	ColorWhite     = "white"
 	ColorGreen     = "green"
