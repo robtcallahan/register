@@ -45,7 +45,6 @@ type RegisterService struct {
 	// display names mark register rows as income deposits.
 	IncomeSources []config.IncomeSource
 	Debug         bool
-	Verbose       bool
 }
 
 func NewRegisterService(provider sheets_provider.SheetsProviderInterface) *RegisterService {

@@ -145,7 +145,7 @@ Phase 16 — Structural improvements
 - [X] 16.6 Make fuzzy date matching merchant-specific — currently fuzzyKeySet applies ±1 day to EVERY transaction; scope it to Amazon merchants (or make the window configurable per merchant/source)
 -----------------------------------------------------------------------------------------
 Phase 17 — Cleanup
-- [ ] 17.1 Remove dead struct fields (SheetsService.service, SpreadsheetID fields)
+- [X] 17.1 Remove dead struct fields (SheetsService.service, SpreadsheetID fields)
 - [ ] 17.2 Replace magic strings with existing constants (CHECK, WellsFargo, white/grey)
 - [X] 17.3 Replace string(rune('A'+j)) with models.ColumnLetter
 - [ ] 17.4 Extract long functions (InsertBudgetCategory, addSummaryRows, moveColumn, etc.)

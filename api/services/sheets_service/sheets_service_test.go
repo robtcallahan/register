@@ -340,7 +340,6 @@ func Test_sheetsService_populateCells(t *testing.T) {
 		BudgetSheet   *BudgetSheet
 		RegisterSheet *RegisterSheet
 		Debug         bool
-		Verbose       bool
 	}
 	type args struct {
 		columns            []models.Column
@@ -373,7 +372,6 @@ func Test_sheetsService_updateMonthly(t *testing.T) {
 		BudgetSheet   *BudgetSheet
 		RegisterSheet *RegisterSheet
 		Debug         bool
-		Verbose       bool
 	}
 	type args struct {
 		sheetID int64
@@ -392,7 +390,6 @@ func Test_sheetsService_updateMonthly(t *testing.T) {
 			//	BudgetSheet:   tt.fields.BudgetSheet,
 			//	RegisterSheet: tt.fields.RegisterSheet,
 			//	Debug:         tt.fields.Debug,
-			//	Verbose:       tt.fields.Debug,
 			//}
 		})
 	}

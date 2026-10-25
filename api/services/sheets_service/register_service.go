@@ -41,7 +41,6 @@ type RegisterEntry struct {
 type RegisterSheet struct {
 	ID          int64
 	TabName     string
-	Spreadsheet sheets.Spreadsheet
 	SheetCoords SheetCoords
 	Entries     []*RegisterEntry
 	RangeValues [][]any
