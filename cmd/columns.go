@@ -218,6 +218,9 @@ func addColumn(name string) error {
 			return fmt.Errorf("%q added at %s (%d) but the Budget row update failed: %w",
 				name, set.LetterFor(newIndex), newIndex, err)
 		}
+		if err := bs.ExtendBudgetTotalsFormulas(*budgetSheet, addColor); err != nil {
+			return fmt.Errorf("budget totals formulas extended failed: %w", err)
+		}
 	}
 
 	fmt.Printf("Added %q at column %s (index %d)\n", name, set.LetterFor(newIndex), newIndex)
