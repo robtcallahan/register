@@ -208,8 +208,8 @@ func addSummaryRows(rows []*sheets.RowData, aggData map[string]map[string]float6
 		row++
 
 		// add the cells to the row
-		row := &sheets.RowData{Values: cells}
-		rows = append(rows, row)
+		rowData := &sheets.RowData{Values: cells}
+		rows = append(rows, rowData)
 	}
 	for _, incomeName := range incomeNames {
 		if aggDataHasName(aggData, incomeName) {
