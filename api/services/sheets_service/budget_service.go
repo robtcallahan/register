@@ -300,6 +300,9 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
 	if !ok {
 		fmt.Errorf("no budget group for color %q", color)
 	}
+	if group == "" {
+		return fmt.Errorf("no budget group for %q", color)
+	}
 	totalsRow, found, err := bs.BudgetRowFor(budgetSheet, group)
 	if err != nil {
 		return err
@@ -330,6 +333,12 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
 	if _, err := bs.Provider.Update(rng, &sheets.ValueRange{Values: [][]any{{name}}}); err != nil {
 		return fmt.Errorf("could not label budget row %d: %w", totalsRow, err)
 	}
+
+	// sum formulas sit at totalsRow + 1 now
+	totalsRow = totalsRow - 1
+	if err := bs.ExtendBudgetTotalsFormulas(budgetSheet, totalsRow); err != nil {
+		return fmt.Errorf("budget totals formulas extended failed: %w", err)
+	}
 	return nil
 }
 
@@ -337,16 +346,7 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
 // that ended at the group's old last row (totalsRow-1) to include
 // the new row — Sheets does not widen a range for a row inserted
 // immediately above its formula.
-func (bs *BudgetService) ExtendBudgetTotalsFormulas(budgetSheet BudgetSheet, color string) error {
-	group, ok := budgetGroupName(color)
-	if !ok {
-		return fmt.Errorf("no budget group for color %q", color)
-	}
-	totalsRow, found, err := bs.BudgetRowFor(budgetSheet, group)
-	if !found {
-		return fmt.Errorf("budget tab has no %q totals row to insert before", group)
-	}
-
+func (bs *BudgetService) ExtendBudgetTotalsFormulas(budgetSheet BudgetSheet, totalsRow int) error {
 	newTotalsRow := totalsRow + 1
 	frng := fmt.Sprintf("%s!A%d:G%d", budgetSheet.TabName, newTotalsRow, newTotalsRow)
 	values, err := bs.Provider.GetFormula(frng)
