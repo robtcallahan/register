@@ -22,7 +22,7 @@ var recategorizeCmd = &cobra.Command{
 and in the transactions table. Rows are found by case-insensitive substring
 match on the Description column (--match may be repeated). Honors --dry-run.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return recategorize()
+		return recategorize(recategorizeTo, recategorizeMatches)
 	},
 }
 
@@ -38,7 +38,10 @@ func init() {
 	rootCmd.AddCommand(recategorizeCmd)
 }
 
-func recategorize() error {
+// recategorize moves transactions to a different category column: rows are
+// matched by Description substring in the sheet and moved there first, and
+// the transactions table is updated best-effort afterward to agree.
+func recategorize(recategorizeTo string, recategorizeMatches []string) error {
 	conn, err := repository.Connect(&config.DB)
 	if err != nil {
 		return err
