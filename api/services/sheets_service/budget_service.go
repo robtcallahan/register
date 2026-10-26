@@ -331,7 +331,6 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
 		return fmt.Errorf("could not label budget row %d: %w", totalsRow, err)
 	}
 
-	// sum formulas sit at totalsRow + 1 now
 	totalsRow = totalsRow + 1
 	if err := bs.ExtendBudgetTotalsFormulas(budgetSheet, totalsRow); err != nil {
 		return fmt.Errorf("budget totals formulas extended failed: %w", err)
@@ -339,9 +338,9 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
 	return nil
 }
 
-// ExtendBudgetTotalsFormulas The totals row moved to totalsRow+1. Extend any of its SUM ranges
-// that ended at the group's old last row (totalsRow-1) to include
-// the new row — Sheets does not widen a range for a row inserted
+// ExtendBudgetTotalsFormulas extends any SUM ranges in the totalsRow
+// that end at the group's old last row (totalsRow-2) to include
+// the new row (totalsRow - 1) — Sheets does not widen a range for a row inserted
 // immediately above its formula.
 func (bs *BudgetService) ExtendBudgetTotalsFormulas(budgetSheet BudgetSheet, totalsRow int) error {
 	frng := fmt.Sprintf("%s!A%d:G%d", budgetSheet.TabName, totalsRow, totalsRow)
