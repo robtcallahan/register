@@ -437,30 +437,9 @@ func moveColumn(name, moveAfter string) error {
 	// columns (Credit Cards, AppleCard, Taxes) have no row to move,
 	// and moving one never rearranges anyone's budget.
 	budgetNote := ""
-	_, hasBudget := budgetRowsMap[name]
-
-	if hasBudget {
+	if _, hasBudget := budgetRowsMap[name]; hasBudget {
 		final := sheets_service.ApplyColumnMove(columns, from, to)
-		before, following := "", ""
-		seen := false
-		for _, c := range final {
-			if c.Name == name {
-				seen = true
-				continue
-			}
-			if c.Color != col.Color {
-				continue
-			}
-			_, hasBudget = budgetRowsMap[c.Name]
-			if !hasBudget {
-				continue
-			}
-			if !seen {
-				before = c.Name
-			} else if following == "" {
-				following = c.Name
-			}
-		}
+		before, following := findBudgetNeighbor(final, name, col.Color, budgetRowsMap)
 		switch {
 		case before != "":
 			if err := bs.MoveBudgetCategoryAfter(*budgetSheet, name, before); err != nil {
@@ -492,6 +471,32 @@ func moveColumn(name, moveAfter string) error {
 
 	fmt.Printf("Moved %q to column %s (index %d).%s\n", name, set.LetterFor(to), to, budgetNote)
 	return nil
+}
+
+// findBudgetNeighbor scans the new register order for the nearest
+// same-color category with a Budget row on either side of the moved
+// column. before is the nearest one ahead of it, following the nearest
+// one after it; either may be empty when no such neighbor exists.
+func findBudgetNeighbor(final []models.Column, name, color string, budgetRowsMap map[string]int) (before, following string) {
+	seen := false
+	for _, c := range final {
+		if c.Name == name {
+			seen = true
+			continue
+		}
+		if c.Color != color {
+			continue
+		}
+		if _, hasBudget := budgetRowsMap[c.Name]; !hasBudget {
+			continue
+		}
+		if !seen {
+			before = c.Name
+		} else if following == "" {
+			following = c.Name
+		}
+	}
+	return before, following
 }
 
 func checkColumns() error {
