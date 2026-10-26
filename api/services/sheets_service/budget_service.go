@@ -298,10 +298,7 @@ func (bs *BudgetService) RenameBudgetCategory(budgetSheet BudgetSheet, oldName, 
 func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, color string) error {
 	group, ok := budgetGroupName(color)
 	if !ok {
-		fmt.Errorf("no budget group for color %q", color)
-	}
-	if group == "" {
-		return fmt.Errorf("no budget group for %q", color)
+		return fmt.Errorf("no budget group for color %q", color)
 	}
 	totalsRow, found, err := bs.BudgetRowFor(budgetSheet, group)
 	if err != nil {
@@ -335,7 +332,7 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
 	}
 
 	// sum formulas sit at totalsRow + 1 now
-	totalsRow = totalsRow - 1
+	totalsRow = totalsRow + 1
 	if err := bs.ExtendBudgetTotalsFormulas(budgetSheet, totalsRow); err != nil {
 		return fmt.Errorf("budget totals formulas extended failed: %w", err)
 	}
@@ -347,8 +344,7 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
 // the new row — Sheets does not widen a range for a row inserted
 // immediately above its formula.
 func (bs *BudgetService) ExtendBudgetTotalsFormulas(budgetSheet BudgetSheet, totalsRow int) error {
-	newTotalsRow := totalsRow + 1
-	frng := fmt.Sprintf("%s!A%d:G%d", budgetSheet.TabName, newTotalsRow, newTotalsRow)
+	frng := fmt.Sprintf("%s!A%d:G%d", budgetSheet.TabName, totalsRow, totalsRow)
 	values, err := bs.Provider.GetFormula(frng)
 	if err != nil {
 		return fmt.Errorf("could not read budget totals row: %w", err)
@@ -361,12 +357,12 @@ func (bs *BudgetService) ExtendBudgetTotalsFormulas(budgetSheet BudgetSheet, tot
 		if !ok || !strings.HasPrefix(formula, "=") {
 			continue
 		}
-		extended, changed := extendRangeEnd(formula, totalsRow-1, totalsRow)
+		extended, changed := extendRangeEnd(formula, totalsRow-2, totalsRow-1)
 		if !changed {
 			continue
 		}
 		cellRef := fmt.Sprintf("%s!%s%d", budgetSheet.TabName,
-			models.ColumnLetter(j+1), newTotalsRow)
+			models.ColumnLetter(j+1), totalsRow)
 		if _, err := bs.Provider.Update(cellRef, &sheets.ValueRange{Values: [][]any{{extended}}}); err != nil {
 			return fmt.Errorf("could not extend budget totals formula at %s: %w", cellRef, err)
 		}
