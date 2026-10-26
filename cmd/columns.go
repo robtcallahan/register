@@ -59,7 +59,7 @@ group — crossing a group boundary is refused, so the Budget tab's
 group totals keep summing the same categories.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return moveColumn(args[0])
+		return moveColumn(args[0], moveAfter)
 	},
 }
 
@@ -376,7 +376,7 @@ func deleteColumn(name string) error {
 // and the Register tab's dimension moves via MoveRegisterColumn.
 // The Budget move happens first, so its failure leaves everything
 // untouched; a sheet failure after the DB move is reported as such.
-func moveColumn(name string) error {
+func moveColumn(name, moveAfter string) error {
 	q, err := columnsQuery()
 	if err != nil {
 		return err
