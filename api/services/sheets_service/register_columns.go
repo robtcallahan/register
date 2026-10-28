@@ -270,7 +270,7 @@ func ApplyColumnMove(columns []models.Column, from, to int) []models.Column {
 // RenameRegisterColumnHeader rewrites the row-4 name cell of the column at
 // the given 1-based index.
 func (ss *RegisterService) RenameRegisterColumnHeader(registerSheet RegisterSheet, index int, name string) error {
-	_, err := ss.WriteCell(registerSheet, models.ColumnLetter(index)+"4", name)
+	_, err := ss.WriteCell(registerSheet.TabName, models.ColumnLetter(index)+"4", name)
 	return err
 }
 

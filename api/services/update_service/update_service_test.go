@@ -114,7 +114,7 @@ func TestFuzzyKeySet(t *testing.T) {
 		"badkey":                true,
 		"chase:01/01/26:10.00":  true,
 	}
-	us := &UpdateService{nil, nil, nil, nil, nil, nil}
+	us := &UpdateService{nil, nil, nil, nil, nil, nil, nil}
 	fuzzy := us.FuzzyKeySet(keys)
 
 	for _, want := range []string{

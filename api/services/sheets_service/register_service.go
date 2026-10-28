@@ -213,11 +213,11 @@ func (ss *RegisterService) ReadDateCell(registerSheet RegisterSheet, cell string
 	return models.ReadDateValue(readStringValue(v)), nil
 }
 
-func (ss *RegisterService) WriteCell(registerSheet RegisterSheet, cell string, value any) (*sheets.UpdateValuesResponse, error) {
+func (ss *RegisterService) WriteCell(tabName, cell string, value any) (*sheets.UpdateValuesResponse, error) {
 	var v [][]any
 	v = append(v, []any{value})
 
-	writeRange := fmt.Sprintf("%s!%s:%s", registerSheet.TabName, cell, cell)
+	writeRange := fmt.Sprintf("%s!%s:%s", tabName, cell, cell)
 	vRange := &sheets.ValueRange{
 		Values: v,
 	}

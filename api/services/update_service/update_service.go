@@ -21,6 +21,7 @@ type UpdateService struct {
 	BudgetService   *sheets_service.BudgetService
 	BankClient      *banking.Client
 	QueryRepo       repository.QueryRepo
+	Progress        func(_ string)
 	Config          *cfg.Config
 	Options         *cfg.Options
 }
@@ -34,6 +35,102 @@ func NewUpdateService(registerService *sheets_service.RegisterService, budgetSer
 		Config:          config,
 		Options:         options,
 	}
+}
+
+// LoadTransactions reads the Register spreadsheet and the bank
+// transactions. It returns the new transactions.
+func (s *UpdateService) LoadTransactions(registerSheet *sheets_service.RegisterSheet) ([]*models.Transaction, error) {
+	_, err := s.RegisterService.ReadRegisterSheet(registerSheet)
+	if err != nil {
+		return nil, err
+	}
+
+	// Todo: account for pagination
+	// Due to pagination and no code to account for it, I'm going back about 3 mounths (12 weeks).
+	startDate := weeksAgo(12)
+	endDate := today()
+	bankIDs := []string{models.WellsFargoID, models.ChaseID}
+	s.Progress("    - fetching transactions")
+	transactions, err := s.FetchTransactions(bankIDs, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(transactions) < 1 {
+		s.Progress("No transactions")
+		return nil, nil
+	}
+
+	s.Progress("    - writing raw transactions CSV file...")
+	if err := s.WriteRawTransactionsCSV(transactions); err != nil {
+		return nil, err
+	}
+	return transactions, nil
+}
+
+// PrepareTransactions normalizes merchant names, expands keys to include
+// dates before and after for config'd merchant names, dedupes agains the
+// Register sheet transactions, filters out credit card transactions from the
+// credit card institutions since they are already present in the checking
+// account, and then sorts the remaining list. It then returns the prepared
+// transactions.
+func (s *UpdateService) PrepareTransactions(transactions []*models.Transaction, sheetEntries []*sheets_service.RegisterEntry) ([]*models.Transaction, error) {
+	var err error
+
+	s.Progress("    - normalizing merchants")
+	transactions, err = s.NormalizeMerchants(transactions)
+	if err != nil {
+		return nil, err
+	}
+
+	s.Progress("    - expanding fuzzy keys")
+	dedupeKeys := s.ExpandFuzzyKeys(sheetEntries, s.Config.FuzzyMerchants)
+	s.Progress("    - de-duping transactions")
+	transactions = s.DedupeAgainstSheet(transactions, dedupeKeys)
+
+	s.Progress("    - filtering out credit card payments...")
+	transactions = banking.FilterCreditCardPayments(transactions)
+
+	s.Progress("    - Sorting...")
+	transactions = banking.SortTransactions(transactions)
+
+	if len(transactions) < 1 {
+		s.Progress("No transactions")
+		return nil, err
+	}
+
+	return transactions, nil
+}
+
+// ApplyTransactions takes in transactions, updates the DB, and updates the spreadsheet.
+// If
+func (s *UpdateService) ApplyTransactions(tabName string, transactions []*models.Transaction) error {
+	var err error
+
+	s.Progress("    - updating database")
+	transactions, err = s.PersistTransactions(transactions)
+	if err != nil {
+		return err
+	}
+
+	s.Progress("    - updating spreadsheet")
+	if err := s.UpdateSpreadsheet(transactions); err != nil {
+		return err
+	}
+
+	s.Progress("    - getting accounts balances")
+	balances := s.BankClient.GetBalances([]string{models.WellsFargoID})
+	b := balances[models.WellsFargoID]
+	if b.Error != nil {
+		return fmt.Errorf("      Wells Fargo: balance unavailable: %v\n", b.Error)
+	}
+	s.Progress(fmt.Sprintf("      Wells Fargo: $%8.2f\n", b.Amount))
+
+	s.Progress("    - updating balances in spreadsheet")
+	if err := s.UpdateBalances(tabName, balances); err != nil {
+		return err
+	}
+	return nil
 }
 
 // PersistTransactions interactively fills in any missing names and notes,
@@ -81,7 +178,6 @@ func (s *UpdateService) FetchTransactions(bankIDs []string, startDate, endDate s
 // including ones already recorded in the register. encoding/csv quotes the
 // fields, so bank names containing commas can't shift the columns.
 func (s *UpdateService) WriteRawTransactionsCSV(transactions []*models.Transaction) error {
-	fmt.Println("Writing raw transactions CSV file...")
 	file, err := os.Create(s.Config.FinanceDir + "/transactions.csv")
 	if err != nil {
 		return fmt.Errorf("error creating file %s: %w", s.Config.FinanceDir+"/transactions.csv", err)
@@ -223,10 +319,10 @@ func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) er
 	}
 
 	lastRowUpdated := registerSheet.SheetCoords.FirstRowToUpdate + int64(len(transactions)*2) + 1
-	if _, err := s.RegisterService.WriteCell(*registerSheet, sheets_service.LastUpdateCell, time.Now().Format("01/02/2006")); err != nil {
+	if _, err := s.RegisterService.WriteCell(registerSheet.TabName, sheets_service.LastUpdateCell, time.Now().Format("01/02/2006")); err != nil {
 		return err
 	}
-	if _, err := s.RegisterService.WriteCell(*registerSheet, models.CheckingDeltaCell, fmt.Sprintf("=SUM(%s-I%d)", models.CheckingBalanceCell, lastRowUpdated)); err != nil {
+	if _, err := s.RegisterService.WriteCell(registerSheet.TabName, models.CheckingDeltaCell, fmt.Sprintf("=SUM(%s-I%d)", models.CheckingBalanceCell, lastRowUpdated)); err != nil {
 		return err
 	}
 	return nil
@@ -234,9 +330,9 @@ func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) er
 
 // UpdateBalances takes the Wells Fargo checking account balance and updates the CheckingBalanceCell in the Register spreadsheet
 // as it is used to determine if reconciliation has occurred.
-func (s *UpdateService) UpdateBalances(registerSheet sheets_service.RegisterSheet, balances map[string]banking.Balance) error {
+func (s *UpdateService) UpdateBalances(tabName string, balances map[string]banking.Balance) error {
 	if balances[models.WellsFargoID].Error == nil {
-		if _, err := s.RegisterService.WriteCell(registerSheet, models.CheckingBalanceCell, balances[models.WellsFargoID].Amount); err != nil {
+		if _, err := s.RegisterService.WriteCell(tabName, models.CheckingBalanceCell, balances[models.WellsFargoID].Amount); err != nil {
 			return err
 		}
 	}

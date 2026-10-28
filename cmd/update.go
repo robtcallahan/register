@@ -55,10 +55,7 @@ func init() {
 }
 
 func update() error {
-	var (
-		transactions []*models.Transaction
-		err          error
-	)
+	var transactions []*models.Transaction
 
 	conn, err := repository.Connect(&config.DB)
 	if err != nil {
@@ -71,11 +68,10 @@ func update() error {
 		return err
 	}
 
+	bankClient := GetBankingClient()
 	registerService := sheets_service.NewRegisterService(sheetsProvider)
 	registerService.IncomeSources = config.IncomeSources
 	budgetService := sheets_service.NewBudgetService(sheetsProvider)
-
-	bankClient := GetBankingClient()
 	updateService := update_service.NewUpdateService(registerService, budgetService, bankClient, queryRepo, config, options)
 
 	columns, err := queryRepo.GetColumns()
@@ -87,53 +83,14 @@ func update() error {
 		return err
 	}
 
+	// define the listener for printing progress strings
+	updateService.Progress = func(msg string) { fmt.Println(msg) }
+
 	fmt.Println("Reading Register...")
-	_, err = registerService.ReadRegisterSheet(registerSheet)
-	if err != nil {
-		return err
-	}
+	transactions, err = updateService.LoadTransactions(registerSheet)
 
-	// Todo: account for pagination
-	// Due to pagination and no code to account for it, I'm going back about 3 mounths (12 weeks).
-	startDate := weeksAgo(12)
-	endDate := today()
-	bankIDs := []string{models.WellsFargoID, models.ChaseID}
-	transactions, err = updateService.FetchTransactions(bankIDs, startDate, endDate)
-	if err != nil {
-		return err
-	}
-
-	if len(transactions) < 1 {
-		fmt.Println("No transactions")
-		return nil
-	}
-
-	if err := updateService.WriteRawTransactionsCSV(transactions); err != nil {
-		return err
-	}
-
-	transactions, err = updateService.NormalizeMerchants(transactions)
-	if err != nil {
-		return err
-	}
-	if options.Debug {
-		printTransactions(transactions)
-	}
-
-	dedupeKeys := updateService.ExpandFuzzyKeys(registerSheet.Entries, config.FuzzyMerchants)
-	transactions = updateService.DedupeAgainstSheet(transactions, dedupeKeys)
-
-	fmt.Println("Filtering out credit card payments...")
-	transactions = banking.FilterCreditCardPayments(transactions)
-
-	fmt.Println("Sorting...")
-	//transactions = bankClient.SortTransactions(transactions)
-	transactions = banking.SortTransactions(transactions)
-
-	if len(transactions) < 1 {
-		fmt.Println("No transactions")
-		return nil
-	}
+	fmt.Println("Preparing Transactions...")
+	transactions, err = updateService.PrepareTransactions(transactions, registerSheet.Entries)
 
 	printTransactions(transactions)
 
@@ -143,30 +100,18 @@ func update() error {
 			return err
 		}
 
-		transactions, err = updateService.PersistTransactions(transactions)
+		fmt.Println("Applying transactions...")
+		err = updateService.ApplyTransactions(registerSheet.TabName, transactions)
 		if err != nil {
 			return err
 		}
 
-		if err := updateService.UpdateSpreadsheet(transactions); err != nil {
-			return err
-		}
-
-		if !options.UseCSVFiles {
-			fmt.Println("Getting accounts balances...")
-			balances := bankClient.GetBalances([]string{models.WellsFargoID})
-			printBalances(balances)
-			fmt.Println("Updating balances...")
-			if err := updateService.UpdateBalances(*registerSheet, balances); err != nil {
-				return err
-			}
-		}
 		return nil
 	}
 	return nil
 }
 
-// gatherTransactionInfo looks thru the transactions to see if there are any merchants
+// gatherTransactionInfo looks through the transactions to see if there are any merchants
 // that are missing an entry in the merchants table. If so, it calls functions to
 // print out category columns, prompts the user for a desired merchant name, a category,
 // whether to search by exact name or by substring and updates the transactions array.
@@ -193,7 +138,7 @@ func gatherTransactionInfo(bankClient *banking.Client, queryRepo repository.Quer
 	return transactions, nil
 }
 
-// needTransactionName loops thru all transactions calling the needsName function
+// needTransactionName loops through all transactions calling the needsName function
 // to determine if it is necessary to prompt the user for input on the transaction
 func needUserInfoForTransactions(trans []*models.Transaction) bool {
 	return slices.ContainsFunc(trans, needsNameForRegister)
@@ -363,11 +308,11 @@ func readFromUser(queryRepo repository.QueryRepo, trans []*models.Transaction) (
 			// table, so its variants can't be shadowed by an older rule
 			priority := 0
 			if matchType == "substring" {
-				maxPrio, err := queryRepo.GetMaxMerchantPriority()
+				maxPriority, err := queryRepo.GetMaxMerchantPriority()
 				if err != nil {
 					return false, nil, err
 				}
-				priority = maxPrio + 10
+				priority = maxPriority + 10
 			}
 
 			// the menu prints column IDs, but the transaction wants the
@@ -419,15 +364,6 @@ func readInt(prompt string) (int, error) {
 	return i, nil
 }
 
-func printBalances(balances map[string]banking.Balance) {
-	b := balances[models.WellsFargoID]
-	if b.Error != nil {
-		fmt.Printf("    Wells Fargo: balance unavailable: %v\n", b.Error)
-		return
-	}
-	fmt.Printf("    Wells Fargo: $%8.2f\n", b.Amount)
-}
-
 func printTransactions(trans []*models.Transaction) {
 	fmt.Printf("    (%3s) [%-28s] %-12s %-10s %-8s %2s %-30s %-30s\n", "Num", "Key", "Source", "Date", "Amount", "CI", "Name", "Bank Name")
 	for i, t := range trans {
@@ -444,9 +380,4 @@ func printTransactions(trans []*models.Transaction) {
 		fmt.Printf("    (%3d) [%-28s] %-12s %-10s %8.2f %2d %-30s %-30s\n", i+1, t.Key, t.Source, t.Date, amt, t.ColumnIndex, t.Name, t.BankName)
 	}
 	fmt.Println("")
-}
-
-// dashes is a simple helper to print out "count" number of dashes to be printed under a column header
-func dashes(count int) string {
-	return strings.Repeat("-", count)
 }

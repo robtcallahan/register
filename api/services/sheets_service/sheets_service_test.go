@@ -233,7 +233,7 @@ func Test_sheetsService_WriteCell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// TODO: test for error
-			if got, _ := ss.WriteCell(*registerSheet, tt.args.cell, tt.args.value); !reflect.DeepEqual(got, tt.want) {
+			if got, _ := ss.WriteCell(registerSheet.TabName, tt.args.cell, tt.args.value); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("WriteCell() = %v, want %v", got, tt.want)
 			}
 		})
