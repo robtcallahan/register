@@ -15,18 +15,12 @@ import (
 	"github.com/gocarina/gocsv"
 )
 
-// ConfigOptions ...
-type ConfigOptions struct {
-	FinanceDir string
-	Banks      map[string]config.Bank
-	BankIDs    []string
-}
-
 // Client ...
 type Client struct {
 	FinanceDir string
 	Banks      map[string]config.Bank
 	BankIDs    []string
+	Progress   func(_ string)
 }
 
 // FidelityVisa ...
@@ -77,6 +71,16 @@ type Row struct {
 
 // myReadFile is a function variable that can be reassigned to handle mocking for testing
 var myReadFile = os.ReadFile
+
+// New ...
+func New(finDir string, banks map[string]config.Bank, bankIDs []string, progress func(_ string)) *Client {
+	return &Client{
+		FinanceDir: finDir,
+		Banks:      banks,
+		BankIDs:    bankIDs,
+		Progress:   progress,
+	}
+}
 
 // normalizeHeader canonicalizes a CSV header label for matching: surrounding
 // whitespace is ignored and matching is case-insensitive.
@@ -131,15 +135,6 @@ func checkCSVHeaders(csvFile string, sample any) error {
 	return nil
 }
 
-// New ...
-func New(o ConfigOptions) *Client {
-	return &Client{
-		FinanceDir: o.FinanceDir,
-		Banks:      o.Banks,
-		BankIDs:    o.BankIDs,
-	}
-}
-
 func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 	var csvTrans []*models.Transaction
 
@@ -147,7 +142,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 		switch bankID {
 		case models.FidelityID:
 			{
-				fmt.Printf("    Fidelity\n")
+				c.Progress("        Fidelity")
 				trans, err := c.readFidelityCSV()
 				if err != nil {
 					return nil, fmt.Errorf("could not read CSV file: %w", err)
@@ -156,7 +151,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 			}
 		case models.WellsFargoID:
 			{
-				fmt.Printf("    Wells Fargo\n")
+				c.Progress("        Wells Fargo")
 				trans, err := c.readWellsFargoCSV()
 				if err != nil {
 					return nil, fmt.Errorf("could not read CSV file: %w", err)
@@ -165,7 +160,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 			}
 		case models.ChaseID:
 			{
-				fmt.Printf("    Chase\n")
+				c.Progress("        Chase")
 				trans, err := c.readChaseCSV()
 				if err != nil {
 					return nil, fmt.Errorf("could not read CSV file: %w", err)
@@ -174,7 +169,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 			}
 		case models.BoAID:
 			{
-				fmt.Printf("    Bank of America\n")
+				c.Progress("      Bank of America")
 				trans, err := c.readBankOfAmericaCSV()
 				if err != nil {
 					return nil, fmt.Errorf("could not read CSV file: %w", err)

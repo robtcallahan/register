@@ -50,7 +50,6 @@ func (s *UpdateService) LoadTransactions(registerSheet *sheets_service.RegisterS
 	startDate := weeksAgo(12)
 	endDate := today()
 	bankIDs := []string{models.WellsFargoID, models.ChaseID}
-	s.Progress("    - fetching transactions")
 	transactions, err := s.FetchTransactions(bankIDs, startDate, endDate)
 	if err != nil {
 		return nil, err
@@ -61,7 +60,7 @@ func (s *UpdateService) LoadTransactions(registerSheet *sheets_service.RegisterS
 		return nil, nil
 	}
 
-	s.Progress("    - writing raw transactions CSV file...")
+	s.Progress("  - writing raw transactions CSV file...")
 	if err := s.WriteRawTransactionsCSV(transactions); err != nil {
 		return nil, err
 	}
@@ -77,21 +76,21 @@ func (s *UpdateService) LoadTransactions(registerSheet *sheets_service.RegisterS
 func (s *UpdateService) PrepareTransactions(transactions []*models.Transaction, sheetEntries []*sheets_service.RegisterEntry) ([]*models.Transaction, error) {
 	var err error
 
-	s.Progress("    - normalizing merchants")
+	s.Progress("  - normalizing merchants")
 	transactions, err = s.NormalizeMerchants(transactions)
 	if err != nil {
 		return nil, err
 	}
 
-	s.Progress("    - expanding fuzzy keys")
+	s.Progress("  - expanding fuzzy keys")
 	dedupeKeys := s.ExpandFuzzyKeys(sheetEntries, s.Config.FuzzyMerchants)
-	s.Progress("    - de-duping transactions")
+	s.Progress("  - de-duping transactions")
 	transactions = s.DedupeAgainstSheet(transactions, dedupeKeys)
 
-	s.Progress("    - filtering out credit card payments...")
+	s.Progress("  - filtering out credit card payments...")
 	transactions = banking.FilterCreditCardPayments(transactions)
 
-	s.Progress("    - Sorting...")
+	s.Progress("  - Sorting...")
 	transactions = banking.SortTransactions(transactions)
 
 	if len(transactions) < 1 {
@@ -107,18 +106,18 @@ func (s *UpdateService) PrepareTransactions(transactions []*models.Transaction, 
 func (s *UpdateService) ApplyTransactions(tabName string, transactions []*models.Transaction) error {
 	var err error
 
-	s.Progress("    - updating database")
+	s.Progress("  - updating database")
 	transactions, err = s.PersistTransactions(transactions)
 	if err != nil {
 		return err
 	}
 
-	s.Progress("    - updating spreadsheet")
+	s.Progress("  - updating spreadsheet")
 	if err := s.UpdateSpreadsheet(transactions); err != nil {
 		return err
 	}
 
-	s.Progress("    - getting accounts balances")
+	s.Progress("  - getting accounts balances")
 	balances := s.BankClient.GetBalances([]string{models.WellsFargoID})
 	b := balances[models.WellsFargoID]
 	if b.Error != nil {
@@ -126,7 +125,7 @@ func (s *UpdateService) ApplyTransactions(tabName string, transactions []*models
 	}
 	s.Progress(fmt.Sprintf("      Wells Fargo: $%8.2f\n", b.Amount))
 
-	s.Progress("    - updating balances in spreadsheet")
+	s.Progress("  - updating balances in spreadsheet")
 	if err := s.UpdateBalances(tabName, balances); err != nil {
 		return err
 	}
@@ -152,18 +151,18 @@ func (s *UpdateService) PersistTransactions(transactions []*models.Transaction) 
 // comes from its CSV (Plaid no longer supports it), while Wells Fargo and
 // Chase come from CSV or Plaid depending on the --csv flag.
 func (s *UpdateService) FetchTransactions(bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
-	fmt.Println("Getting Fidelity transactions (CSV)...")
-	transactions, err := getCSVTransactions(s.Config, []string{models.FidelityID})
+	s.Progress("  - getting CSV transactions...")
+	transactions, err := getCSVTransactions(s.Config.FinanceDir, s.Config.Banks, []string{models.FidelityID}, s.Progress)
 	if err != nil {
 		return nil, err
 	}
 
 	var newTrans []*models.Transaction
 	if s.Options.UseCSVFiles {
-		fmt.Println("Getting Wells Fargo & Chase transactions (CSV)...")
-		newTrans, err = getCSVTransactions(s.Config, bankIDs)
+		s.Progress("  - getting CSV transactions...")
+		newTrans, err = getCSVTransactions(s.Config.FinanceDir, s.Config.Banks, bankIDs, s.Progress)
 	} else {
-		fmt.Println("Getting Wells Fargo & Chase transactions (Plaid)...")
+		s.Progress("  - getting Plaid transactions...")
 		newTrans, err = getTransactions(s.BankClient, bankIDs, startDate, endDate)
 	}
 	if err != nil {
@@ -207,7 +206,6 @@ func (s *UpdateService) WriteRawTransactionsCSV(transactions []*models.Transacti
 // NormalizeMerchants assigns each transaction its display name, color, and
 // budget column from the merchant lookup data.
 func (s *UpdateService) NormalizeMerchants(transactions []*models.Transaction) ([]*models.Transaction, error) {
-	fmt.Println("Updating merchants...")
 	lookupData, err := s.QueryRepo.GetLookupData()
 	if err != nil {
 		return nil, err
@@ -233,8 +231,6 @@ func (s *UpdateService) NormalizeMerchants(transactions []*models.Transaction) (
 }
 
 func (s *UpdateService) ExpandFuzzyKeys(registerEntries []*sheets_service.RegisterEntry, fuzzyMerchants map[string]bool) map[string]bool {
-	fmt.Println("Expanding fuzzy keys...")
-
 	fuzziedKeysMap := make(map[string]bool)
 	keysToExpand := make(map[string]bool)
 
@@ -257,7 +253,6 @@ func (s *UpdateService) ExpandFuzzyKeys(registerEntries []*sheets_service.Regist
 // Amazon) report the same transaction on a different day from one pull to the
 // next, which changes its dedupe key.
 func (s *UpdateService) DedupeAgainstSheet(transactions []*models.Transaction, keysMap map[string]bool) []*models.Transaction {
-	fmt.Println("Filtering out register transactions...")
 	return banking.FilterRecordedTransactions(transactions, keysMap)
 }
 
@@ -378,12 +373,8 @@ func getTransactions(bankClient *banking.Client, bankIDs []string, startDate, en
 
 // getCSVTransactions reads local CSV files for banks that Plaid cannot talk with
 // or if all CSV files are to be read using the proper flag, currently -c
-func getCSVTransactions(config *cfg.Config, bankIDs []string) ([]*models.Transaction, error) {
-	csvClient := csv.New(csv.ConfigOptions{
-		FinanceDir: config.FinanceDir,
-		Banks:      config.Banks,
-		BankIDs:    bankIDs,
-	})
+func getCSVTransactions(finDir string, banks map[string]cfg.Bank, bankIDs []string, progress func(_ string)) ([]*models.Transaction, error) {
+	csvClient := csv.New(finDir, banks, bankIDs, progress)
 
 	transactions, err := csvClient.GetTransactions()
 	if err != nil {

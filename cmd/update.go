@@ -74,6 +74,10 @@ func update() error {
 	budgetService := sheets_service.NewBudgetService(sheetsProvider)
 	updateService := update_service.NewUpdateService(registerService, budgetService, bankClient, queryRepo, config, options)
 
+	// define the listener for printing progress strings
+	updateService.Progress = func(msg string) { fmt.Println(msg) }
+	bankClient.Progress = func(msg string) { fmt.Println(msg) }
+
 	columns, err := queryRepo.GetColumns()
 	if err != nil {
 		return err
@@ -83,15 +87,13 @@ func update() error {
 		return err
 	}
 
-	// define the listener for printing progress strings
-	updateService.Progress = func(msg string) { fmt.Println(msg) }
-
-	fmt.Println("Reading Register...")
+	fmt.Println("Loading Transactions...")
 	transactions, err = updateService.LoadTransactions(registerSheet)
 
 	fmt.Println("Preparing Transactions...")
 	transactions, err = updateService.PrepareTransactions(transactions, registerSheet.Entries)
 
+	fmt.Printf("New Transactions:\n")
 	printTransactions(transactions)
 
 	if !options.DryRun {

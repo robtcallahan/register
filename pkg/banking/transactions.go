@@ -30,14 +30,12 @@ import (
 	"github.com/plaid/plaid-go/v15/plaid"
 )
 
-var dateValueRE = regexp.MustCompile(`(20)?(\d\d)-(\d\d)-(\d\d)`)
-
 func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
 	var transactions []*models.Transaction
 	var errors strings.Builder
 	for _, bankID := range bankIDs {
 		bankConfig := c.Banks[bankID]
-		fmt.Printf("    %s...", bankConfig.Name)
+		c.Progress(fmt.Sprintf("        %s", bankConfig.Name))
 
 		transResp, err := c.getPlaidTransactions(bankConfig, startDate, endDate)
 		if err != nil {
@@ -53,7 +51,6 @@ func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([
 			}
 			transactions = append(transactions, register)
 		}
-		fmt.Println("done")
 	}
 	if errors.String() != "" {
 		return nil, fmt.Errorf("%s", errors.String())

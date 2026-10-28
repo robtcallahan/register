@@ -18,5 +18,6 @@ func GetBankingClient() *banking.Client {
 		PlaidClientID:    config.PlaidClientID,
 		PlaidSecret:      config.PlaidEnvSecrets[config.PlaidEnvironment],
 		PlaidEnvironment: plaidEnvironment,
+		Progress:         func(_ string) {},
 	})
 }
