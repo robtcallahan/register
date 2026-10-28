@@ -32,6 +32,7 @@ func NewUpdateService(registerService *sheets_service.RegisterService, budgetSer
 		BudgetService:   budgetService,
 		BankClient:      bankClient,
 		QueryRepo:       queryRepo,
+		Progress:        func(_ string) {},
 		Config:          config,
 		Options:         options,
 	}
