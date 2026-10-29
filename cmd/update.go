@@ -55,7 +55,10 @@ func init() {
 }
 
 func update() error {
-	var transactions []*models.Transaction
+	var (
+		reader       = bufio.NewReader(os.Stdin)
+		transactions []*models.Transaction
+	)
 
 	conn, err := repository.Connect(&config.DB)
 	if err != nil {
@@ -97,7 +100,7 @@ func update() error {
 	printTransactions(transactions)
 
 	if !options.DryRun {
-		transactions, err = gatherTransactionInfo(bankClient, queryRepo, transactions)
+		transactions, err = gatherTransactionInfo(reader, bankClient, queryRepo, transactions)
 		if err != nil {
 			return err
 		}
@@ -117,7 +120,7 @@ func update() error {
 // that are missing an entry in the merchants table. If so, it calls functions to
 // print out category columns, prompts the user for a desired merchant name, a category,
 // whether to search by exact name or by substring and updates the transactions array.
-func gatherTransactionInfo(bankClient *banking.Client, queryRepo repository.QueryRepo, transactions []*models.Transaction) ([]*models.Transaction, error) {
+func gatherTransactionInfo(reader *bufio.Reader, bankClient *banking.Client, queryRepo repository.QueryRepo, transactions []*models.Transaction) ([]*models.Transaction, error) {
 	if needUserInfoForTransactions(transactions) {
 		fmt.Println("Info needed...")
 
@@ -128,14 +131,14 @@ func gatherTransactionInfo(bankClient *banking.Client, queryRepo repository.Quer
 
 		// get all the necessary input from the user
 		var err error
-		transactions, err = getUserInput(bankClient, queryRepo, transactions)
+		transactions, err = getUserInput(reader, bankClient, queryRepo, transactions)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	// get notes for any checks or Amazon purchases (They occur often. It's a problem I have)
-	transactions = getTransactionNotes(transactions)
+	transactions = getTransactionNotes(reader, transactions)
 
 	return transactions, nil
 }
@@ -148,13 +151,13 @@ func needUserInfoForTransactions(trans []*models.Transaction) bool {
 
 // getUserInput is the user interactive piece. It obtains a desired merchant name for
 // the Register spreadsheet for the banks name,
-func getUserInput(bankClient *banking.Client, queryRepo repository.QueryRepo, trans []*models.Transaction) ([]*models.Transaction, error) {
+func getUserInput(reader *bufio.Reader, bankClient *banking.Client, queryRepo repository.QueryRepo, trans []*models.Transaction) ([]*models.Transaction, error) {
 	var err error
 	updated := true
 
 	for updated {
 		// get all the input needed from the user, prompting for each item
-		updated, trans, err = readFromUser(queryRepo, trans)
+		updated, trans, err = readFromUser(reader, queryRepo, trans)
 		if err != nil {
 			return nil, err
 		}
@@ -247,11 +250,11 @@ func categoryColumns(columns []models.Column) []models.Column {
 // getTransactionNotes asks the user for a note to enter into the Register spreadsheet
 // for the transaction if it is either a check for an Amazon purchase which would
 // describe what the user bought.
-func getTransactionNotes(trans []*models.Transaction) []*models.Transaction {
+func getTransactionNotes(reader *bufio.Reader, trans []*models.Transaction) []*models.Transaction {
 	for i, t := range trans {
 		if t.Name == models.CheckRegisterName || t.Name == "Amazon" || t.Name == "Amazon Marketplace" {
 			fmt.Printf("Source: %s, Name: %s, Date: %s, Amt: $%0.2f\n", t.Source, t.Name, t.Date, t.Amount)
-			trans[i].Note = readString("    Note: ")
+			trans[i].Note = readString(reader, "    Note: ")
 		}
 	}
 	return trans
@@ -259,7 +262,7 @@ func getTransactionNotes(trans []*models.Transaction) []*models.Transaction {
 
 // readFromUser loops over every transaction and if it doesn't have a user-specified name
 // for the Register spreadsheet it will prompt for the user for input
-func readFromUser(queryRepo repository.QueryRepo, trans []*models.Transaction) (bool, []*models.Transaction, error) {
+func readFromUser(reader *bufio.Reader, queryRepo repository.QueryRepo, trans []*models.Transaction) (bool, []*models.Transaction, error) {
 	var err error
 
 	for i, t := range trans {
@@ -267,11 +270,11 @@ func readFromUser(queryRepo repository.QueryRepo, trans []*models.Transaction) (
 			fmt.Printf("Source: %s, Date: %s, Amt: $%0.2f\n", t.BankName, t.Date, t.Amount)
 
 			// get the desired bank name
-			trans[i].Name = readString("            Name: ")
+			trans[i].Name = readString(reader, "            Name: ")
 			var columnID int
 			for {
 				// get the column ID for the desired category for this merchant
-				columnID, err = readInt("       Column ID: ")
+				columnID, err = readInt(reader, "       Column ID: ")
 				if err != nil {
 					fmt.Println(err.Error())
 					continue
@@ -280,12 +283,12 @@ func readFromUser(queryRepo repository.QueryRepo, trans []*models.Transaction) (
 			}
 
 			// ask for a note for this transaction
-			trans[i].Note = readString("           Note: ")
+			trans[i].Note = readString(reader, "           Note: ")
 
 			// ask the user for the desired matching type, either exact or substring which is the default
 			matchType := "substring"
 			for {
-				v := strings.ToLower(strings.TrimSpace(readString("     Match type (e=exact, s=substring) [s]: ")))
+				v := strings.ToLower(strings.TrimSpace(readString(reader, "     Match type (e=exact, s=substring) [s]: ")))
 				if v == "" || v == "s" {
 					matchType = "substring"
 					break
@@ -301,7 +304,7 @@ func readFromUser(queryRepo repository.QueryRepo, trans []*models.Transaction) (
 			// the raw bank name is stored separately on the rule.
 			pattern := t.BankName
 			if matchType == "substring" {
-				if sub := readString(fmt.Sprintf("         Substring [%s]: ", t.BankName)); sub != "" {
+				if sub := readString(reader, fmt.Sprintf("         Substring [%s]: ", t.BankName)); sub != "" {
 					pattern = sub
 				}
 			}
@@ -346,16 +349,14 @@ func readFromUser(queryRepo repository.QueryRepo, trans []*models.Transaction) (
 }
 
 // readString receives a prompt and reads what the user enters and returns the value trimming the carriage return
-func readString(prompt string) string {
-	reader := bufio.NewReader(os.Stdin)
+func readString(reader *bufio.Reader, prompt string) string {
 	fmt.Print(prompt)
 	v, _ := reader.ReadString('\n')
 	return strings.TrimSuffix(v, "\n")
 }
 
 // readInt receives a prompt and reads the number the user enters and returns an integer value
-func readInt(prompt string) (int, error) {
-	reader := bufio.NewReader(os.Stdin)
+func readInt(reader *bufio.Reader, prompt string) (int, error) {
 	fmt.Print(prompt)
 	v, _ := reader.ReadString('\n')
 	v = strings.TrimSuffix(v, "\n")

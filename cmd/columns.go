@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"register/api/providers/sheets_provider"
@@ -81,6 +83,7 @@ var columnsDeleteCmd = &cobra.Command{
 }
 
 var (
+	reader      = bufio.NewReader(os.Stdin)
 	addColor    string
 	addAfter    string
 	addNoBudget bool
@@ -419,12 +422,12 @@ func moveColumn(name, moveAfter string) error {
 		switch {
 		case before != "":
 			if err := bs.MoveBudgetCategoryAfter(*budgetSheet, name, before); err != nil {
-				return fmt.Errorf("Budget row move for %q failed (nothing else changed yet): %w", name, err)
+				return fmt.Errorf("budget row move for %q failed (nothing else changed yet): %w", name, err)
 			}
 			budgetNote = " Budget row moved with it."
 		case following != "":
 			if err := bs.MoveBudgetCategoryBefore(*budgetSheet, name, following); err != nil {
-				return fmt.Errorf("Budget row move for %q failed (nothing else changed yet): %w", name, err)
+				return fmt.Errorf("budget row move for %q failed (nothing else changed yet): %w", name, err)
 			}
 			budgetNote = " Budget row moved with it."
 		}
@@ -511,5 +514,5 @@ func checkColumns() error {
 }
 
 func confirm(prompt string) bool {
-	return strings.EqualFold(strings.TrimSpace(readString(prompt)), "y")
+	return strings.EqualFold(strings.TrimSpace(readString(reader, prompt)), "y")
 }

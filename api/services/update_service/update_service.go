@@ -290,7 +290,7 @@ func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) er
 	}
 
 	// add the needed number of rows for transactions
-	fmt.Println("  - adding rows...")
+	s.Progress("  - adding rows...")
 	if err := s.RegisterService.CopyRows(*registerSheet, len(transactions)); err != nil {
 		return err
 	}
