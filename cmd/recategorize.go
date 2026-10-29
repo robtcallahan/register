@@ -99,6 +99,14 @@ func recategorize(recategorizeTo string, recategorizeMatches []string) error {
 		return fmt.Errorf("sheet move failed: %w", err)
 	}
 
+	err = syncDB(qHandler, moves, target)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func syncDB(qHandler repository.QueryRepo, moves []sheets_service.CategoryMove, target *models.Column) error {
 	// best-effort DB update so the transactions table agrees with the sheet
 	all, err := qHandler.GetTransactions()
 	if err != nil {
