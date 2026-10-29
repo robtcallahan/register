@@ -3,134 +3,16 @@ package sheets_service
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
-	"log"
 	"os"
 	"reflect"
 	"testing"
 
-	"register/api/providers/sheets_provider"
 	"register/pkg/models"
 
 	"google.golang.org/api/sheets/v4"
 )
 
 const registerServiceJSONDir = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
-
-type providerMock struct {
-	service       *sheets.Service
-	spreadsheetID string
-	t             *testing.T
-}
-
-var getValuesProviderFunc = func(range_ string) ([][]any, error) {
-	// 9.3 header checks: return the real header rows for the header ranges.
-	var values [][]any
-	if range_ == "Register!A4:J4" {
-		values = [][]any{{"Recon", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
-		return values, nil
-	}
-	if range_ == "Budget!A1:J1" {
-		values = [][]any{{"", "Weekly", "Monthly", "Yearly", "Current Total", "Needed - Monthly"}}
-		return values, nil
-	}
-	values[0] = make([]any, 10)
-	values[0][0] = "a string"
-	return values, nil
-}
-
-var getFormulaProviderFunc = func(range_ string) ([][]any, error) {
-	values := make([][]any, 10)
-	values[0] = make([]any, 10)
-	values[0][0] = "=SUM(A1:A2)"
-	return values, nil
-}
-
-func (p *providerMock) GetValues(range_ string) ([][]any, error) {
-	return getValuesProviderFunc(range_)
-}
-
-func (p *providerMock) GetFormula(range_ string) ([][]any, error) {
-	return getFormulaProviderFunc(range_)
-}
-
-func (p *providerMock) GetSpreadsheet(tabName string) (*sheets_provider.Spreadsheet, error) {
-	// Canned answer: services tests exercise how services use the sheet
-	// properties, not how the provider looks them up — that lookup is
-	// covered by the provider package's own tests.
-	switch tabName {
-	case RegisterTabName:
-		return &sheets_provider.Spreadsheet{Title: RegisterTabName, SheetID: 617336355, RowCount: 1000, ColumnCount: 47}, nil
-	case BudgetTabName:
-		return &sheets_provider.Spreadsheet{Title: BudgetTabName, SheetID: 987654321, RowCount: 100, ColumnCount: 10}, nil
-	}
-	return nil, fmt.Errorf("could not find sheet: %s", tabName)
-}
-
-func (p *providerMock) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
-	return &sheets.BatchUpdateSpreadsheetResponse{}, nil
-}
-
-func (p *providerMock) ClearValues(range_ string) error {
-	return nil
-}
-
-func (p *providerMock) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
-	w, err := os.ReadFile(registerServiceJSONDir + "WriteCell.json")
-	if err != nil {
-		if p.t != nil {
-			p.t.Fatalf("error: %s\n", err.Error())
-		}
-		return nil, err
-	}
-	var resp *sheets.UpdateValuesResponse
-	err = json.Unmarshal(w, &resp)
-	if err != nil {
-		if p.t != nil {
-			p.t.Fatalf("error: %s\n", err.Error())
-		}
-		return nil, err
-	}
-	return resp, nil
-}
-
-var ss *RegisterService
-var bs *BudgetService
-var budgetSheet *BudgetSheet
-var registerSheet *RegisterSheet
-
-func init() {
-	// The categoriesMap fixture lives on Rob's Mac, not in the repo. Tests
-	// that need it skip when it's absent; the rest run with an empty map.
-	var entries map[string]*BudgetEntry
-	if c, err := os.ReadFile("json/categoriesMap.json"); err == nil {
-		if err := json.Unmarshal(c, &entries); err != nil {
-			log.Printf("warning: could not unmarshal categoriesMap.json: %s\n", err.Error())
-		}
-	}
-
-	provider := providerMock{
-		service:       &sheets.Service{},
-		spreadsheetID: "ssID",
-		t:             nil,
-	}
-	ss = NewRegisterService(&provider)
-	bs = NewBudgetService(&provider)
-
-	registerSheet = &RegisterSheet{
-		TabName: "Register",
-	}
-	budgetSheet = &BudgetSheet{
-		TabName: "Budget",
-		SheetCoords: SheetCoords{
-			StartRow:       3,
-			EndRow:         63,
-			EndColumnName:  "J",
-			EndColumnIndex: 9,
-		},
-		CategoriesMap: entries,
-	}
-}
 
 func Test_sheetsService_copyRowsBatchUpdateRequest(t *testing.T) {
 	// Self-contained: verifies the request structure without a JSON golden.
