@@ -5,7 +5,37 @@ import (
 	"testing"
 )
 
-func TestBudgetService_BudgetRows(t *testing.T) {
+func Test_budgetService_ReadBudgetSheet(t *testing.T) {
+	// 10.10: Rewritten to test 9.3 header validation without fixtures.
+	// The original compared against a stale JSON golden.
+	getValuesProviderFunc = func(range_ string) ([][]any, error) {
+		var values [][]any
+		if range_ == "Budget!A1:J1" {
+			values = [][]any{{"", "Weekly", "Weekly (view only)", "Bi-Weekly", "Monthly", "Monthly (view only)", "Yearly", "Current Total", "Needed - Monthly"}}
+			return values, nil
+		}
+		// Return minimal budget data
+		values = [][]any{
+			{"", "Weekly", "Weekly (view only)", "Bi-Weekly", "Monthly", "Monthly (view only)", "Yearly", "Current Total", "Needed - Monthly"},
+			{"Grocery", "120", "240", "520", "520", "6240", "0", "0"},
+		}
+		return values, nil
+	}
+
+	got, err := bs.ReadBudgetSheet(budgetSheet)
+	if err != nil {
+		t.Fatalf("ReadBudgetSheet() error = %v", err)
+	}
+	if got == nil {
+		t.Fatal("ReadBudgetSheet() returned nil")
+	}
+	// Verify the budget entries were parsed
+	if len(got.CategoriesMap) == 0 {
+		t.Errorf("ReadBudgetSheet() returned empty CategoriesMap")
+	}
+}
+
+func Test_budgetService_BudgetRows(t *testing.T) {
 	getValuesProviderFunc = func(rng string) ([][]any, error) {
 		var ret = make([][]any, 0, 3)
 		ret = [][]any{{"Cat 1", "$22.50"}, {"Cat 2", "10.00"}, {"Cat 3", "100.00"}}

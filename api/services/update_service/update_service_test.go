@@ -11,8 +11,6 @@ import (
 	"register/pkg/repository"
 )
 
-const registerServiceJSONDir = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
-
 type RepoMock struct {
 	repository.QueryRepo
 	count int
@@ -111,7 +109,7 @@ func Test_updateService_DedupeAgainstSheet(t *testing.T) {
 	}
 }
 
-func TestFuzzyKeySet(t *testing.T) {
+func Test_updateService_FuzzyKeySet(t *testing.T) {
 	keys := map[string]bool{
 		"amazon:12/31/25:25.00": true,
 		"badkey":                true,

@@ -10,6 +10,29 @@ import (
 	"google.golang.org/api/sheets/v4"
 )
 
+func Test_registerService_ReadRegisterSheet(t *testing.T) {
+	// 10.10: Rewritten to test 9.3 header validation without fixtures.
+	getValuesProviderFunc = func(range_ string) ([][]any, error) {
+		var values [][]any
+		if range_ == "Register!A4:J4" {
+			values = [][]any{{"Recon", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
+			return values, nil
+		}
+		values = [][]any{
+			{"", "WellsFargo", "12/07/20", "TARGET", "46.80", "", "", "8761.12", "", ""},
+		}
+		return values, nil
+	}
+
+	got, err := ss.ReadRegisterSheet(registerSheet)
+	if err != nil {
+		t.Fatalf("ReadRegisterSheet() error = %v", err)
+	}
+	if got == nil {
+		t.Fatal("ReadRegisterSheet() returned nil")
+	}
+}
+
 func Test_registerService_CopyRows_sheetFull(t *testing.T) {
 	svc := NewRegisterService(&providerMock{t: t})
 	registerSheet = &RegisterSheet{
@@ -33,7 +56,7 @@ func Test_registerService_CopyRows_sheetFull(t *testing.T) {
 	}
 }
 
-func Test_sheetsService_copyRowsBatchUpdateRequest(t *testing.T) {
+func Test_registerService_copyRowsBatchUpdateRequest(t *testing.T) {
 	// Self-contained: verifies the request structure without a JSON golden.
 	// The fixture-based golden was stale (predates refactors).
 	registerSheet.SheetCoords.LastRow = 100
@@ -84,7 +107,7 @@ func Test_registerService_populateCells(t *testing.T) {
 	}
 }
 
-func Test_compareColumnHeaders(t *testing.T) {
+func Test_registerService_compareColumnHeaders(t *testing.T) {
 	columns := []models.Column{
 		{Name: "BankRegister", ColumnIndex: 8}, // fixed block: never compared
 		{Name: "Cash", ColumnIndex: 11},
@@ -99,7 +122,7 @@ func Test_compareColumnHeaders(t *testing.T) {
 	}
 }
 
-func Test_shiftFormulaColumn(t *testing.T) {
+func Test_registerService_shiftFormulaColumn(t *testing.T) {
 	tests := []struct {
 		formula string
 		from    string

@@ -2,6 +2,7 @@ package sheets_service
 
 import (
 	"encoding/json"
+	"os"
 	"reflect"
 	"testing"
 
@@ -150,4 +151,15 @@ func Test_monthlyService_readRangeFormulas(t *testing.T) {
 		values[0][0] = "=SUM(A1:A2)"
 		return values, nil
 	}
+}
+
+// readTestFixture reads a test fixture file, skipping the test when the
+// fixture is absent. Fixtures live on Rob's Mac, not in the repo.
+func readTestFixture(t *testing.T, path string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Skipf("fixture not in repo: %s", path)
+	}
+	return b
 }

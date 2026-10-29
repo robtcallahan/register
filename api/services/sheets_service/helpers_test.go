@@ -15,6 +15,8 @@ import (
 	"google.golang.org/api/sheets/v4"
 )
 
+const registerServiceJSONDir = "./api/services/sheets_service/json/"
+
 type providerMock struct {
 	service       *sheets.Service
 	spreadsheetID string
@@ -2000,37 +2002,6 @@ func Test_addCategoryCells(t *testing.T) {
 	}
 }
 
-func Test_getDollarsCellByIndex(t *testing.T) {
-	strings := []string{"X", "Fidelity", "01/02/2023", "Rent", "123.45", "", ""}
-	values := make([]any, len(strings))
-	for i, v := range strings {
-		values[i] = v
-	}
-
-	type args struct {
-		values []any
-		i      int
-	}
-	tests := []struct {
-		name string
-		args args
-		want float64
-	}{
-		{
-			name: "Test get dollar amount by values index",
-			args: args{values: values, i: 4},
-			want: 123.45,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got, _ := getDollarsCellByIndex(tt.args.values, tt.args.i); got != tt.want {
-				t.Errorf("getDollarsCellByIndex() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_getAmountString(t *testing.T) {
 	var (
 		values1 []any
@@ -2084,7 +2055,7 @@ func Test_getAmountString(t *testing.T) {
 	}
 }
 
-func Test_GetDollarsCellByIndex(t *testing.T) {
+func Test_getDollarsCellByIndex(t *testing.T) {
 	type args struct {
 		values []any
 		i      int
