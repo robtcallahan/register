@@ -33,7 +33,7 @@ func ColumnIndexForName(columns []models.Column, name string) int {
 func (c *Client) IncomeMatcher() (*MerchantMatcher, error) {
 	rows := make([]*models.DataRow, len(c.IncomeSources))
 	for i, src := range c.IncomeSources {
-		rows[i] = &models.DataRow{BankName: src.Match, Name: src.Name, MatchType: src.MatchType}
+		rows[i] = &models.DataRow{BankName: src.MatchPattern, Name: src.Name, MatchType: src.MatchType}
 	}
 	return NewMerchantMatcher(rows)
 }

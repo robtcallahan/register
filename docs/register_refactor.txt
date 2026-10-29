@@ -155,5 +155,5 @@ Phase 17 — Cleanup
 - [X] 17.8 Drop dead is_category DB column via goose migration
 - [X] moveColumn(name, moveAfter string) signature fix
 - [X] Shared bufio.Reader for readString/readInt (one reader, created once)
-- [ ] Printing policy design item (progress callback)
+- [X] Printing policy design item (progress callback)
 - [ ] IncomeSource.Match → MatchPattern rename (deferred)

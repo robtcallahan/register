@@ -143,11 +143,6 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.T
 	return tran, nil
 }
 
-func (c *Client) PrintTransactionHead() {
-	fmt.Printf("    [Num] %-25s %-32s %-40s %-40s %12s %12s %12s %12s %7s %5s\n",
-		"Key", "Name", "Bank Name", "Merchant Name", "Withdrawal", "Deposit", "Credit Card", "Amount", "ColIndx", "Color")
-}
-
 func SortTransactions(trans []*models.Transaction) []*models.Transaction {
 	sort.Slice(trans, func(i, j int) bool {
 		if trans[i].Date == trans[j].Date {

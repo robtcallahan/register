@@ -74,10 +74,10 @@ type Config struct {
 // call it in the register. Instances live in config.json; matching and the
 // sheet write are wired up in 5.2/5.3.
 type IncomeSource struct {
-	Name      string `json:"name"`       // display name in the register
-	Match     string `json:"match"`      // bank-name pattern to recognize the deposit
-	MatchType string `json:"match_type"` // "exact" | "substring" | "regex" ("" = substring)
-	Frequency string `json:"frequency"`  // "weekly" | "biweekly" | "monthly"
+	Name         string `json:"name"`          // display name in the register
+	MatchPattern string `json:"match_pattern"` // bank-name pattern to recognize the deposit
+	MatchType    string `json:"match_type"`    // "exact" | "substring" | "regex" ("" = substring)
+	Frequency    string `json:"frequency"`     // "weekly" | "biweekly" | "monthly"
 }
 
 // ReadConfig ...

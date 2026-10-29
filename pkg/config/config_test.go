@@ -21,7 +21,7 @@ func TestConfig_IncomeSources(t *testing.T) {
 		t.Fatalf("got %d income sources, want 2", len(cfg.IncomeSources))
 	}
 	got := cfg.IncomeSources[0]
-	if got.Name != "Taylor House Paycheck" || got.Match != "TAYLOR HOUSE" || got.MatchType != "substring" || got.Frequency != "biweekly" {
+	if got.Name != "Taylor House Paycheck" || got.MatchPattern != "TAYLOR HOUSE" || got.MatchType != "substring" || got.Frequency != "biweekly" {
 		t.Errorf("first source parsed wrong: %+v", got)
 	}
 	if cfg.IncomeSources[1].MatchType != "" {
