@@ -154,6 +154,6 @@ Phase 17 — Cleanup
 - [X] 17.7 Replace gorm.Model with explicit fields (deferred 12.6)
 - [X] 17.8 Drop dead is_category DB column via goose migration
 - [X] moveColumn(name, moveAfter string) signature fix
-- [ ] Shared bufio.Reader for readString/readInt (one reader, created once)
+- [X] Shared bufio.Reader for readString/readInt (one reader, created once)
 - [ ] Printing policy design item (progress callback)
 - [ ] IncomeSource.Match → MatchPattern rename (deferred)

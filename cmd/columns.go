@@ -83,7 +83,6 @@ var columnsDeleteCmd = &cobra.Command{
 }
 
 var (
-	reader      = bufio.NewReader(os.Stdin)
 	addColor    string
 	addAfter    string
 	addNoBudget bool
@@ -270,6 +269,8 @@ func renameColumn(oldName, newName string) error {
 }
 
 func deleteColumn(name string) error {
+	var reader = bufio.NewReader(os.Stdin)
+
 	q, err := columnsQuery()
 	if err != nil {
 		return err
@@ -322,12 +323,12 @@ func deleteColumn(name string) error {
 		for _, m := range merchants {
 			fmt.Printf("  [%d] %-35s -> %s\n", m.ID, m.BankName, m.Name)
 		}
-		if !confirm(fmt.Sprintf("Delete column %q and %d merchant rule(s)? [y/N] ", name, len(merchants))) {
+		if !confirm(reader, fmt.Sprintf("Delete column %q and %d merchant rule(s)? [y/N] ", name, len(merchants))) {
 			fmt.Println("Cancelled.")
 			return nil
 		}
 	} else if !deleteYes {
-		if !confirm(fmt.Sprintf("Delete column %q (%s, index %d)? Its sheet column and accumulated amounts go too. [y/N] ",
+		if !confirm(reader, fmt.Sprintf("Delete column %q (%s, index %d)? Its sheet column and accumulated amounts go too. [y/N] ",
 			name, set.LetterFor(index), index)) {
 			fmt.Println("Cancelled.")
 			return nil
@@ -513,6 +514,6 @@ func checkColumns() error {
 	return fmt.Errorf("%d column problem(s) found", len(problems))
 }
 
-func confirm(prompt string) bool {
+func confirm(reader *bufio.Reader, prompt string) bool {
 	return strings.EqualFold(strings.TrimSpace(readString(reader, prompt)), "y")
 }
