@@ -105,24 +105,12 @@ func init() {
 	_ = columnsAddCmd.MarkFlagRequired("color")
 }
 
-func columnsProvider() (sheets_provider.SheetsProviderInterface, error) {
-	return sheets_provider.New(options.SpreadsheetID, config)
-}
-
 func columnsQuery() (repository.QueryRepo, error) {
 	conn, err := repository.Connect(&config.DB)
 	if err != nil {
 		return nil, err
 	}
 	return mysql.NewMySQLQueryRepo(conn), nil
-}
-
-func columnsRegisterSheetService(provider sheets_provider.SheetsProviderInterface) (*sheets_service.RegisterService, error) {
-	return sheets_service.NewRegisterService(provider), nil
-}
-
-func columnsBudgetSheetService(provider sheets_provider.SheetsProviderInterface) *sheets_service.BudgetService {
-	return sheets_service.NewBudgetService(provider)
 }
 
 func listColumns() error {
@@ -191,19 +179,16 @@ func addColumn(name string) error {
 		return err
 	}
 
-	provider, err := columnsProvider()
+	provider, err := sheets_provider.New(options.SpreadsheetID, config)
 	if err != nil {
 		return err
 	}
-	rs, err := columnsRegisterSheetService(provider)
-	if err != nil {
-		return err
-	}
+	rs := sheets_service.NewRegisterService(provider)
 	registerSheet, err := rs.NewRegisterSheet(config, nil)
 	if err != nil {
 		return err
 	}
-	bs := columnsBudgetSheetService(provider)
+	bs := sheets_service.NewBudgetService(provider)
 	budgetSheet, err := bs.NewBudgetSheet(*config)
 	if err != nil {
 		return err
@@ -251,19 +236,16 @@ func renameColumn(oldName, newName string) error {
 		return err
 	}
 
-	provider, err := columnsProvider()
+	provider, err := sheets_provider.New(options.SpreadsheetID, config)
 	if err != nil {
 		return err
 	}
-	rs, err := columnsRegisterSheetService(provider)
-	if err != nil {
-		return err
-	}
+	rs := sheets_service.NewRegisterService(provider)
 	registerSheet, err := rs.NewRegisterSheet(config, nil)
 	if err != nil {
 		return err
 	}
-	bs := columnsBudgetSheetService(provider)
+	bs := sheets_service.NewBudgetService(provider)
 	budgetSheet, err := bs.NewBudgetSheet(*config)
 	if err != nil {
 		return err
@@ -304,19 +286,16 @@ func deleteColumn(name string) error {
 	}
 	col, _ := set.ByIndex(index)
 
-	provider, err := columnsProvider()
+	provider, err := sheets_provider.New(options.SpreadsheetID, config)
 	if err != nil {
 		return err
 	}
-	rs, err := columnsRegisterSheetService(provider)
-	if err != nil {
-		return err
-	}
+	rs := sheets_service.NewRegisterService(provider)
 	registerSheet, err := rs.NewRegisterSheet(config, nil)
 	if err != nil {
 		return err
 	}
-	bs := columnsBudgetSheetService(provider)
+	bs := sheets_service.NewBudgetService(provider)
 	budgetSheet, err := bs.NewBudgetSheet(*config)
 	if err != nil {
 		return err
@@ -408,19 +387,16 @@ func moveColumn(name, moveAfter string) error {
 		return nil
 	}
 
-	provider, err := columnsProvider()
+	provider, err := sheets_provider.New(options.SpreadsheetID, config)
 	if err != nil {
 		return err
 	}
-	rs, err := columnsRegisterSheetService(provider)
-	if err != nil {
-		return err
-	}
+	rs := sheets_service.NewRegisterService(provider)
 	registerSheet, err := rs.NewRegisterSheet(config, nil)
 	if err != nil {
 		return err
 	}
-	bs := columnsBudgetSheetService(provider)
+	bs := sheets_service.NewBudgetService(provider)
 	budgetSheet, err := bs.NewBudgetSheet(*config)
 	if err != nil {
 		return err
@@ -513,10 +489,7 @@ func checkColumns() error {
 	if err != nil {
 		return err
 	}
-	rs, err := columnsRegisterSheetService(provider)
-	if err != nil {
-		return err
-	}
+	rs := sheets_service.NewRegisterService(provider)
 	registerSheet, err := rs.NewRegisterSheet(config, nil)
 	if err != nil {
 		return err
