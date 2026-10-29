@@ -168,13 +168,18 @@
 - [X] 17.3 Replace string(rune('A'+j)) with models.ColumnLetter
 - [X] 17.4 Extract long functions (InsertBudgetCategory, moveColumn, update, recategorize, readFromUser, deleteColumn, addColumn, PlanCategoryMoves, & UpdateSpreadsheet)
 - [X] 17.5 Delete commented-out and dead code (WriteCSV, etc.)
-- [ ] 17.6 Split sheets_service_test.go by service (register/budget/monthly + shared helpers in helpers_test.go)
+- [X] 17.6 Split sheets_service_test.go by service (register/budget/monthly + shared helpers in helpers_test.go)
 - [X] 17.7 Replace gorm.Model with explicit fields (deferred 12.6)
 - [X] 17.8 Drop dead is_category DB column via goose migration
 - [X] moveColumn(name, moveAfter string) signature fix
 - [X] Shared bufio.Reader for readString/readInt (one reader, created once)
 - [X] Printing policy design item (progress callback)
 - [X] IncomeSource.Match → MatchPattern rename (deferred)
+- [ ] Remove external JSON files from test that use them
+  - [ ] Test_WriteCell — includes the mock's read of the same file, so that goes too
+  - [ ] Test_addAmountCell
+  - [ ] Test_monthlyService_addSummarySalaryRow
+  - [ ] Test_monthlyService_addSummaryTopRow
 
 ## Phase 18 — Test coverage
 
