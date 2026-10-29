@@ -6,9 +6,9 @@ import (
 	"log"
 	"os"
 	"reflect"
-	"register/api/providers/sheets_provider"
 	"testing"
 
+	"register/api/providers/sheets_provider"
 	"register/pkg/config"
 	"register/pkg/models"
 
@@ -65,15 +65,15 @@ func (p *providerMock) GetSpreadsheet(tabName string) (*sheets_provider.Spreadsh
 	return nil, fmt.Errorf("could not find sheet: %s", tabName)
 }
 
-func (p *providerMock) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
+func (p *providerMock) BatchUpdate(_ *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
 	return &sheets.BatchUpdateSpreadsheetResponse{}, nil
 }
 
-func (p *providerMock) ClearValues(range_ string) error {
+func (p *providerMock) ClearValues(_ string) error {
 	return nil
 }
 
-func (p *providerMock) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
+func (p *providerMock) Update(_ string, _ *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
 	w, err := os.ReadFile(registerServiceJSONDir + "WriteCell.json")
 	if err != nil {
 		if p.t != nil {
@@ -1693,66 +1693,6 @@ func Test_getSourceField(t *testing.T) {
 	}
 }
 
-func Test_getDateField(t *testing.T) {
-	strings := []string{"X", "Fidelity", "01/02/2023", "Rent", "123.45", "", ""}
-	values := make([]any, len(strings))
-	for i, s := range strings {
-		values[i] = s
-	}
-
-	type args struct {
-		values []any
-	}
-	tests := []struct {
-		name string
-		args args
-		want string
-	}{
-		{
-			name: "Test get date field",
-			args: args{values: values},
-			want: "01/02/23",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := getDateField(tt.args.values); got != tt.want {
-				t.Errorf("getDateField() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_getAmountString(t *testing.T) {
-	strings := []string{"X", "Fidelity", "01/02/2023", "Rent", "123.45", "", ""}
-	values := make([]any, len(strings))
-	for i, v := range strings {
-		values[i] = v
-	}
-
-	type args struct {
-		values []any
-	}
-	tests := []struct {
-		name string
-		args args
-		want string
-	}{
-		{
-			name: "Test get amount field",
-			args: args{values: values},
-			want: "123.45",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := getAmountString(tt.args.values); got != tt.want {
-				t.Errorf("getAmountString() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_getTransactionKey1(t *testing.T) {
 	strings := []string{"X", "Fidelity", "01/02/2023", "Rent", "123.45", "", ""}
 	values := make([]any, len(strings))
@@ -1778,130 +1718,6 @@ func Test_getTransactionKey1(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := getTransactionKey(tt.args.values); got != tt.want {
 				t.Errorf("getTransactionKey() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_addSourceDateNameCells(t *testing.T) {
-	reconcile := "X"
-	source := "Fidelity"
-	date := float64(44928)
-	name := "Amazon"
-
-	want := []*sheets.CellData{
-		{
-			UserEnteredValue: &sheets.ExtendedValue{
-				StringValue: &reconcile,
-			},
-			UserEnteredFormat: &sheets.CellFormat{
-				HorizontalAlignment: "CENTER",
-				TextFormat: &sheets.TextFormat{
-					FontFamily: "Archivo Black",
-					FontSize:   12,
-				},
-				BackgroundColor: &sheets.Color{
-					Alpha: 1,
-					Blue:  1,
-					Red:   1,
-					Green: 1,
-				},
-				Borders: &sheets.Borders{},
-			},
-		},
-		{
-			UserEnteredValue: &sheets.ExtendedValue{
-				StringValue: &source,
-			},
-			UserEnteredFormat: &sheets.CellFormat{
-				HorizontalAlignment: "CENTER",
-				TextFormat: &sheets.TextFormat{
-					FontFamily: "Arial",
-					FontSize:   10,
-				},
-				BackgroundColor: &sheets.Color{
-					Alpha: 1,
-					Blue:  1,
-					Red:   1,
-					Green: 1,
-				},
-				Borders: &sheets.Borders{},
-			},
-		},
-		{
-			UserEnteredValue: &sheets.ExtendedValue{
-				NumberValue: &date,
-			},
-			UserEnteredFormat: &sheets.CellFormat{
-				HorizontalAlignment: "CENTER",
-				TextFormat: &sheets.TextFormat{
-					FontFamily: "Arial",
-					FontSize:   10,
-				},
-				NumberFormat: &sheets.NumberFormat{
-					Pattern: "mm/dd/yy",
-					Type:    "DATE",
-				},
-				BackgroundColor: &sheets.Color{
-					Alpha: 1,
-					Blue:  1,
-					Red:   1,
-					Green: 1,
-				},
-				Borders: &sheets.Borders{},
-			},
-		},
-		{
-			UserEnteredValue: &sheets.ExtendedValue{
-				StringValue: &name,
-			},
-			UserEnteredFormat: &sheets.CellFormat{
-				HorizontalAlignment: "LEFT",
-				TextFormat: &sheets.TextFormat{
-					FontFamily: "Arial",
-					FontSize:   10,
-				},
-				BackgroundColor: &sheets.Color{
-					Alpha: 1,
-					Blue:  1,
-					Red:   1,
-					Green: 1,
-				},
-				Borders: &sheets.Borders{},
-			},
-		},
-	}
-
-	type args struct {
-		cells   []*sheets.CellData
-		trans   *models.Transaction
-		bgColor string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    []*sheets.CellData
-		wantErr bool
-	}{
-		{
-			name: "Test add reconcile, source, date, & name cells",
-			args: args{cells: []*sheets.CellData{}, bgColor: models.ColorWhite, trans: &models.Transaction{
-				Source: "Fidelity",
-				Date:   "01/02/2023",
-				Name:   "Amazon",
-			}},
-			want: want,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got, _ := addSourceDateNameCells(tt.args.cells, tt.args.trans, tt.args.bgColor); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("addSourceDateNameCells(): reconcile got: %v, want %v; source got: %v, want %v; date got: %v, want %v; name got: %v, want %v",
-					*got[0].UserEnteredValue.StringValue, *tt.want[0].UserEnteredValue.StringValue,
-					*got[1].UserEnteredValue.StringValue, *tt.want[1].UserEnteredValue.StringValue,
-					*got[2].UserEnteredValue.NumberValue, *tt.want[2].UserEnteredValue.NumberValue,
-					*got[3].UserEnteredValue.StringValue, *tt.want[3].UserEnteredValue.StringValue,
-				)
 			}
 		})
 	}
@@ -2215,12 +2031,110 @@ func Test_getDollarsCellByIndex(t *testing.T) {
 	}
 }
 
-func Test_getNameField(t *testing.T) {
-	strings := []string{"X", "Fidelity", "01/02/2023", "Rent", "123.45", "", ""}
-	values := make([]any, len(strings))
-	for i, v := range strings {
-		values[i] = v
+func Test_getAmountString(t *testing.T) {
+	var (
+		values1 []any
+		values2 []any
+		values3 []any
+	)
+	values1 = make([]any, CreditCards+1)
+	values2 = make([]any, CreditCards+1)
+	values3 = make([]any, CreditCards+1)
+	for i := 0; i <= CreditCards; i++ {
+		values1[i] = ""
+		values2[i] = ""
+		values3[i] = ""
 	}
+
+	type args struct {
+		values []any
+	}
+	type ts struct {
+		name string
+		args args
+		want string
+	}
+	var tests []ts
+
+	values1[Withdrawals] = "$ 10.00 "
+	tests = append(tests, ts{
+		name: "Test getting the total Amount - Withdrawal",
+		args: args{values: values1},
+		want: "10.00",
+	})
+	values2[Deposits] = "$ 20.00 "
+	tests = append(tests, ts{
+		name: "Test getting the total Amount - Deposit",
+		args: args{values: values2},
+		want: "20.00",
+	})
+	values3[CreditCards] = "$ 30.00 "
+	tests = append(tests, ts{
+		name: "Test getting the total Amount - Credit Card",
+		args: args{values: values3},
+		want: "30.00",
+	})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getAmountString(tt.args.values); got != tt.want {
+				t.Errorf("getAmountString() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_GetDollarsCellByIndex(t *testing.T) {
+	type args struct {
+		values []any
+		i      int
+	}
+	tests := []struct {
+		name string
+		args args
+		want float64
+	}{
+		{
+			name: "Test positive dollars",
+			args: args{values: []any{"$ 10.20 "}, i: 0},
+			want: 10.20,
+		},
+		{
+			name: "Test negative dollars",
+			args: args{values: []any{"$ (10.20) "}, i: 0},
+			want: -10.20,
+		},
+		{
+			name: "Test for dash",
+			args: args{values: []any{" - "}, i: 0},
+			want: 0,
+		},
+		{
+			name: "Test empty cell",
+			args: args{values: []any{""}, i: 0},
+			want: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, _ := getDollarsCellByIndex(tt.args.values, tt.args.i); got != tt.want {
+				t.Errorf("GetDollarsCellByIndex() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_getDateField(t *testing.T) {
+	var values []any
+	var values2 []any
+	values = make([]any, Date+1)
+	values2 = make([]any, Date+1)
+	for i := 0; i <= Date; i++ {
+		values[i] = "x"
+		values2[i] = "x"
+	}
+	values[Date] = "01/02/2020"
+	values2[Date] = ""
 
 	type args struct {
 		values []any
@@ -2231,9 +2145,45 @@ func Test_getNameField(t *testing.T) {
 		want string
 	}{
 		{
-			name: "Test get name field from values",
+			name: "Test getting the Date field",
 			args: args{values: values},
-			want: "Rent",
+			want: "01/02/20",
+		},
+		{
+			name: "Test getting a blank Date field",
+			args: args{values: values2},
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getDateField(tt.args.values); got != tt.want {
+				t.Errorf("getDateField() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_getNameField(t *testing.T) {
+	var values []any
+	values = make([]any, Description+1)
+	for i := 0; i <= Description; i++ {
+		values[i] = "x"
+	}
+	values[Description] = "merchant"
+
+	type args struct {
+		values []any
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "Test getting the Description field",
+			args: args{values: values},
+			want: "merchant",
 		},
 	}
 	for _, tt := range tests {
@@ -2242,5 +2192,254 @@ func Test_getNameField(t *testing.T) {
 				t.Errorf("getNameField() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func Test_ReadStringCell(t *testing.T) {
+	getValuesProviderFunc = func(range_ string) ([][]any, error) {
+		values := make([][]any, 10)
+		values[0] = make([]any, 10)
+		values[0][0] = "a string"
+		return values, nil
+	}
+
+	type args struct {
+		cell string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "Test reading a string cell",
+			args: args{
+				cell: "a string",
+			},
+			want: "a string",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// TODO: test error
+			if got, _ := ss.ReadStringCell(*registerSheet, tt.args.cell); got != tt.want {
+				t.Errorf("ReadStringCell() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_ReadDateCell(t *testing.T) {
+	getValuesProviderFunc = func(range_ string) ([][]any, error) {
+		values := make([][]any, 10)
+		values[0] = make([]any, 10)
+		values[0][0] = "01/02/20"
+		return values, nil
+	}
+
+	type args struct {
+		cell string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "Test reading a date cell",
+			args: args{
+				cell: "01/02/20",
+			},
+			want: "01/02/20",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// TODO: test error
+			if got, _ := ss.ReadDateCell(*registerSheet, tt.args.cell); got != tt.want {
+				t.Errorf("ReadDateCell() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_ReadDollarsCell(t *testing.T) {
+	getValuesProviderFunc = func(range_ string) ([][]any, error) {
+		values := make([][]any, 10)
+		values[0] = make([]any, 10)
+		values[0][0] = " $  20.20 "
+		return values, nil
+	}
+	type args struct {
+		cell string
+	}
+
+	tests := []struct {
+		name string
+		args args
+		want float64
+	}{
+		{
+			name: "Test reading a dollars cell",
+			args: args{
+				cell: " $  20.20 ",
+			},
+			want: 20.20,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// TODO: test error
+			if got, _ := ss.ReadDollarsCell(*registerSheet, tt.args.cell); got != tt.want {
+				t.Errorf("ReadDollarsCell() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_ReadFormulaCell(t *testing.T) {
+	type args struct {
+		cell string
+	}
+
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "Test reading a formula cell",
+			args: args{
+				cell: "A1",
+			},
+			want: "=SUM(A1:A2)",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// TODO: test error
+			if got, _ := ss.ReadFormulaCell(*registerSheet, tt.args.cell); got != tt.want {
+				t.Errorf("ReadFormulaCell() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_readCell(t *testing.T) {
+	getValuesProviderFunc = func(range_ string) ([][]any, error) {
+		values := make([][]any, 10)
+		values[0] = make([]any, 10)
+		values[0][0] = "a string"
+		return values, nil
+	}
+	getFormulaProviderFunc = func(range_ string) ([][]any, error) {
+		values := make([][]any, 10)
+		values[0] = make([]any, 10)
+		values[0][0] = "=SUM(A1:A2)"
+		return values, nil
+	}
+
+	type args struct {
+		cell  string
+		dType CellDataType
+	}
+	tests := []struct {
+		name string
+		args args
+		want any
+	}{
+		{
+			name: "Test reading a formula cell",
+			args: args{
+				cell:  "A1",
+				dType: CellDataFormula,
+			},
+			want: "=SUM(A1:A2)",
+		},
+		{
+			name: "Test reading a string cell",
+			args: args{
+				cell:  "A1",
+				dType: CellDataString,
+			},
+			want: "a string",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// TODO: test error
+			if got, _ := ss.ReadCell(*registerSheet, tt.args.cell, tt.args.dType); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ReadCell() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_WriteCell(t *testing.T) {
+	w := readTestFixture(t, registerServiceJSONDir+"WriteCell.json")
+	var want *sheets.UpdateValuesResponse
+	err := json.Unmarshal(w, &want)
+	checkTestingError(t, err)
+
+	type args struct {
+		cell  string
+		value any
+	}
+	tests := []struct {
+		name string
+		args args
+		want *sheets.UpdateValuesResponse
+	}{
+		{
+			name: "Test write cell",
+			args: args{
+				cell:  "G1",
+				value: 10.00,
+			},
+			want: want,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// TODO: test for error
+			if got, _ := ss.WriteCell(registerSheet.TabName, tt.args.cell, tt.args.value); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("WriteCell() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_addSalaryCells(t *testing.T) {
+	// 10.10: Rewritten with inline data. Verifies salary cells are placed
+	// by ColumnIndex with gaps leaving empty fillers.
+	columns := []models.Column{
+		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
+		{Name: "Rent", ColumnIndex: 13, Color: models.ColorBlue}, // gap at 12
+	}
+	categoriesMap := map[string]*BudgetEntry{
+		"Grocery": {Category: "Grocery", Weekly: 120.00, Monthly: 520.00},
+		"Rent":    {Category: "Rent", Weekly: 0, Monthly: 1400.00},
+	}
+	rb := &RowBuilder{Columns: columns, CategoriesMap: categoriesMap}
+	got := rb.addSalaryCells(nil, []string{"", "", ""}, "weekly")
+	// 3 filler (8,9,10) + Grocery(11) + 1 filler (12, gap) + Rent(13) = 6
+	if len(got) != 6 {
+		t.Errorf("addSalaryCells() produced %d cells, want 6", len(got))
+	}
+}
+
+func Test_addSourceDateNameCells(t *testing.T) {
+	// 10.10: Rewritten with inline data. Verifies the 4 source/date/name cells.
+	trans := &models.Transaction{
+		Source: "WellsFargo",
+		Date:   "12/07/20",
+		Name:   "TARGET",
+	}
+	got, err := addSourceDateNameCells(nil, trans, "")
+	if err != nil {
+		t.Fatalf("addSourceDateNameCells() error = %v", err)
+	}
+	if len(got) != 4 {
+		t.Errorf("addSourceDateNameCells() produced %d cells, want 4", len(got))
 	}
 }

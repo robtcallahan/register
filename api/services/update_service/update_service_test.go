@@ -2,13 +2,16 @@ package update_service
 
 import (
 	"reflect"
+	"testing"
+
 	"register/api/services/sheets_service"
 	"register/pkg/banking"
 	cfg "register/pkg/config"
 	"register/pkg/models"
 	"register/pkg/repository"
-	"testing"
 )
+
+const registerServiceJSONDir = "/Users/rob/ws/go/src/register/api/services/sheets_service/json/"
 
 type RepoMock struct {
 	repository.QueryRepo
@@ -22,7 +25,7 @@ func (db *RepoMock) UpdateTransactionTables(trans []*models.Transaction) error {
 	return nil
 }
 
-func TestUpdateService_PersistTransactions(t *testing.T) {
+func Test_updateService_PersistTransactions(t *testing.T) {
 	trans := &models.Transaction{
 		Source:     "FooBank",
 		Name:       "Amazon",
@@ -72,7 +75,7 @@ func TestUpdateService_PersistTransactions(t *testing.T) {
 
 }
 
-func TestUpdateService_DedupeAgainstSheet(t *testing.T) {
+func Test_updateService_DedupeAgainstSheet(t *testing.T) {
 	fuzzyMerchants := map[string]bool{
 		"Amazon":             true,
 		"Amazon Marketplace": true,
