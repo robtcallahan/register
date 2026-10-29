@@ -100,7 +100,7 @@ func TestFormatMerchantNames_AppliesRules(t *testing.T) {
 	columns := []models.Column{{Name: "Emergency Fund", ColumnIndex: 42}}
 
 	c := &Client{IncomeSources: []config.IncomeSource{
-		{Name: "50/50 Taphouse Paycheck", Match: "NOVA BEER LLC", MatchType: "substring", Frequency: "weekly"},
+		{Name: "50/50 Taphouse Paycheck", MatchPattern: "NOVA BEER LLC", MatchType: "substring", Frequency: "weekly"},
 	}}
 	income, err := c.IncomeMatcher()
 	if err != nil {

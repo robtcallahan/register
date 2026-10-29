@@ -8,8 +8,8 @@ import (
 func TestConfig_IncomeSources(t *testing.T) {
 	data := []byte(`{
 		"income_sources": [
-			{"name": "Taylor House Paycheck", "match": "TAYLOR HOUSE", "match_type": "substring", "frequency": "biweekly"},
-			{"name": "Social Security", "match": "SSA", "frequency": "monthly"}
+			{"name": "Taylor House Paycheck", "match_pattern": "TAYLOR HOUSE", "match_type": "substring", "frequency": "biweekly"},
+			{"name": "Social Security", "match_pattern": "SSA", "frequency": "monthly"}
 		]
 	}`)
 

@@ -156,4 +156,4 @@ Phase 17 — Cleanup
 - [X] moveColumn(name, moveAfter string) signature fix
 - [X] Shared bufio.Reader for readString/readInt (one reader, created once)
 - [X] Printing policy design item (progress callback)
-- [ ] IncomeSource.Match → MatchPattern rename (deferred)
+- [X] IncomeSource.Match → MatchPattern rename (deferred)
