@@ -262,7 +262,7 @@ func (s *UpdateService) DedupeAgainstSheet(transactions []*models.Transaction, k
 // --dry-run runs.
 func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) error {
 	if len(transactions) == 0 || s.Options.DryRun {
-		fmt.Println("No updates needed")
+		s.Progress("No updates needed")
 		return nil
 	}
 
@@ -275,32 +275,27 @@ func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) er
 		return err
 	}
 
-	fmt.Printf("Reading Budget...\n")
 	if _, err := s.BudgetService.ReadBudgetSheet(budgetSheet); err != nil {
 		return err
 	}
-
-	fmt.Printf("Reading Register...\n")
 	registerSheet, err = s.RegisterService.ReadRegisterSheet(registerSheet)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", "Num", "Source", "Date", "Amount", "Name", "Note")
-	fmt.Printf("    (%3s) %-12s %-10s %8s %-30s %s\n", dashes(3), dashes(12), dashes(10), dashes(8), dashes(30), dashes(15))
+	s.Progress(fmt.Sprintf("    (%3s) %-12s %-10s %8s %-30s %s", "Num", "Source", "Date", "Amount", "Name", "Note"))
+	s.Progress(fmt.Sprintf("    (%3s) %-12s %-10s %8s %-30s %s", dashes(3), dashes(12), dashes(10), dashes(8), dashes(30), dashes(15)))
 	for i, r := range transactions {
-		fmt.Printf("    (%3d) %-12s %-10s %8.2f %-30s %s\n", i+1, r.Source, r.Date, -1*r.Amount, r.Name, r.Note)
+		s.Progress(fmt.Sprintf("    (%3d) %-12s %-10s %8.2f %-30s %s", i+1, r.Source, r.Date, -1*r.Amount, r.Name, r.Note))
 	}
 
 	// add the needed number of rows for transactions
-	fmt.Println("Adding rows...")
+	fmt.Println("  - adding rows...")
 	if err := s.RegisterService.CopyRows(*registerSheet, len(transactions)); err != nil {
 		return err
 	}
 
-	fmt.Printf("Transaction updates...\n")
-
-	fmt.Printf("Updating spreadsheet...\n")
+	s.Progress("  - updating spreadsheet...")
 	columns, err := s.QueryRepo.GetColumns()
 	if err != nil {
 		return err

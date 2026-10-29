@@ -102,7 +102,7 @@ func update() error {
 			return err
 		}
 
-		fmt.Println("Applying transactions...")
+		fmt.Println("Applying transactions:")
 		err = updateService.ApplyTransactions(registerSheet.TabName, transactions)
 		if err != nil {
 			return err
