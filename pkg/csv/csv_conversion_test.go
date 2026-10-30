@@ -6,7 +6,7 @@ import (
 	"register/pkg/models"
 )
 
-func TestProcessWellsFargoData(t *testing.T) {
+func Test_processWellsFargoData(t *testing.T) {
 	tests := []struct {
 		name     string
 		rows     []*WellsFargo
@@ -112,7 +112,94 @@ func TestProcessWellsFargoData(t *testing.T) {
 	}
 }
 
-func TestProcessCheck(t *testing.T) {
+func Test_processFidelityData(t *testing.T) {
+	tests := []struct {
+		name     string
+		rows     []*FidelityVisa
+		bankID   string
+		checkIdx int
+		checkTx  *models.Transaction
+	}{
+		{
+			// "Date","Transaction","Name","Memo","Amount"
+			// "2026-09-28","DEBIT","Netflix.com            netflix.com   CA","24906416269268023334511; 04899; ; 5409ROBERTCALLAHAN; ; ;","-19.99"
+			name: "charge (positive amount)",
+			rows: []*FidelityVisa{
+				{Date: "2026-09-28", Transaction: "DEBIT", Name: "Netflix.com            netflix.com   CA", Memo: "24906416269268023334511; 04899; ; 5409ROBERTCALLAHAN; ; ;", Amount: -19.99},
+			},
+			bankID:   models.FidelityID,
+			checkIdx: 0,
+			checkTx: &models.Transaction{
+				Source:         "Fidelity",
+				Date:           "09/28/26",
+				Amount:         -19.99,
+				Name:           "Netflix.com            netflix.com   CA",
+				BankName:       "Netflix.com            netflix.com   CA",
+				CreditCard:     19.99,
+				CreditPurchase: 19.99,
+				Key:            "fidelity:09/28/26:19.99",
+			},
+		},
+		{
+			// "Date","Transaction","Name","Memo","Amount"
+			// "2026-10-20","CREDIT","PROV FR CR CFK8M96SC4          # 7515","SDSPRBPD6292214351; 05999; ; 5409ROBERTCALLAHAN; ; ;","26.01"
+			name: "credit (negative amount)",
+			rows: []*FidelityVisa{
+				{Date: "2026-10-20", Transaction: "CREDIT", Name: "PROV FR CR CFK8M96SC4          # 7515", Memo: "SDSPRBPD6292214351; 05999; ; 5409ROBERTCALLAHAN; ; ;", Amount: 26.01},
+			},
+			bankID:   models.FidelityID,
+			checkIdx: 0,
+			checkTx: &models.Transaction{
+				Source:         "Fidelity",
+				Date:           "10/20/26",
+				Amount:         26.01,
+				Name:           "PROV FR CR CFK8M96SC4          # 7515",
+				BankName:       "PROV FR CR CFK8M96SC4          # 7515",
+				CreditCard:     -26.01,
+				CreditPurchase: -26.01,
+				Key:            "fidelity:10/20/26:-26.01",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := processFidelityData(tt.rows, tt.bankID)
+			if len(got) != 1 {
+				t.Fatalf("got %d transactions, want 1", len(got))
+			}
+			tx := got[tt.checkIdx]
+			want := tt.checkTx
+
+			if tx.Source != want.Source {
+				t.Errorf("Source = %q, want %q", tx.Source, want.Source)
+			}
+			if tx.Date != want.Date {
+				t.Errorf("Date = %q, want %q", tx.Date, want.Date)
+			}
+			if tx.Amount != want.Amount {
+				t.Errorf("Amount = %v, want %v", tx.Amount, want.Amount)
+			}
+			if tx.Name != want.Name {
+				t.Errorf("Name = %q, want %q", tx.Name, want.Name)
+			}
+			if tx.BankName != want.BankName {
+				t.Errorf("BankName = %q, want %q", tx.BankName, want.BankName)
+			}
+			if tx.CreditCard != want.CreditCard {
+				t.Errorf("CreditCard = %v, want %v", tx.Deposit, want.Deposit)
+			}
+			if tx.CreditPurchase != want.CreditPurchase {
+				t.Errorf("CreditPurchase = %v, want %v", tx.Deposit, want.Deposit)
+			}
+			if tx.Key != want.Key {
+				t.Errorf("Key = %q, want %q", tx.Key, want.Key)
+			}
+		})
+	}
+}
+
+func Test_processCheck(t *testing.T) {
 	tests := []struct {
 		name         string
 		checkNumber  string
@@ -179,7 +266,7 @@ func TestProcessCheck(t *testing.T) {
 	}
 }
 
-func TestProcessWellsFargoData_Multiple(t *testing.T) {
+func Test_processWellsFargoData_Multiple(t *testing.T) {
 	rows := []*WellsFargo{
 		{Date: "12/07/2020", Description: "TARGET", Amount: -46.80},
 		{Date: "12/08/2020", Description: "AMAZON", Amount: -29.66},

@@ -183,4 +183,40 @@
 
 ## Phase 18 — Test coverage
 
-*Scope: instructive subset by Rob, bulk by Muse. Specific cases to be chosen at kickoff from a coverage report.*
+Scope: instructive subset by Rob, bulk by Muse. Kickoff coverage (2026-10-30): 28.6% total (up from 25% at Phase 10) — 140 functions at exactly 0%, 41 more partially covered.
+
+## Rob's instructive subset (8)
+
+One case per technique, chosen from real coverage gaps. Rob writes these with guidance.
+
+- [ ] 18.1 `LoadTransactions` (update_service) — service test with fakes (provider/banking/csv seams)
+- [ ] 18.2 `PrepareTransactions` (update_service) — composition test (its stages are already tested individually)
+- [ ] 18.3 `ExtendBudgetTotalsFormulas` (budget_service) — table-driven, concrete row numbers
+- [ ] 18.4 `Aggregate` (monthly_service) — table-driven, map in / map out
+- [ ] 18.5 A csv process function (csv package, 9.5%) — table-driven conversions
+- [ ] 18.6 `FindByBankPattern` (banking) — table-driven matcher logic
+- [ ] 18.7 An error-path test — e.g. a `getTransactions` failure propagating up
+- [ ] 18.8 A provider test via the fake-Google server — `GetFormula` or `BatchUpdate` (only `GetValues` is covered there)
+
+## Muse's bulk remainder
+
+Everything else, by package (zero-coverage counts after removing the 7 distinct zero-coverage functions in Rob's subset; the error-path case overlaps the update_service zeros). Partials topped up alongside.
+
+- [ ] sheets_service — 39 zero + 32 partial (budget/register/monthly/columns/write/row_builder)
+- [ ] cmd — 31 zero + 1 partial (cobra harness technique)
+- [ ] csv — 18 zero
+- [ ] update_service — 8 zero + 2 partial (remaining pipeline stages)
+- [ ] banking — 8 zero + 2 partial (excludes `FindByBankPattern`)
+- [ ] sheets_provider — 4 zero + 1 partial (excludes `GetFormula`)
+- [ ] models — 2 zero + 3 partial
+- [ ] repository — 2 zero
+- [ ] config — 1 zero
+- [ ] root package — 1 zero
+- [ ] sheets_auth — 4 zero (deferred: token-file flows need a strategy first)
+- [ ] mysql — 13 zero (separate item: test-database strategy first, per the 10.13 pattern)
+- [ ] plaid_auth — 2 zero (excluded: interactive browser flows, not unit-testable)
+
+## Sequencing
+
+- Bulk batch 1 (Muse, started 2026-10-30 in background): sheets_service + banking unit-testable zeros.
+- Rob's subset: starts Friday 2026-10-30 after work/evening, continues Saturday 2026-10-31 (day off).

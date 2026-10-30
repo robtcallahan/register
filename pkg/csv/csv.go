@@ -306,6 +306,7 @@ func processFidelityData(fidelity []*FidelityVisa, bankID string) []*models.Tran
 		t := &models.Transaction{
 			Source:         "Fidelity",
 			Date:           models.ReadDateValue(f.Date),
+			Name:           f.Name,
 			BankName:       f.Name,
 			Amount:         f.Amount,      // amount stays as is
 			CreditPurchase: -1 * f.Amount, // convert to positive
