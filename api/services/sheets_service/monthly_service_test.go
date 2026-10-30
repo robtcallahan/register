@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"register/pkg/models"
 	"testing"
 
 	"google.golang.org/api/sheets/v4"
@@ -38,16 +39,16 @@ func Test_monthlyService_updateMonthly(t *testing.T) {
 
 func Test_monthlyService_addSummarySalaryRow(t *testing.T) {
 	months := []string{"Jan", "Feb", "Mar"}
-	v := float64(30)
-	cellData := &sheets.CellData{
-		EffectiveValue: &sheets.ExtendedValue{
-			NumberValue: &v,
-		},
-	}
-	rowData := make([]*sheets.CellData, 1)
-	rowData[0] = cellData
+
+	// the full want is name cell, three month cells, this SUM cell, and the AVERAGE cell.
+	nameCell := mkCellDataString("CrowdStrike Salary", "right", models.ColorGrey, false)
+	janCell := mkCellDataDollars(10.0, "right", models.ColorGrey, false)
+	febCell := mkCellDataDollars(10.0, "right", models.ColorGrey, false)
+	marCell := mkCellDataDollars(10.0, "right", models.ColorGrey, false)
+	sumCell := mkCellDataFormula("=SUM(B10:D10) * -1", "right", models.ColorGrey, false)
+	avgCell := mkCellDataFormula("=AVG(B10:D10) * -1", "right", models.ColorGrey, false)
 	want := &sheets.RowData{
-		Values: rowData,
+		Values: []*sheets.CellData{nameCell, janCell, febCell, marCell, sumCell, avgCell},
 	}
 
 	aggData := make(map[string]map[string]float64)
@@ -59,9 +60,10 @@ func Test_monthlyService_addSummarySalaryRow(t *testing.T) {
 	aggData["Mar"]["CrowdStrike Salary"] = 10.00
 
 	type args struct {
-		rNum    int
-		months  []string
-		aggData map[string]map[string]float64
+		rNum     int
+		cellName string
+		months   []string
+		aggData  map[string]map[string]float64
 	}
 	tests := []struct {
 		name string
@@ -70,13 +72,13 @@ func Test_monthlyService_addSummarySalaryRow(t *testing.T) {
 	}{
 		{
 			name: "Test add salary row",
-			args: args{rNum: 10, months: months, aggData: aggData},
+			args: args{cellName: "CrowdStrike Salary", rNum: 10, months: months, aggData: aggData},
 			want: want,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := addSummarySalaryRow("", tt.args.rNum, tt.args.months, tt.args.aggData); !reflect.DeepEqual(got, tt.want) {
+			if got := addSummarySalaryRow(tt.args.cellName, tt.args.rNum, tt.args.months, tt.args.aggData); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("addSummarySalaryRow() = %v, want %v", got, tt.want)
 			}
 		})
