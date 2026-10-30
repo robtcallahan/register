@@ -202,7 +202,7 @@ One case per technique, chosen from real coverage gaps. Rob writes these with gu
 
 Everything else, by package (zero-coverage counts after removing the 7 distinct zero-coverage functions in Rob's subset; the error-path case overlaps the update_service zeros). Partials topped up alongside.
 
-- [ ] sheets_service — 39 zero + 32 partial (budget/register/monthly/columns/write/row_builder)
+- [X] sheets_service — 39 zero + 32 partial (budget/register/monthly/columns/write/row_builder)
 - [ ] cmd — 31 zero + 1 partial (cobra harness technique)
 - [ ] csv — 18 zero
 - [ ] update_service — 8 zero + 2 partial (remaining pipeline stages)
