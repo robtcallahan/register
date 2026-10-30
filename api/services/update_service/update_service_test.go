@@ -25,9 +25,9 @@ func (db *RepoMock) UpdateTransactionTables(trans []*models.Transaction) error {
 
 func Test_updateService_PersistTransactions(t *testing.T) {
 	trans := &models.Transaction{
-		Source:     "FooBank",
-		Name:       "Amazon",
-		CreditCard: 299.99,
+		Source:         "FooBank",
+		Name:           "Amazon",
+		CreditPurchase: 299.99,
 	}
 	type Want struct {
 		count int

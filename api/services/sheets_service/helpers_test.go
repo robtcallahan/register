@@ -1998,10 +1998,10 @@ func Test_getAmountString(t *testing.T) {
 		values2 []any
 		values3 []any
 	)
-	values1 = make([]any, CreditCards+1)
-	values2 = make([]any, CreditCards+1)
-	values3 = make([]any, CreditCards+1)
-	for i := 0; i <= CreditCards; i++ {
+	values1 = make([]any, CreditPurchase+1)
+	values2 = make([]any, CreditPurchase+1)
+	values3 = make([]any, CreditPurchase+1)
+	for i := 0; i <= CreditPurchase; i++ {
 		values1[i] = ""
 		values2[i] = ""
 		values3[i] = ""
@@ -2029,7 +2029,7 @@ func Test_getAmountString(t *testing.T) {
 		args: args{values: values2},
 		want: "20.00",
 	})
-	values3[CreditCards] = "$ 30.00 "
+	values3[CreditPurchase] = "$ 30.00 "
 	tests = append(tests, ts{
 		name: "Test getting the total Amount - Credit Card",
 		args: args{values: values3},
