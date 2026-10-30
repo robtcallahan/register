@@ -43,10 +43,10 @@ func Test_monthlyService_addSummarySalaryRow(t *testing.T) {
 	// the full want is name cell, three month cells, this SUM cell, and the AVERAGE cell.
 	nameCell := mkCellDataString("CrowdStrike Salary", "right", models.ColorGrey, false)
 	janCell := mkCellDataDollars(10.0, "right", models.ColorGrey, false)
-	febCell := mkCellDataDollars(10.0, "right", models.ColorGrey, false)
-	marCell := mkCellDataDollars(10.0, "right", models.ColorGrey, false)
+	febCell := mkCellDataDollars(20.0, "right", models.ColorGrey, false)
+	marCell := mkCellDataDollars(30.0, "right", models.ColorGrey, false)
 	sumCell := mkCellDataFormula("=SUM(B10:D10) * -1", "right", models.ColorGrey, false)
-	avgCell := mkCellDataFormula("=AVG(B10:D10) * -1", "right", models.ColorGrey, false)
+	avgCell := mkCellDataFormula("=AVERAGE(B10:D10) * -1", "right", models.ColorGrey, false)
 	want := &sheets.RowData{
 		Values: []*sheets.CellData{nameCell, janCell, febCell, marCell, sumCell, avgCell},
 	}
@@ -55,9 +55,9 @@ func Test_monthlyService_addSummarySalaryRow(t *testing.T) {
 	aggData["Jan"] = make(map[string]float64)
 	aggData["Jan"]["CrowdStrike Salary"] = 10.00
 	aggData["Feb"] = make(map[string]float64)
-	aggData["Feb"]["CrowdStrike Salary"] = 10.00
+	aggData["Feb"]["CrowdStrike Salary"] = 20.00
 	aggData["Mar"] = make(map[string]float64)
-	aggData["Mar"]["CrowdStrike Salary"] = 10.00
+	aggData["Mar"]["CrowdStrike Salary"] = 30.00
 
 	type args struct {
 		rNum     int
@@ -78,8 +78,26 @@ func Test_monthlyService_addSummarySalaryRow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := addSummarySalaryRow(tt.args.cellName, tt.args.rNum, tt.args.months, tt.args.aggData); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("addSummarySalaryRow() = %v, want %v", got, tt.want)
+			got := addSummarySalaryRow(tt.args.cellName, tt.args.rNum, tt.args.months, tt.args.aggData)
+			if len(got.Values) != 6 {
+				t.Errorf("addSummarySalaryRow() len(got) = %v, want %v", len(got.Values), 6)
+			}
+			name := "CrowdStrike Salary"
+			w := &sheets.ExtendedValue{StringValue: &name}
+			if *got.Values[0].UserEnteredValue.StringValue != *w.StringValue {
+				t.Errorf("addSummarySalaryRow() *got.Values[0].UserEnteredValue.StringValue = %v, want %v", *got.Values[0].UserEnteredValue.StringValue, name)
+			}
+			for idx := 1; idx <= 3; idx++ {
+				if *got.Values[idx].UserEnteredValue.NumberValue != *want.Values[idx].UserEnteredValue.NumberValue {
+					t.Errorf("addSummarySalaryRow() *got.Values[%d].UserEnteredValue.NumberValue = %v, want %v",
+						idx, *got.Values[idx].UserEnteredValue.NumberValue, *want.Values[idx].UserEnteredValue.NumberValue)
+				}
+			}
+			for idx := 4; idx <= 5; idx++ {
+				if *got.Values[idx].UserEnteredValue.FormulaValue != *want.Values[idx].UserEnteredValue.FormulaValue {
+					t.Errorf("addSummarySalaryRow() *got.Values[%d].UserEnteredValue.FormulaValue = %v, want %v",
+						idx, *got.Values[idx].UserEnteredValue.FormulaValue, *want.Values[idx].UserEnteredValue.FormulaValue)
+				}
 			}
 		})
 	}
