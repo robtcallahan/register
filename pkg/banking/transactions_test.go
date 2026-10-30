@@ -142,9 +142,6 @@ func TestBuildTransaction_Fidelity(t *testing.T) {
 	if got.CreditPurchase != 29.66 {
 		t.Errorf("CreditPurchase = %v, want 29.66", got.CreditPurchase)
 	}
-	if got.CreditCard != 29.66 {
-		t.Errorf("CreditCard = %v, want 29.66", got.CreditCard)
-	}
 	if got.Budget != -29.66 {
 		t.Errorf("Budget = %v, want -29.66", got.Budget)
 	}
@@ -182,9 +179,6 @@ func TestBuildTransaction_Chase(t *testing.T) {
 	}
 	if got.CreditPurchase != 85.42 {
 		t.Errorf("CreditPurchase = %v, want 85.42", got.CreditPurchase)
-	}
-	if got.CreditCard != 85.42 {
-		t.Errorf("CreditCard = %v, want 85.42", got.CreditCard)
 	}
 	if got.Budget != -85.42 {
 		t.Errorf("Budget = %v, want -85.42", got.Budget)

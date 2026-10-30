@@ -19,7 +19,6 @@ type Transaction struct {
 	Deposit        float64 // the amount that goes in the Deposit column (positive)
 	CreditPurchase float64 // the amount that goes in the Credit Purchases column (positive)
 	Budget         float64 // the amount that goes in the Budget category column (negative)
-	CreditCard     float64 // the amount that goes in the Credit Card column (positive)
 	ColumnIndex    int
 	Color          string
 	IsCategory     bool

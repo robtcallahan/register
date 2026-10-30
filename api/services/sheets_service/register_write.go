@@ -152,7 +152,7 @@ func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, colum
 			cells = append(cells, mkCellDataFormula(totalsFormulas[i], "right", col.Color, false))
 		} else if isCreditCardTransaction(trans.Source, col.Name) {
 			// enter a positive value in the credit card column
-			cells = append(cells, mkCellDataDollars(trans.CreditCard, "left", models.ColorGrey, true))
+			cells = append(cells, mkCellDataDollars(trans.CreditPurchase, "left", models.ColorGrey, true))
 		} else if trans.ColumnIndex != 0 && trans.ColumnIndex == col.ColumnIndex {
 			cells = append(cells, mkCellDataDollars(trans.Budget, "left", col.Color, true))
 		} else if isCorrectBudgetColumn(trans.Name, col.Name, transNameToColName) {

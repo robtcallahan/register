@@ -75,7 +75,7 @@ func getAmountString(values []any) string {
 		v = getStringField(values, Deposits)
 	}
 	if v == "" {
-		v = getStringField(values, CreditCards)
+		v = getStringField(values, CreditPurchase)
 	}
 
 	// Accounting format: (123.45) means negative

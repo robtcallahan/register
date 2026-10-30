@@ -242,6 +242,7 @@ func processWellsFargoData(wellsFargo []*WellsFargo, bankID string) []*models.Tr
 			Date:     models.ReadDateValue(wf.Date),
 			Amount:   wf.Amount,
 			BankName: wf.Description,
+			Name:     wf.Description,
 			Budget:   wf.Amount,
 		}
 		if wf.Amount < 0 {
@@ -310,10 +311,9 @@ func processFidelityData(fidelity []*FidelityVisa, bankID string) []*models.Tran
 			BankName:       f.Name,
 			Amount:         f.Amount,      // amount stays as is
 			CreditPurchase: -1 * f.Amount, // convert to positive
-			CreditCard:     -1 * f.Amount, // convert to positive
 			Budget:         f.Amount,      // already negative
 		}
-		t.Key = models.TransactionKey(bankID, t.Date, t.CreditCard)
+		t.Key = models.TransactionKey(bankID, t.Date, t.CreditPurchase)
 		trans = append(trans, t)
 	}
 	return trans
@@ -349,11 +349,11 @@ func processChaseData(chase []*ChaseVisa, bankID string) []*models.Transaction {
 			Key:            models.TransactionKey(bankID, models.ReadDateValue(c.TransactionDate), -1*c.Amount),
 			Source:         "Chase",
 			Date:           models.ReadDateValue(c.TransactionDate),
-			Amount:         c.Amount, // amount stays as is
-			CreditPurchase: c.Amount, // convert to positive to be added to CreditCard column (like Deposit/Withdrawal)
-			CreditCard:     c.Amount, // convert to positive
-			Budget:         c.Amount, // already negative to be subtracted from budget column
+			Amount:         c.Amount,      // amount stays as is
+			CreditPurchase: c.Amount * -1, // convert to positive to be added to CreditPurchase column (like Deposit/Withdrawal)
+			Budget:         c.Amount,      // already negative to be subtracted from budget column
 			BankName:       c.Description,
+			Name:           c.Description,
 		}
 		trans = append(trans, t)
 	}
@@ -389,12 +389,13 @@ func processBankOfAmericaData(boa []*BankOfAmerica, bankID string) []*models.Tra
 		}
 
 		t := &models.Transaction{
-			Key:        models.TransactionKey(bankID, models.ReadDateValue(b.PostedDate), b.Amount),
-			Source:     bankID,
-			Date:       models.ReadDateValue(b.PostedDate),
-			Amount:     -b.Amount,
-			CreditCard: -b.Amount,
-			BankName:   b.Payee,
+			Key:            models.TransactionKey(bankID, models.ReadDateValue(b.PostedDate), b.Amount),
+			Source:         bankID,
+			Date:           models.ReadDateValue(b.PostedDate),
+			Amount:         -b.Amount,
+			CreditPurchase: b.Amount,
+			BankName:       b.Payee,
+			Name:           b.Payee,
 		}
 		trans = append(trans, t)
 	}

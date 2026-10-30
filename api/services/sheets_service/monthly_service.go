@@ -95,7 +95,7 @@ func (ms *MonthlyService) Aggregate(registerSheet RegisterSheet, cols []models.C
 			if _, ok := payeeAgg[k]; !ok {
 				payeeAgg[k] = make(map[string]float64)
 			}
-			payeeAgg[k][r.Name] = payeeAgg[k][r.Name] + r.Deposit - r.Withdrawal - r.CreditCard
+			payeeAgg[k][r.Name] = payeeAgg[k][r.Name] + r.Deposit - r.Withdrawal - r.CreditPurchase
 
 			if _, ok := catAgg[k]; !ok {
 				catAgg[k] = make(map[string]float64)

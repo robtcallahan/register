@@ -22,20 +22,20 @@ type SheetCoords struct {
 }
 
 type RegisterEntry struct {
-	RowID        int64
-	IsCheck      bool
-	Key          string
-	Reconciled   string
-	Source       string
-	Date         string
-	Name         string
-	Amount       float64
-	Withdrawal   float64
-	Deposit      float64
-	CreditCard   float64
-	BankRegister float64
-	Cleared      float64
-	Delta        float64
+	RowID          int64
+	IsCheck        bool
+	Key            string
+	Reconciled     string
+	Source         string
+	Date           string
+	Name           string
+	Amount         float64
+	Withdrawal     float64
+	Deposit        float64
+	CreditPurchase float64
+	BankRegister   float64
+	Cleared        float64
+	Delta          float64
 }
 
 type RegisterSheet struct {
@@ -261,7 +261,7 @@ func (ss *RegisterService) populateRegisterEntry(values []any) (*RegisterEntry, 
 	if err != nil {
 		return nil, err
 	}
-	creditCard, err := getDollarsCellByIndex(values, CreditCards)
+	creditPurchase, err := getDollarsCellByIndex(values, CreditPurchase)
 	if err != nil {
 		return nil, err
 	}
@@ -278,17 +278,17 @@ func (ss *RegisterService) populateRegisterEntry(values []any) (*RegisterEntry, 
 		return nil, err
 	}
 	entry := &RegisterEntry{
-		Key:          getTransactionKey(values),
-		Reconciled:   getStringField(values, Reconciled),
-		Source:       getSourceField(values),
-		Date:         getDateField(values),
-		Name:         getNameField(values),
-		Withdrawal:   withdrawal,
-		Deposit:      deposit,
-		CreditCard:   creditCard,
-		BankRegister: bankRegister,
-		Cleared:      cleared,
-		Delta:        delta,
+		Key:            getTransactionKey(values),
+		Reconciled:     getStringField(values, Reconciled),
+		Source:         getSourceField(values),
+		Date:           getDateField(values),
+		Name:           getNameField(values),
+		Withdrawal:     withdrawal,
+		Deposit:        deposit,
+		CreditPurchase: creditPurchase,
+		BankRegister:   bankRegister,
+		Cleared:        cleared,
+		Delta:          delta,
 	}
 	return entry, nil
 }

@@ -191,7 +191,7 @@ func (s *UpdateService) WriteRawTransactionsCSV(transactions []*models.Transacti
 			strconv.FormatFloat(t.Amount, 'f', 2, 64),
 			strconv.FormatFloat(t.Deposit, 'f', 2, 64),
 			strconv.FormatFloat(t.Withdrawal, 'f', 2, 64),
-			strconv.FormatFloat(t.CreditCard, 'f', 2, 64),
+			strconv.FormatFloat(t.CreditPurchase, 'f', 2, 64),
 		}
 		if err := w.Write(record); err != nil {
 			return fmt.Errorf("error writing to file: %w", err)

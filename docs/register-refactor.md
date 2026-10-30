@@ -193,7 +193,7 @@ One case per technique, chosen from real coverage gaps. Rob writes these with gu
 - [ ] 18.2 `PrepareTransactions` (update_service) — composition test (its stages are already tested individually)
 - [ ] 18.3 `ExtendBudgetTotalsFormulas` (budget_service) — table-driven, concrete row numbers
 - [ ] 18.4 `Aggregate` (monthly_service) — table-driven, map in / map out
-- [ ] 18.5 A csv process function (csv package, 9.5%) — table-driven conversions
+- [X] 18.5 A csv process function (csv package, 9.5%) — table-driven conversions
 - [ ] 18.6 `FindByBankPattern` (banking) — table-driven matcher logic
 - [ ] 18.7 An error-path test — e.g. a `getTransactions` failure propagating up
 - [ ] 18.8 A provider test via the fake-Google server — `GetFormula` or `BatchUpdate` (only `GetValues` is covered there)

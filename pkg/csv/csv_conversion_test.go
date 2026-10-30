@@ -135,7 +135,6 @@ func Test_processFidelityData(t *testing.T) {
 				Amount:         -19.99,
 				Name:           "Netflix.com            netflix.com   CA",
 				BankName:       "Netflix.com            netflix.com   CA",
-				CreditCard:     19.99,
 				CreditPurchase: 19.99,
 				Key:            "fidelity:09/28/26:19.99",
 			},
@@ -155,7 +154,6 @@ func Test_processFidelityData(t *testing.T) {
 				Amount:         26.01,
 				Name:           "PROV FR CR CFK8M96SC4          # 7515",
 				BankName:       "PROV FR CR CFK8M96SC4          # 7515",
-				CreditCard:     -26.01,
 				CreditPurchase: -26.01,
 				Key:            "fidelity:10/20/26:-26.01",
 			},
@@ -185,9 +183,6 @@ func Test_processFidelityData(t *testing.T) {
 			}
 			if tx.BankName != want.BankName {
 				t.Errorf("BankName = %q, want %q", tx.BankName, want.BankName)
-			}
-			if tx.CreditCard != want.CreditCard {
-				t.Errorf("CreditCard = %v, want %v", tx.Deposit, want.Deposit)
 			}
 			if tx.CreditPurchase != want.CreditPurchase {
 				t.Errorf("CreditPurchase = %v, want %v", tx.Deposit, want.Deposit)

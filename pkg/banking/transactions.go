@@ -120,7 +120,6 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.T
 		tran.Amount = p.Amount         // amount stays as is (positive)
 		cc := p.Amount                 // keep positive
 		tran.CreditPurchase = p.Amount // keep positive
-		tran.CreditCard = p.Amount     // keep positive
 		tran.Budget = -1 * p.Amount    // budget category column negative
 		tran.Key = models.TransactionKey(tran.Source, tran.Date, cc)
 		if tran.Name == "" {
@@ -131,7 +130,6 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.T
 		tran.Amount = p.Amount         // amount stays as is (positive)
 		cc := p.Amount                 // keep positive
 		tran.CreditPurchase = p.Amount // keep positive
-		tran.CreditCard = p.Amount     // keep positive
 		tran.Budget = -1 * p.Amount    // budget category column negative
 		tran.Key = models.TransactionKey(tran.Source, tran.Date, cc)
 		if tran.Name == "" {

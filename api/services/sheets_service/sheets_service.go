@@ -14,7 +14,7 @@ const (
 	Description               = 3
 	Withdrawals               = 4
 	Deposits                  = 5
-	CreditCards               = 6
+	CreditPurchase            = 6
 	BankRegister              = 7
 	Cleared                   = 8
 	Delta                     = 9
