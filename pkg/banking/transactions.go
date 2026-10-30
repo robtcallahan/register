@@ -35,7 +35,7 @@ func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([
 	var errors strings.Builder
 	for _, bankID := range bankIDs {
 		bankConfig := c.Banks[bankID]
-		c.Progress(fmt.Sprintf("        %s", bankConfig.Name))
+		c.Progress(fmt.Sprintf("    > %s", bankConfig.Name))
 
 		transResp, err := c.getPlaidTransactions(bankConfig, startDate, endDate)
 		if err != nil {

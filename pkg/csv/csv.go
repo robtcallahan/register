@@ -142,7 +142,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 		switch bankID {
 		case models.FidelityID:
 			{
-				c.Progress("        Fidelity")
+				c.Progress("    > Fidelity")
 				trans, err := c.readFidelityCSV()
 				if err != nil {
 					return nil, fmt.Errorf("could not read CSV file: %w", err)
@@ -151,7 +151,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 			}
 		case models.WellsFargoID:
 			{
-				c.Progress("        Wells Fargo")
+				c.Progress("    > Wells Fargo")
 				trans, err := c.readWellsFargoCSV()
 				if err != nil {
 					return nil, fmt.Errorf("could not read CSV file: %w", err)
@@ -160,7 +160,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 			}
 		case models.ChaseID:
 			{
-				c.Progress("        Chase")
+				c.Progress("    > Chase")
 				trans, err := c.readChaseCSV()
 				if err != nil {
 					return nil, fmt.Errorf("could not read CSV file: %w", err)
@@ -169,7 +169,7 @@ func (c *Client) GetTransactions() ([]*models.Transaction, error) {
 			}
 		case models.BoAID:
 			{
-				c.Progress("      Bank of America")
+				c.Progress("    > Bank of America")
 				trans, err := c.readBankOfAmericaCSV()
 				if err != nil {
 					return nil, fmt.Errorf("could not read CSV file: %w", err)

@@ -94,11 +94,6 @@ func (s *UpdateService) PrepareTransactions(transactions []*models.Transaction, 
 	s.Progress("  - Sorting...")
 	transactions = banking.SortTransactions(transactions)
 
-	if len(transactions) < 1 {
-		s.Progress("No transactions")
-		return nil, err
-	}
-
 	return transactions, nil
 }
 
@@ -160,7 +155,7 @@ func (s *UpdateService) FetchTransactions(bankIDs []string, startDate, endDate s
 
 	var newTrans []*models.Transaction
 	if s.Options.UseCSVFiles {
-		s.Progress("  - getting CSV transactions...")
+		//s.Progress("  - getting CSV transactions...")
 		newTrans, err = getCSVTransactions(s.Config.FinanceDir, s.Config.Banks, bankIDs, s.Progress)
 	} else {
 		s.Progress("  - getting Plaid transactions...")

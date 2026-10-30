@@ -96,6 +96,11 @@ func update() error {
 	fmt.Println("Preparing Transactions...")
 	transactions, err = updateService.PrepareTransactions(transactions, registerSheet.Entries)
 
+	if transactions == nil {
+		fmt.Println("No new transactions")
+		return nil
+	}
+
 	fmt.Printf("New Transactions:\n")
 	printTransactions(transactions)
 
