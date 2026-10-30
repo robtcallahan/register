@@ -15,8 +15,6 @@ import (
 	"google.golang.org/api/sheets/v4"
 )
 
-const registerServiceJSONDir = "../../../api/services/sheets_service/json/"
-
 type providerMock struct {
 	service       *sheets.Service
 	spreadsheetID string

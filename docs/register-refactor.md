@@ -178,7 +178,7 @@
 - [ ] Remove external JSON files from test that use them
   - [X] Test_WriteCell — includes the mock's read of the same file, so that goes too
   - [X] Test_addAmountCell
-  - [ ] Test_monthlyService_addSummarySalaryRow
+  - [X] Test_monthlyService_addSummarySalaryRow
   - [ ] Test_monthlyService_addSummaryTopRow
 
 ## Phase 18 — Test coverage

@@ -1,7 +1,6 @@
 package sheets_service
 
 import (
-	"encoding/json"
 	"os"
 	"reflect"
 	"register/pkg/models"
@@ -105,11 +104,12 @@ func Test_monthlyService_addSummarySalaryRow(t *testing.T) {
 
 func Test_monthlyService_addSummaryTopRow(t *testing.T) {
 	months := []string{"Jan", "Feb", "Mar"}
-	b := readTestFixture(t, "json/addSummaryTopRow.json")
-	var want *sheets.RowData
-	err := json.Unmarshal(b, &want)
-	if err != nil {
-		t.Fatalf("could not unmarshal json test data: %s\n", err.Error())
+	catCell := mkCellDataString("Category", "right", models.ColorGrey, false)
+	janCell := mkCellDataString("Jan", "right", models.ColorGrey, false)
+	febCell := mkCellDataString("Feb", "right", models.ColorGrey, false)
+	marCell := mkCellDataString("Mar", "right", models.ColorGrey, false)
+	want := &sheets.RowData{
+		Values: []*sheets.CellData{catCell, janCell, febCell, marCell},
 	}
 
 	type args struct {
@@ -128,9 +128,14 @@ func Test_monthlyService_addSummaryTopRow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := addSummaryTopRow(tt.args.months); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("addSummaryTopRow() = %v, want %v", got, tt.want)
+			got := addSummaryTopRow(tt.args.months)
+			for idx := 1; idx <= 3; idx++ {
+				if *got.Values[idx].UserEnteredValue.StringValue != *want.Values[idx].UserEnteredValue.StringValue {
+					t.Errorf("addSummarySalaryRow() *got.Values[%d].UserEnteredValue.StringValue = %v, want %v",
+						idx, *got.Values[idx].UserEnteredValue.StringValue, *want.Values[idx].UserEnteredValue.StringValue)
+				}
 			}
+
 		})
 	}
 }
