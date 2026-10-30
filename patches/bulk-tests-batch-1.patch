@@ -1,0 +1,1572 @@
+diff --git a/api/services/sheets_service/budget_service_test.go b/api/services/sheets_service/budget_service_test.go
+index d8ba2b4..e417129 100644
+--- a/api/services/sheets_service/budget_service_test.go
++++ b/api/services/sheets_service/budget_service_test.go
+@@ -2,7 +2,11 @@ package sheets_service
+ 
+ import (
+ 	"reflect"
++	"strings"
+ 	"testing"
++
++	"register/pkg/config"
++	"register/pkg/models"
+ )
+ 
+ func Test_budgetService_ReadBudgetSheet(t *testing.T) {
+@@ -70,3 +74,416 @@ func Test_budgetService_BudgetRows(t *testing.T) {
+ 	}
+ 
+ }
++
++func Test_budgetService_NewBudgetSheet(t *testing.T) {
++	cfg := config.Config{BudgetStartRow: 3, BudgetEndRow: 63}
++	tests := []struct {
++		name      string
++		headers   [][]any
++		wantIndex int64
++		wantName  string
++		wantErr   bool
++	}{
++		{
++			name:      "headers with trailing empties",
++			headers:   [][]any{{"Category", "Weekly", "Monthly", "", ""}},
++			wantIndex: 2,
++			wantName:  "B",
++		},
++		{
++			name:      "all headers present",
++			headers:   [][]any{{"", "Weekly", "Monthly", "Yearly", "Current Total", "Needed - Monthly"}},
++			wantIndex: 5,
++			wantName:  "E",
++		},
++		{
++			name:    "no values",
++			headers: [][]any{},
++			wantErr: true,
++		},
++		{
++			name:    "empty first row",
++			headers: [][]any{{}},
++			wantErr: true,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			getValuesProviderFunc = func(range_ string) ([][]any, error) {
++				if range_ == "Budget!A1:Z1" {
++					return tt.headers, nil
++				}
++				t.Fatalf("unexpected range %q", range_)
++				return nil, nil
++			}
++			got, err := bs.NewBudgetSheet(cfg)
++			if tt.wantErr {
++				if err == nil {
++					t.Errorf("NewBudgetSheet() error = nil, want error")
++				}
++				return
++			}
++			if err != nil {
++				t.Fatalf("NewBudgetSheet() error = %v, want nil", err)
++			}
++			if got.TabName != BudgetTabName {
++				t.Errorf("TabName = %q, want %q", got.TabName, BudgetTabName)
++			}
++			if got.ID != 987654321 {
++				t.Errorf("ID = %d, want 987654321", got.ID)
++			}
++			if got.SheetCoords.StartRow != 3 || got.SheetCoords.EndRow != 63 {
++				t.Errorf("rows = %d..%d, want 3..63", got.SheetCoords.StartRow, got.SheetCoords.EndRow)
++			}
++			if got.SheetCoords.EndColumnIndex != tt.wantIndex {
++				t.Errorf("EndColumnIndex = %d, want %d", got.SheetCoords.EndColumnIndex, tt.wantIndex)
++			}
++			if got.SheetCoords.EndColumnName != tt.wantName {
++				t.Errorf("EndColumnName = %q, want %q", got.SheetCoords.EndColumnName, tt.wantName)
++			}
++		})
++	}
++}
++
++func Test_budgetService_CheckBudgetLayout(t *testing.T) {
++	sheet := BudgetSheet{
++		TabName:     BudgetTabName,
++		SheetCoords: SheetCoords{EndColumnName: "J"},
++	}
++	tests := []struct {
++		name    string
++		headers []any
++		wantOk  []bool
++		wantErr bool
++	}{
++		{
++			name:    "all required headers present",
++			headers: []any{"", "Weekly", "Bi-Weekly", "Monthly"},
++			wantOk:  []bool{true, true},
++		},
++		{
++			name:    "monthly missing",
++			headers: []any{"", "Weekly", "Bi-Weekly"},
++			wantOk:  []bool{true, false},
++		},
++		{
++			name:    "both missing",
++			headers: []any{"", "Weekly"},
++			wantOk:  []bool{false, false},
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			getValuesProviderFunc = func(range_ string) ([][]any, error) {
++				if range_ == "Budget!A1:J1" {
++					return [][]any{tt.headers}, nil
++				}
++				t.Fatalf("unexpected range %q", range_)
++				return nil, nil
++			}
++			got, err := bs.CheckBudgetLayout(sheet)
++			if err != nil {
++				t.Fatalf("CheckBudgetLayout() error = %v, want nil", err)
++			}
++			if len(got) != 2 {
++				t.Fatalf("len(results) = %d, want 2", len(got))
++			}
++			for i, want := range tt.wantOk {
++				if got[i].Ok != want {
++					t.Errorf("result[%d].Ok = %v, want %v (message %q)", i, got[i].Ok, want, got[i].Message)
++				}
++			}
++		})
++	}
++	t.Run("header read error", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return nil, errTestProvider
++		}
++		if _, err := bs.CheckBudgetLayout(sheet); err == nil {
++			t.Errorf("CheckBudgetLayout() error = nil, want error")
++		}
++	})
++}
++
++func Test_budgetService_BudgetRowFor(t *testing.T) {
++	sheet := BudgetSheet{
++		TabName:     BudgetTabName,
++		SheetCoords: SheetCoords{StartRow: 3, EndRow: 63},
++	}
++	columnA := [][]any{{"Grocery"}, {"Rent"}, {"Utilities"}}
++	tests := []struct {
++		name     string
++		category string
++		wantRow  int
++		wantOk   bool
++	}{
++		{"first row", "Grocery", 3, true},
++		{"middle row", "Rent", 4, true},
++		{"last row", "Utilities", 5, true},
++		{"missing category", "Phone", 0, false},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			getValuesProviderFunc = func(range_ string) ([][]any, error) {
++				return columnA, nil
++			}
++			row, ok, err := bs.BudgetRowFor(sheet, tt.category)
++			if err != nil {
++				t.Fatalf("BudgetRowFor() error = %v, want nil", err)
++			}
++			if row != tt.wantRow || ok != tt.wantOk {
++				t.Errorf("BudgetRowFor(%q) = (%d, %v), want (%d, %v)", tt.category, row, ok, tt.wantRow, tt.wantOk)
++			}
++		})
++	}
++	t.Run("provider error", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return nil, errTestProvider
++		}
++		if _, _, err := bs.BudgetRowFor(sheet, "Grocery"); err == nil {
++			t.Errorf("BudgetRowFor() error = nil, want error")
++		}
++	})
++}
++
++func Test_budgetService_BudgetEntryFor(t *testing.T) {
++	sheet := BudgetSheet{
++		TabName:     BudgetTabName,
++		SheetCoords: SheetCoords{StartRow: 3, EndRow: 63, EndColumnName: "J"},
++	}
++	header := []any{"", "Weekly", "Bi-Weekly", "Monthly"}
++	setStubs := func(columnA, row [][]any) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			switch range_ {
++			case "Budget!A3:A63":
++				return columnA, nil
++			case "Budget!A3:J3":
++				return row, nil
++			case "Budget!A1:J1":
++				return [][]any{header}, nil
++			}
++			t.Fatalf("unexpected range %q", range_)
++			return nil, nil
++		}
++	}
++	t.Run("found", func(t *testing.T) {
++		setStubs([][]any{{"Grocery"}, {"Rent"}}, [][]any{{"Grocery", "120", "240", "520"}})
++		got, ok, err := bs.BudgetEntryFor(sheet, "Grocery")
++		if err != nil {
++			t.Fatalf("BudgetEntryFor() error = %v, want nil", err)
++		}
++		if !ok || got == nil {
++			t.Fatalf("BudgetEntryFor() = (nil, %v), want entry", ok)
++		}
++		if got.Category != "Grocery" || got.Weekly != 120 || got.BiWeekly != 240 || got.Monthly != 520 {
++			t.Errorf("BudgetEntryFor() = %+v, want Grocery 120/240/520", got)
++		}
++	})
++	t.Run("not found", func(t *testing.T) {
++		setStubs([][]any{{"Rent"}}, nil)
++		got, ok, err := bs.BudgetEntryFor(sheet, "Grocery")
++		if err != nil {
++			t.Fatalf("BudgetEntryFor() error = %v, want nil", err)
++		}
++		if ok || got != nil {
++			t.Errorf("BudgetEntryFor() = (%v, %v), want (nil, false)", got, ok)
++		}
++	})
++	t.Run("empty row values", func(t *testing.T) {
++		setStubs([][]any{{"Grocery"}}, [][]any{})
++		got, ok, err := bs.BudgetEntryFor(sheet, "Grocery")
++		if err != nil {
++			t.Fatalf("BudgetEntryFor() error = %v, want nil", err)
++		}
++		if ok || got != nil {
++			t.Errorf("BudgetEntryFor() = (%v, %v), want (nil, false)", got, ok)
++		}
++	})
++	t.Run("provider error", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return nil, errTestProvider
++		}
++		if _, _, err := bs.BudgetEntryFor(sheet, "Grocery"); err == nil {
++			t.Errorf("BudgetEntryFor() error = nil, want error")
++		}
++	})
++}
++
++func Test_budgetService_RenameBudgetCategory(t *testing.T) {
++	sheet := BudgetSheet{
++		TabName:     BudgetTabName,
++		SheetCoords: SheetCoords{StartRow: 3, EndRow: 63},
++	}
++	t.Run("found", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return [][]any{{"Grocery"}, {"Rent"}}, nil
++		}
++		ok, err := bs.RenameBudgetCategory(sheet, "Grocery", "Food")
++		if err != nil {
++			t.Fatalf("RenameBudgetCategory() error = %v, want nil", err)
++		}
++		if !ok {
++			t.Errorf("RenameBudgetCategory() = false, want true")
++		}
++	})
++	t.Run("not found", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return [][]any{{"Rent"}}, nil
++		}
++		ok, err := bs.RenameBudgetCategory(sheet, "Grocery", "Food")
++		if err != nil {
++			t.Fatalf("RenameBudgetCategory() error = %v, want nil", err)
++		}
++		if ok {
++			t.Errorf("RenameBudgetCategory() = true, want false")
++		}
++	})
++	t.Run("provider error", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return nil, errTestProvider
++		}
++		if _, err := bs.RenameBudgetCategory(sheet, "Grocery", "Food"); err == nil {
++			t.Errorf("RenameBudgetCategory() error = nil, want error")
++		}
++	})
++}
++
++func Test_budgetService_InsertBudgetCategory(t *testing.T) {
++	sheet := BudgetSheet{
++		ID:          987654321,
++		TabName:     BudgetTabName,
++		SheetCoords: SheetCoords{StartRow: 3, EndRow: 63},
++	}
++	t.Run("unknown color", func(t *testing.T) {
++		if err := bs.InsertBudgetCategory(sheet, "NewCat", "red"); err == nil {
++			t.Errorf("InsertBudgetCategory() error = nil, want error")
++		}
++	})
++	t.Run("missing totals row", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return [][]any{{"Grocery"}}, nil
++		}
++		err := bs.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen)
++		if err == nil || !strings.Contains(err.Error(), "Discretionary") {
++			t.Errorf("InsertBudgetCategory() error = %v, want missing totals row error", err)
++		}
++	})
++	t.Run("happy path", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return [][]any{{"Discretionary"}, {"Grocery"}}, nil
++		}
++		getFormulaProviderFunc = func(range_ string) ([][]any, error) {
++			return [][]any{{"=SUM(A1:A2)"}}, nil
++		}
++		if err := bs.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); err != nil {
++			t.Errorf("InsertBudgetCategory() error = %v, want nil", err)
++		}
++	})
++}
++
++func Test_budgetService_DeleteBudgetCategory(t *testing.T) {
++	sheet := BudgetSheet{
++		TabName:     BudgetTabName,
++		SheetCoords: SheetCoords{StartRow: 3, EndRow: 63},
++	}
++	t.Run("found", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return [][]any{{"Grocery"}, {"Rent"}}, nil
++		}
++		ok, err := bs.DeleteBudgetCategory(sheet, "Rent")
++		if err != nil {
++			t.Fatalf("DeleteBudgetCategory() error = %v, want nil", err)
++		}
++		if !ok {
++			t.Errorf("DeleteBudgetCategory() = false, want true")
++		}
++	})
++	t.Run("not found", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return [][]any{{"Grocery"}}, nil
++		}
++		ok, err := bs.DeleteBudgetCategory(sheet, "Rent")
++		if err != nil {
++			t.Fatalf("DeleteBudgetCategory() error = %v, want nil", err)
++		}
++		if ok {
++			t.Errorf("DeleteBudgetCategory() = true, want false")
++		}
++	})
++}
++
++func Test_budgetService_MoveBudgetCategoryAfter(t *testing.T) {
++	sheet := BudgetSheet{
++		TabName:     BudgetTabName,
++		SheetCoords: SheetCoords{StartRow: 3, EndRow: 63},
++	}
++	columnA := [][]any{{"Discretionary"}, {"Grocery"}, {"Rent"}}
++	tests := []struct {
++		name      string
++		category  string
++		afterName string
++		wantErr   bool
++	}{
++		{"move", "Grocery", "Rent", false},
++		{"already there", "Rent", "Grocery", false},
++		{"missing category", "Phone", "Grocery", true},
++		{"missing after", "Grocery", "Phone", true},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			getValuesProviderFunc = func(range_ string) ([][]any, error) {
++				return columnA, nil
++			}
++			err := bs.MoveBudgetCategoryAfter(sheet, tt.category, tt.afterName)
++			if tt.wantErr && err == nil {
++				t.Errorf("MoveBudgetCategoryAfter() error = nil, want error")
++			}
++			if !tt.wantErr && err != nil {
++				t.Errorf("MoveBudgetCategoryAfter() error = %v, want nil", err)
++			}
++		})
++	}
++}
++
++func Test_budgetService_MoveBudgetCategoryBefore(t *testing.T) {
++	sheet := BudgetSheet{
++		TabName:     BudgetTabName,
++		SheetCoords: SheetCoords{StartRow: 3, EndRow: 63},
++	}
++	columnA := [][]any{{"Discretionary"}, {"Grocery"}, {"Rent"}}
++	tests := []struct {
++		name       string
++		category   string
++		beforeName string
++		wantErr    bool
++	}{
++		{"move", "Rent", "Grocery", false},
++		{"already there", "Grocery", "Rent", false},
++		{"missing category", "Phone", "Grocery", true},
++		{"missing before", "Grocery", "Phone", true},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			getValuesProviderFunc = func(range_ string) ([][]any, error) {
++				return columnA, nil
++			}
++			err := bs.MoveBudgetCategoryBefore(sheet, tt.category, tt.beforeName)
++			if tt.wantErr && err == nil {
++				t.Errorf("MoveBudgetCategoryBefore() error = nil, want error")
++			}
++			if !tt.wantErr && err != nil {
++				t.Errorf("MoveBudgetCategoryBefore() error = %v, want nil", err)
++			}
++		})
++	}
++}
++
++func Test_budgetService_moveBudgetRow(t *testing.T) {
++	sheet := BudgetSheet{
++		ID:      987654321,
++		TabName: BudgetTabName,
++	}
++	if err := bs.moveBudgetRow(sheet, 4, 2); err != nil {
++		t.Errorf("moveBudgetRow() error = %v, want nil", err)
++	}
++}
+diff --git a/api/services/sheets_service/helpers_test.go b/api/services/sheets_service/helpers_test.go
+index db2e39a..3d28db9 100644
+--- a/api/services/sheets_service/helpers_test.go
++++ b/api/services/sheets_service/helpers_test.go
+@@ -2,6 +2,7 @@ package sheets_service
+ 
+ import (
+ 	"encoding/json"
++	"errors"
+ 	"fmt"
+ 	"log"
+ 	"os"
+@@ -44,6 +45,10 @@ var getFormulaProviderFunc = func(range_ string) ([][]any, error) {
+ 	return values, nil
+ }
+ 
++// errTestProvider is a canned provider error for tests that exercise error
++// propagation through the provider seam.
++var errTestProvider = errors.New("test provider error")
++
+ func (p *providerMock) GetValues(range_ string) ([][]any, error) {
+ 	return getValuesProviderFunc(range_)
+ }
+@@ -2407,3 +2412,35 @@ func Test_addSourceDateNameCells(t *testing.T) {
+ 		t.Errorf("addSourceDateNameCells() produced %d cells, want 4", len(got))
+ 	}
+ }
++
++func Test_WriteJSONFile(t *testing.T) {
++	t.Run("round trip", func(t *testing.T) {
++		dir := t.TempDir()
++		path := dir + "/out.json"
++		data := map[string]any{"name": "Grocery", "amount": float64(120)}
++		if err := WriteJSONFile(path, data); err != nil {
++			t.Fatalf("WriteJSONFile() error = %v, want nil", err)
++		}
++		raw, err := os.ReadFile(path)
++		if err != nil {
++			t.Fatalf("ReadFile() error = %v, want nil", err)
++		}
++		var got map[string]any
++		if err := json.Unmarshal(raw, &got); err != nil {
++			t.Fatalf("Unmarshal() error = %v, want nil", err)
++		}
++		if !reflect.DeepEqual(got, data) {
++			t.Errorf("round trip = %v, want %v", got, data)
++		}
++	})
++	t.Run("unmarshalable data", func(t *testing.T) {
++		if err := WriteJSONFile(t.TempDir()+"/out.json", func() {}); err == nil {
++			t.Errorf("WriteJSONFile() error = nil, want marshal error")
++		}
++	})
++	t.Run("bad path", func(t *testing.T) {
++		if err := WriteJSONFile("/nonexistent-dir-xyz/out.json", map[string]any{}); err == nil {
++			t.Errorf("WriteJSONFile() error = nil, want write error")
++		}
++	})
++}
+diff --git a/api/services/sheets_service/monthly_service_test.go b/api/services/sheets_service/monthly_service_test.go
+index c9dd55b..79b4be3 100644
+--- a/api/services/sheets_service/monthly_service_test.go
++++ b/api/services/sheets_service/monthly_service_test.go
+@@ -2,6 +2,7 @@ package sheets_service
+ 
+ import (
+ 	"reflect"
++	"register/pkg/config"
+ 	"register/pkg/models"
+ 	"testing"
+ 
+@@ -181,3 +182,305 @@ func Test_monthlyService_readRangeFormulas(t *testing.T) {
+ 		return values, nil
+ 	}
+ }
++
++func Test_monthlyService_UpdateMonthlyCategories(t *testing.T) {
++	ms := NewMonthlyService(&providerMock{}, nil)
++	catAgg := map[string]map[string]float64{
++		"01/26": {"Grocery": 50},
++	}
++	columns := []models.Column{
++		{Name: "Check", ColumnIndex: 2},
++		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
++	}
++	if err := ms.UpdateMonthlyCategories("Budget", catAgg, columns); err != nil {
++		t.Errorf("UpdateMonthlyCategories() error = %v, want nil", err)
++	}
++	if err := ms.UpdateMonthlyCategories("Nope", catAgg, columns); err == nil {
++		t.Errorf("UpdateMonthlyCategories() error = nil, want error for unknown tab")
++	}
++}
++
++func Test_monthlyService_UpdateMonthlyPayees(t *testing.T) {
++	ms := NewMonthlyService(&providerMock{}, []config.IncomeSource{
++		{Name: "CrowdStrike Salary", Frequency: "monthly"},
++	})
++	payeeAgg := map[string]map[string]float64{
++		"01/26": {"TARGET": 20, "CrowdStrike Salary": 100},
++	}
++	if err := ms.UpdateMonthlyPayees("Budget", payeeAgg); err != nil {
++		t.Errorf("UpdateMonthlyPayees() error = %v, want nil", err)
++	}
++	if err := ms.UpdateMonthlyPayees("Nope", payeeAgg); err == nil {
++		t.Errorf("UpdateMonthlyPayees() error = nil, want error for unknown tab")
++	}
++}
++
++func Test_monthlyService_updateMonthlyExecutes(t *testing.T) {
++	ms := NewMonthlyService(&providerMock{}, nil)
++	rows := []*sheets.RowData{
++		{Values: []*sheets.CellData{mkCellDataString("x", "left", "", false)}},
++	}
++	if err := ms.updateMonthly("Budget", 987654321, rows); err != nil {
++		t.Errorf("updateMonthly() error = %v, want nil", err)
++	}
++	if err := ms.updateMonthly("Budget", 987654321, nil); err != nil {
++		t.Errorf("updateMonthly(nil rows) error = %v, want nil", err)
++	}
++}
++
++func Test_populateMonthlyCategories(t *testing.T) {
++	catAgg := map[string]map[string]float64{
++		"02/26": {"Rent": 30},
++		"01/26": {"Grocery": 10, "Rent": 20},
++	}
++	columns := []models.Column{
++		{Name: "Check", ColumnIndex: 2},
++		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
++	}
++	rows := populateMonthlyCategories(catAgg, columns)
++	if len(rows) != 3 {
++		t.Fatalf("len(rows) = %d, want 3 (top + 2 categories)", len(rows))
++	}
++	top := rows[0]
++	if len(top.Values) != 5 {
++		t.Fatalf("top row len = %d, want 5", len(top.Values))
++	}
++	wantTop := []string{"Category", "01/26", "02/26", "Yearly Totals", "Monthly Average"}
++	for i, want := range wantTop {
++		if i >= len(top.Values) {
++			break
++		}
++		if got := *top.Values[i].UserEnteredValue.StringValue; got != want {
++			t.Errorf("top cell[%d] = %q, want %q", i, got, want)
++		}
++	}
++	// Category rows follow column order, not alphabetical order.
++	grocery := rows[1]
++	if got := *grocery.Values[0].UserEnteredValue.StringValue; got != "Grocery" {
++		t.Errorf("row[1] name = %q, want Grocery", got)
++	}
++	if got := *grocery.Values[1].UserEnteredValue.NumberValue; got != 10 {
++		t.Errorf("Grocery 01/26 = %v, want 10", got)
++	}
++	if got := *grocery.Values[2].UserEnteredValue.NumberValue; got != 0 {
++		t.Errorf("Grocery 02/26 = %v, want 0", got)
++	}
++	if got := *grocery.Values[3].UserEnteredValue.FormulaValue; got != "=SUM(B2:C2) * -1" {
++		t.Errorf("Grocery totals formula = %q, want =SUM(B2:C2) * -1", got)
++	}
++	if got := *grocery.Values[4].UserEnteredValue.FormulaValue; got != "=AVERAGE(B2:C2) * -1" {
++		t.Errorf("Grocery average formula = %q, want =AVERAGE(B2:C2) * -1", got)
++	}
++	rent := rows[2]
++	if got := *rent.Values[1].UserEnteredValue.NumberValue; got != 20 {
++		t.Errorf("Rent 01/26 = %v, want 20", got)
++	}
++	if got := *rent.Values[2].UserEnteredValue.NumberValue; got != 30 {
++		t.Errorf("Rent 02/26 = %v, want 30", got)
++	}
++}
++
++func Test_populateMonthlyPayees(t *testing.T) {
++	payeeAgg := map[string]map[string]float64{
++		"01/26": {"TARGET": 5, "AMAZON": 7},
++		"02/26": {"TARGET": 3},
++	}
++	rows := populateMonthlyPayees(payeeAgg, []string{"CrowdStrike Salary"})
++	if len(rows) != 3 {
++		t.Fatalf("len(rows) = %d, want 3 (top + 2 payees)", len(rows))
++	}
++	// Payees are sorted across all months, and the absent income source
++	// adds no salary row.
++	if got := *rows[1].Values[0].UserEnteredValue.StringValue; got != "AMAZON" {
++		t.Errorf("row[1] name = %q, want AMAZON", got)
++	}
++	if got := *rows[1].Values[1].UserEnteredValue.NumberValue; got != 7 {
++		t.Errorf("AMAZON 01/26 = %v, want 7", got)
++	}
++	if got := *rows[1].Values[2].UserEnteredValue.NumberValue; got != 0 {
++		t.Errorf("AMAZON 02/26 = %v, want 0", got)
++	}
++	if got := *rows[2].Values[0].UserEnteredValue.StringValue; got != "TARGET" {
++		t.Errorf("row[2] name = %q, want TARGET", got)
++	}
++
++	withIncome := map[string]map[string]float64{
++		"01/26": {"TARGET": 5, "CrowdStrike Salary": 100},
++	}
++	rows = populateMonthlyPayees(withIncome, []string{"CrowdStrike Salary"})
++	// The income name appears twice by design: once as a payee row (it is
++	// a payee in the aggregate) and once as the salary row appended for
++	// incomeNames.
++	if len(rows) != 4 {
++		t.Fatalf("len(rows) with income = %d, want 4 (top + 2 payee + salary)", len(rows))
++	}
++	if got := *rows[1].Values[0].UserEnteredValue.StringValue; got != "CrowdStrike Salary" {
++		t.Errorf("payee row name = %q, want CrowdStrike Salary", got)
++	}
++	if got := *rows[2].Values[0].UserEnteredValue.StringValue; got != "TARGET" {
++		t.Errorf("payee row name = %q, want TARGET", got)
++	}
++	if got := *rows[3].Values[0].UserEnteredValue.StringValue; got != "CrowdStrike Salary" {
++		t.Errorf("salary row name = %q, want CrowdStrike Salary", got)
++	}
++	if got := *rows[3].Values[1].UserEnteredValue.NumberValue; got != 100 {
++		t.Errorf("salary 01/26 = %v, want 100", got)
++	}
++}
++
++func Test_addSummaryRows(t *testing.T) {
++	aggData := map[string]map[string]float64{
++		"01/26": {"Grocery": 42, "Pay": 100},
++	}
++	rows := addSummaryRows(nil, aggData, []string{"01/26"}, []string{"Grocery"}, nil)
++	if len(rows) != 1 {
++		t.Fatalf("len(rows) = %d, want 1", len(rows))
++	}
++	row := rows[0]
++	if len(row.Values) != 4 {
++		t.Fatalf("len(row cells) = %d, want 4 (name + month + totals + average)", len(row.Values))
++	}
++	if got := *row.Values[0].UserEnteredValue.StringValue; got != "Grocery" {
++		t.Errorf("name cell = %q, want Grocery", got)
++	}
++	if got := *row.Values[1].UserEnteredValue.NumberValue; got != 42 {
++		t.Errorf("month cell = %v, want 42", got)
++	}
++	if got := *row.Values[2].UserEnteredValue.FormulaValue; got != "=SUM(B2:B2) * -1" {
++		t.Errorf("totals formula = %q, want =SUM(B2:B2) * -1", got)
++	}
++	if got := *row.Values[3].UserEnteredValue.FormulaValue; got != "=AVERAGE(B2:B2) * -1" {
++		t.Errorf("average formula = %q, want =AVERAGE(B2:B2) * -1", got)
++	}
++
++	withIncome := addSummaryRows(nil, aggData, []string{"01/26"}, []string{"Grocery"}, []string{"Pay"})
++	if len(withIncome) != 2 {
++		t.Fatalf("len(rows) with income = %d, want 2", len(withIncome))
++	}
++	if got := *withIncome[1].Values[0].UserEnteredValue.StringValue; got != "Pay" {
++		t.Errorf("salary row name = %q, want Pay", got)
++	}
++
++	absentIncome := addSummaryRows(nil, aggData, []string{"01/26"}, []string{"Grocery"}, []string{"Missing"})
++	if len(absentIncome) != 1 {
++		t.Errorf("len(rows) with absent income = %d, want 1", len(absentIncome))
++	}
++}
++
++func Test_aggDataHasName(t *testing.T) {
++	tests := []struct {
++		name    string
++		aggData map[string]map[string]float64
++		want    bool
++	}{
++		{"present in one month", map[string]map[string]float64{"01/26": {"Grocery": 1}}, true},
++		{"present in a later month", map[string]map[string]float64{"01/26": {}, "02/26": {"Grocery": 1}}, true},
++		{"absent", map[string]map[string]float64{"01/26": {"Rent": 1}}, false},
++		{"empty map", map[string]map[string]float64{}, false},
++		{"nil map", nil, false},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			if got := aggDataHasName(tt.aggData, "Grocery"); got != tt.want {
++				t.Errorf("aggDataHasName() = %v, want %v", got, tt.want)
++			}
++		})
++	}
++}
++
++func Test_monthlyService_UpdateYearlySummary(t *testing.T) {
++	ms := NewMonthlyService(&providerMock{}, nil)
++	columns := []models.Column{
++		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
++	}
++	catAgg := map[string]map[string]float64{
++		"01/26": {"Grocery": 10},
++	}
++	if err := ms.UpdateYearlySummary("Budget", catAgg, columns); err != nil {
++		t.Errorf("UpdateYearlySummary() error = %v, want nil", err)
++	}
++	if err := ms.UpdateYearlySummary("Nope", catAgg, columns); err == nil {
++		t.Errorf("UpdateYearlySummary() error = nil, want error for unknown tab")
++	}
++}
++
++func Test_monthlyService_ensureColumnCount(t *testing.T) {
++	ms := NewMonthlyService(&providerMock{}, nil)
++	if err := ms.ensureColumnCount(1, 10, 4); err != nil {
++		t.Errorf("ensureColumnCount(10, 4) error = %v, want nil", err)
++	}
++	if err := ms.ensureColumnCount(1, 3, 10); err != nil {
++		t.Errorf("ensureColumnCount(3, 10) error = %v, want nil", err)
++	}
++}
++
++func Test_populateYearlySummary(t *testing.T) {
++	catAgg := map[string]map[string]float64{
++		"01/26": {"Grocery": 10, "Rent": 20},
++		"02/26": {"Grocery": 5},
++	}
++	columns := []models.Column{
++		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
++	}
++	rows := populateYearlySummary(catAgg, columns, []string{"Pay"})
++	if len(rows) != 4 {
++		t.Fatalf("len(rows) = %d, want 4 (top + 2 months + totals)", len(rows))
++	}
++	top := rows[0]
++	wantTop := []string{"Month", "Grocery", "Rent", "Pay", "Total"}
++	if len(top.Values) != len(wantTop) {
++		t.Fatalf("top row len = %d, want %d", len(top.Values), len(wantTop))
++	}
++	for i, want := range wantTop {
++		if got := *top.Values[i].UserEnteredValue.StringValue; got != want {
++			t.Errorf("top cell[%d] = %q, want %q", i, got, want)
++		}
++	}
++	jan := rows[1]
++	if got := *jan.Values[0].UserEnteredValue.StringValue; got != "01/26" {
++		t.Errorf("month row name = %q, want 01/26", got)
++	}
++	if got := *jan.Values[1].UserEnteredValue.NumberValue; got != 10 {
++		t.Errorf("01/26 Grocery = %v, want 10", got)
++	}
++	if got := *jan.Values[2].UserEnteredValue.NumberValue; got != 20 {
++		t.Errorf("01/26 Rent = %v, want 20", got)
++	}
++	if got := *jan.Values[3].UserEnteredValue.NumberValue; got != 0 {
++		t.Errorf("01/26 Pay = %v, want 0", got)
++	}
++	if got := *jan.Values[4].UserEnteredValue.FormulaValue; got != "=SUM(B2:D2)" {
++		t.Errorf("01/26 total formula = %q, want =SUM(B2:D2)", got)
++	}
++	totals := rows[3]
++	if got := *totals.Values[0].UserEnteredValue.StringValue; got != "Total" {
++		t.Errorf("totals row name = %q, want Total", got)
++	}
++	if got := *totals.Values[1].UserEnteredValue.FormulaValue; got != "=SUM(B2:B3)" {
++		t.Errorf("totals Grocery formula = %q, want =SUM(B2:B3)", got)
++	}
++	if got := *totals.Values[4].UserEnteredValue.FormulaValue; got != "=SUM(B4:D4)" {
++		t.Errorf("totals row formula = %q, want =SUM(B4:D4)", got)
++	}
++}
++
++func Test_addYearlyTopRow(t *testing.T) {
++	got := addYearlyTopRow([]string{"Grocery", "Rent"})
++	want := []string{"Month", "Grocery", "Rent", "Total"}
++	if len(got.Values) != len(want) {
++		t.Fatalf("len(cells) = %d, want %d", len(got.Values), len(want))
++	}
++	for i, w := range want {
++		if got := *got.Values[i].UserEnteredValue.StringValue; got != w {
++			t.Errorf("cell[%d] = %q, want %q", i, got, w)
++		}
++	}
++	empty := addYearlyTopRow(nil)
++	if len(empty.Values) != 2 {
++		t.Errorf("len(cells) with no headers = %d, want 2 (Month + Total)", len(empty.Values))
++	}
++}
+diff --git a/api/services/sheets_service/register_columns_test.go b/api/services/sheets_service/register_columns_test.go
+index 3722487..0ceed95 100644
+--- a/api/services/sheets_service/register_columns_test.go
++++ b/api/services/sheets_service/register_columns_test.go
+@@ -1,6 +1,7 @@
+ package sheets_service
+ 
+ import (
++	"strings"
+ 	"testing"
+ 
+ 	"register/pkg/models"
+@@ -71,3 +72,204 @@ func TestPlanColumnMove(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func checkTestColumns() []models.Column {
++	cols := []models.Column{}
++	for i := 1; i <= 10; i++ {
++		cols = append(cols, models.Column{ID: i, Name: "", ColumnIndex: i})
++	}
++	cols = append(cols,
++		models.Column{ID: 11, Name: "Grocery", Color: models.ColorBlue, ColumnIndex: 11},
++		models.Column{ID: 12, Name: "Rent", Color: models.ColorBlue, ColumnIndex: 12},
++	)
++	return cols
++}
++
++func Test_registerService_CheckRegisterColumns(t *testing.T) {
++	sheet := RegisterSheet{
++		TabName:     RegisterTabName,
++		SheetCoords: SheetCoords{EndColumnName: "L", ColumnCount: 12},
++	}
++	header := func(grocery, rent string) []any {
++		row := make([]any, 12)
++		row[10] = grocery
++		row[11] = rent
++		return row
++	}
++	t.Run("clean", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			if range_ == "Register!A4:L4" {
++				return [][]any{header("Grocery", "Rent")}, nil
++			}
++			t.Fatalf("unexpected range %q", range_)
++			return nil, nil
++		}
++		problems, err := ss.CheckRegisterColumns(sheet, checkTestColumns())
++		if err != nil {
++			t.Fatalf("CheckRegisterColumns() error = %v, want nil", err)
++		}
++		if len(problems) != 0 {
++			t.Errorf("CheckRegisterColumns() problems = %v, want none", problems)
++		}
++	})
++	t.Run("header drift", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return [][]any{header("Grocer", "Rent")}, nil
++		}
++		problems, err := ss.CheckRegisterColumns(sheet, checkTestColumns())
++		if err != nil {
++			t.Fatalf("CheckRegisterColumns() error = %v, want nil", err)
++		}
++		if len(problems) != 1 || !strings.Contains(problems[0], "Grocery") {
++			t.Errorf("CheckRegisterColumns() problems = %v, want one mentioning Grocery", problems)
++		}
++	})
++	t.Run("index gap", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return [][]any{header("Grocery", "Rent")}, nil
++		}
++		cols := checkTestColumns()
++		cols = append(cols[:4], cols[5:]...) // drop index 5
++		problems, err := ss.CheckRegisterColumns(sheet, cols)
++		if err != nil {
++			t.Fatalf("CheckRegisterColumns() error = %v, want nil", err)
++		}
++		found := false
++		for _, p := range problems {
++			if strings.Contains(p, "no column at index 5") {
++				found = true
++			}
++		}
++		if !found {
++			t.Errorf("CheckRegisterColumns() problems = %v, want missing index 5", problems)
++		}
++	})
++	t.Run("column count mismatch", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return [][]any{header("Grocery", "Rent")}, nil
++		}
++		wide := sheet
++		wide.SheetCoords.ColumnCount = 13
++		problems, err := ss.CheckRegisterColumns(wide, checkTestColumns())
++		if err != nil {
++			t.Fatalf("CheckRegisterColumns() error = %v, want nil", err)
++		}
++		found := false
++		for _, p := range problems {
++			if strings.Contains(p, "column count mismatch") {
++				found = true
++			}
++		}
++		if !found {
++			t.Errorf("CheckRegisterColumns() problems = %v, want count mismatch", problems)
++		}
++	})
++	t.Run("provider error", func(t *testing.T) {
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return nil, errTestProvider
++		}
++		if _, err := ss.CheckRegisterColumns(sheet, checkTestColumns()); err == nil {
++			t.Errorf("CheckRegisterColumns() error = nil, want error")
++		}
++	})
++}
++
++func Test_registerService_InsertRegisterColumn(t *testing.T) {
++	sheet := RegisterSheet{
++		ID:          617336355,
++		TabName:     RegisterTabName,
++		SheetCoords: SheetCoords{RowCount: 5},
++	}
++	t.Run("first column needs no neighbor read", func(t *testing.T) {
++		if err := ss.InsertRegisterColumn(sheet, 1, "NewCol"); err != nil {
++			t.Errorf("InsertRegisterColumn() error = %v, want nil", err)
++		}
++	})
++	t.Run("neighbor formulas shifted", func(t *testing.T) {
++		getFormulaProviderFunc = func(range_ string) ([][]any, error) {
++			if range_ == "Register!B1:B5" {
++				return [][]any{{""}, {""}, {""}, {""}, {"=B5"}}, nil
++			}
++			t.Fatalf("unexpected range %q", range_)
++			return nil, nil
++		}
++		if err := ss.InsertRegisterColumn(sheet, 3, "NewCol"); err != nil {
++			t.Errorf("InsertRegisterColumn() error = %v, want nil", err)
++		}
++	})
++	t.Run("formula read error", func(t *testing.T) {
++		getFormulaProviderFunc = func(range_ string) ([][]any, error) {
++			return nil, errTestProvider
++		}
++		if err := ss.InsertRegisterColumn(sheet, 3, "NewCol"); err == nil {
++			t.Errorf("InsertRegisterColumn() error = nil, want error")
++		}
++	})
++}
++
++func Test_registerService_DeleteRegisterColumn(t *testing.T) {
++	sheet := RegisterSheet{ID: 617336355, TabName: RegisterTabName}
++	if err := ss.DeleteRegisterColumn(sheet, 12); err != nil {
++		t.Errorf("DeleteRegisterColumn() error = %v, want nil", err)
++	}
++}
++
++func Test_registerService_MoveRegisterColumn(t *testing.T) {
++	sheet := RegisterSheet{ID: 617336355, TabName: RegisterTabName}
++	if err := ss.MoveRegisterColumn(sheet, 11, 12); err != nil {
++		t.Errorf("MoveRegisterColumn() error = %v, want nil", err)
++	}
++}
++
++func Test_registerService_RenameRegisterColumnHeader(t *testing.T) {
++	sheet := RegisterSheet{ID: 617336355, TabName: RegisterTabName}
++	if err := ss.RenameRegisterColumnHeader(sheet, 11, "Food"); err != nil {
++		t.Errorf("RenameRegisterColumnHeader() error = %v, want nil", err)
++	}
++}
++
++func Test_registerService_readColumnFormulas(t *testing.T) {
++	sheet := RegisterSheet{ID: 617336355, TabName: RegisterTabName}
++	t.Run("formulas and non-formulas", func(t *testing.T) {
++		getFormulaProviderFunc = func(range_ string) ([][]any, error) {
++			if range_ == "Register!A1:A4" {
++				return [][]any{{"=A1"}, {"plain"}, {""}, {"=B2"}}, nil
++			}
++			t.Fatalf("unexpected range %q", range_)
++			return nil, nil
++		}
++		got, err := ss.readColumnFormulas(sheet, "A", 4)
++		if err != nil {
++			t.Fatalf("readColumnFormulas() error = %v, want nil", err)
++		}
++		want := []string{"=A1", "", "", "=B2"}
++		if len(got) != len(want) {
++			t.Fatalf("len(formulas) = %d, want %d", len(got), len(want))
++		}
++		for i, w := range want {
++			if got[i] != w {
++				t.Errorf("formulas[%d] = %q, want %q", i, got[i], w)
++			}
++		}
++	})
++	t.Run("truncated to row count", func(t *testing.T) {
++		getFormulaProviderFunc = func(range_ string) ([][]any, error) {
++			return [][]any{{"=A1"}, {"=A2"}, {"=A3"}}, nil
++		}
++		got, err := ss.readColumnFormulas(sheet, "A", 2)
++		if err != nil {
++			t.Fatalf("readColumnFormulas() error = %v, want nil", err)
++		}
++		if len(got) != 2 || got[0] != "=A1" || got[1] != "=A2" {
++			t.Errorf("readColumnFormulas() = %v, want [=A1 =A2]", got)
++		}
++	})
++	t.Run("provider error", func(t *testing.T) {
++		getFormulaProviderFunc = func(range_ string) ([][]any, error) {
++			return nil, errTestProvider
++		}
++		if _, err := ss.readColumnFormulas(sheet, "A", 4); err == nil {
++			t.Errorf("readColumnFormulas() error = nil, want error")
++		}
++	})
++}
+diff --git a/api/services/sheets_service/register_service_test.go b/api/services/sheets_service/register_service_test.go
+index c740b82..e263b02 100644
+--- a/api/services/sheets_service/register_service_test.go
++++ b/api/services/sheets_service/register_service_test.go
+@@ -5,6 +5,7 @@ import (
+ 	"reflect"
+ 	"testing"
+ 
++	"register/pkg/config"
+ 	"register/pkg/models"
+ 
+ 	"google.golang.org/api/sheets/v4"
+@@ -147,3 +148,111 @@ func checkTestingError(t *testing.T, err error) {
+ 		t.Fatalf("error: %s\n", err.Error())
+ 	}
+ }
++
++func Test_registerService_NewRegisterSheet(t *testing.T) {
++	cfg := &config.Config{RegisterStartRow: 5, RegisterEndRow: 100}
++	columns := []models.Column{
++		{Name: "Check", ColumnIndex: 2},
++		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
++	}
++	got, err := ss.NewRegisterSheet(cfg, columns)
++	if err != nil {
++		t.Fatalf("NewRegisterSheet() error = %v, want nil", err)
++	}
++	if got.TabName != RegisterTabName {
++		t.Errorf("TabName = %q, want %q", got.TabName, RegisterTabName)
++	}
++	if got.ID != 617336355 {
++		t.Errorf("ID = %d, want 617336355", got.ID)
++	}
++	if got.SheetCoords.RowCount != 1000 || got.SheetCoords.ColumnCount != 47 {
++		t.Errorf("grid = %dx%d, want 1000x47", got.SheetCoords.RowCount, got.SheetCoords.ColumnCount)
++	}
++	if got.SheetCoords.StartRow != 5 || got.SheetCoords.EndRow != 100 {
++		t.Errorf("rows = %d..%d, want 5..100", got.SheetCoords.StartRow, got.SheetCoords.EndRow)
++	}
++	// End comes from the DB's highest column: index 12 -> L, offset 11.
++	if got.SheetCoords.EndColumnName != "L" || got.SheetCoords.EndColumnIndex != 11 {
++		t.Errorf("end = %q/%d, want L/11", got.SheetCoords.EndColumnName, got.SheetCoords.EndColumnIndex)
++	}
++
++	// No DB columns: the end comes from the sheet's own grid width.
++	got, err = ss.NewRegisterSheet(cfg, nil)
++	if err != nil {
++		t.Fatalf("NewRegisterSheet(nil columns) error = %v, want nil", err)
++	}
++	if got.SheetCoords.EndColumnName != "AU" || got.SheetCoords.EndColumnIndex != 46 {
++		t.Errorf("end without columns = %q/%d, want AU/46", got.SheetCoords.EndColumnName, got.SheetCoords.EndColumnIndex)
++	}
++}
++
++func Test_registerService_isEmptyRow(t *testing.T) {
++	tests := []struct {
++		name string
++		row  []any
++		want bool
++	}{
++		{"empty date", []any{"", "WellsFargo", "", "TARGET"}, true},
++		{"date present", []any{"", "WellsFargo", "12/07/20", "TARGET"}, false},
++		{"short row", []any{}, true},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			if got := ss.isEmptyRow(tt.row); got != tt.want {
++				t.Errorf("isEmptyRow() = %v, want %v", got, tt.want)
++			}
++		})
++	}
++}
++
++func Test_registerService_getRowID(t *testing.T) {
++	sheet := RegisterSheet{SheetCoords: SheetCoords{StartRow: 5}}
++	tests := []struct {
++		i    int64
++		want int64
++	}{
++		{0, 5},
++		{4, 9},
++		{100, 105},
++	}
++	for _, tt := range tests {
++		if got := ss.getRowID(sheet, tt.i); got != tt.want {
++			t.Errorf("getRowID(%d) = %d, want %d", tt.i, got, tt.want)
++		}
++	}
++}
++
++func Test_registerService_populateRegisterEntry(t *testing.T) {
++	row := []any{"X", "WellsFargo", "12/07/20", "TARGET", "46.80", "", "", "8761.12", "", ""}
++	got, err := ss.populateRegisterEntry(row)
++	if err != nil {
++		t.Fatalf("populateRegisterEntry() error = %v, want nil", err)
++	}
++	if got.Key != "wellsfargo:12/07/20:46.80" {
++		t.Errorf("Key = %q, want wellsfargo:12/07/20:46.80", got.Key)
++	}
++	if got.Reconciled != "X" || got.Source != "wellsfargo" || got.Date != "12/07/20" || got.Name != "TARGET" {
++		t.Errorf("identity fields = %+v, want X/wellsfargo/12/07/20/TARGET", got)
++	}
++	if got.Withdrawal != 46.80 || got.Deposit != 0 || got.CreditCard != 0 {
++		t.Errorf("amounts = %v/%v/%v, want 46.80/0/0", got.Withdrawal, got.Deposit, got.CreditCard)
++	}
++	if got.BankRegister != 8761.12 || got.Cleared != 0 || got.Delta != 0 {
++		t.Errorf("register fields = %v/%v/%v, want 8761.12/0/0", got.BankRegister, got.Cleared, got.Delta)
++	}
++
++	depositRow := []any{"", "WellsFargo", "12/08/20", "PAYCHECK", "", "1022.69", "", "", "", ""}
++	got, err = ss.populateRegisterEntry(depositRow)
++	if err != nil {
++		t.Fatalf("populateRegisterEntry(deposit) error = %v, want nil", err)
++	}
++	if got.Deposit != 1022.69 || got.Key != "wellsfargo:12/08/20:1022.69" {
++		t.Errorf("deposit entry = %+v, want Deposit 1022.69 key wellsfargo:12/08/20:1022.69", got)
++	}
++
++	badRow := []any{"", "WellsFargo", "12/07/20", "TARGET", "not-a-number", "", "", "", "", ""}
++	if _, err := ss.populateRegisterEntry(badRow); err == nil {
++		t.Errorf("populateRegisterEntry(bad amount) error = nil, want error")
++	}
++}
+diff --git a/api/services/sheets_service/register_write_test.go b/api/services/sheets_service/register_write_test.go
+new file mode 100644
+index 0000000..2ee8466
+--- /dev/null
++++ b/api/services/sheets_service/register_write_test.go
+@@ -0,0 +1,145 @@
++package sheets_service
++
++import (
++	"strings"
++	"testing"
++
++	"register/pkg/models"
++)
++
++func Test_registerService_UpdateRows(t *testing.T) {
++	sheet := RegisterSheet{
++		ID:          1,
++		TabName:     RegisterTabName,
++		SheetCoords: SheetCoords{FirstRowToUpdate: 5, EndColumnIndex: 11},
++	}
++	budget := BudgetSheet{}
++	columns := []models.Column{
++		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
++	}
++	mapping := map[string]string{"TARGET": "Grocery"}
++	getFormulaProviderFunc = func(range_ string) ([][]any, error) {
++		return [][]any{{"=F1", "=F2", "=F3"}}, nil
++	}
++	t.Run("happy path", func(t *testing.T) {
++		trans := []*models.Transaction{
++			{Source: "WellsFargo", Date: "12/07/20", Name: "TARGET", Withdrawal: 46.80, Budget: 46.80},
++		}
++		if err := ss.UpdateRows(sheet, budget, columns, mapping, trans); err != nil {
++			t.Errorf("UpdateRows() error = %v, want nil", err)
++		}
++	})
++	t.Run("bad date fails", func(t *testing.T) {
++		trans := []*models.Transaction{
++			{Source: "WellsFargo", Date: "bogus", Name: "TARGET", Withdrawal: 46.80, Budget: 46.80},
++		}
++		if err := ss.UpdateRows(sheet, budget, columns, mapping, trans); err == nil {
++			t.Errorf("UpdateRows() error = nil, want error")
++		}
++	})
++	t.Run("no transactions", func(t *testing.T) {
++		if err := ss.UpdateRows(sheet, budget, columns, mapping, nil); err != nil {
++			t.Errorf("UpdateRows(nil) error = %v, want nil", err)
++		}
++	})
++}
++
++func Test_registerService_getGridCoordinate(t *testing.T) {
++	sheet := RegisterSheet{
++		ID:          99,
++		SheetCoords: SheetCoords{FirstRowToUpdate: 7},
++	}
++	got := ss.getGridCoordinate(sheet)
++	if got.SheetId != 99 || got.RowIndex != 7 || got.ColumnIndex != 0 {
++		t.Errorf("getGridCoordinate() = %+v, want {99 7 0}", got)
++	}
++}
++
++func Test_registerService_PlanCategoryMoves(t *testing.T) {
++	columns := []models.Column{
++		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
++		{Name: "Credit Cards", ColumnIndex: 13, Color: models.ColorGrey},
++	}
++	target := models.Column{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue}
++	row := func(grocery, rent, card string) []any {
++		values := make([]any, 13)
++		values[10] = grocery
++		values[11] = rent
++		values[12] = card
++		return values
++	}
++	sheet := func(entries []*RegisterEntry, values [][]any) RegisterSheet {
++		return RegisterSheet{
++			TabName:     RegisterTabName,
++			SheetCoords: SheetCoords{StartRow: 5},
++			Entries:     entries,
++			RangeValues: values,
++		}
++	}
++	t.Run("clean move", func(t *testing.T) {
++		entries := []*RegisterEntry{{RowID: 5, Name: "TARGET store", Date: "12/07/20", Key: "k1"}}
++		moves, notes := ss.PlanCategoryMoves(sheet(entries, [][]any{row("46.80", "", "99.00")}), []string{"target"}, target, columns)
++		if len(notes) != 0 {
++			t.Fatalf("notes = %v, want none", notes)
++		}
++		if len(moves) != 1 {
++			t.Fatalf("len(moves) = %d, want 1", len(moves))
++		}
++		m := moves[0]
++		if m.Key != "k1" || m.RowID != 5 || m.FromIndex != 11 || m.ToIndex != 12 || m.Value != 46.80 || m.Color != models.ColorBlue {
++			t.Errorf("move = %+v, want k1/5/11->12/46.80/blue", m)
++		}
++	})
++	t.Run("no match", func(t *testing.T) {
++		entries := []*RegisterEntry{{RowID: 5, Name: "OTHER", Date: "12/07/20", Key: "k1"}}
++		moves, notes := ss.PlanCategoryMoves(sheet(entries, [][]any{row("46.80", "", "")}), []string{"target"}, target, columns)
++		if len(moves) != 0 || len(notes) != 0 {
++			t.Errorf("moves/notes = %v/%v, want empty", moves, notes)
++		}
++	})
++	t.Run("no amount", func(t *testing.T) {
++		entries := []*RegisterEntry{{RowID: 5, Name: "TARGET", Date: "12/07/20", Key: "k1"}}
++		moves, notes := ss.PlanCategoryMoves(sheet(entries, [][]any{row("", "", "")}), []string{"target"}, target, columns)
++		if len(moves) != 0 {
++			t.Errorf("moves = %v, want none", moves)
++		}
++		if len(notes) != 1 || !strings.Contains(notes[0], "no category amount") {
++			t.Errorf("notes = %v, want no-amount note", notes)
++		}
++	})
++	t.Run("multiple amounts", func(t *testing.T) {
++		entries := []*RegisterEntry{{RowID: 5, Name: "TARGET", Date: "12/07/20", Key: "k1"}}
++		moves, notes := ss.PlanCategoryMoves(sheet(entries, [][]any{row("10.00", "20.00", "")}), []string{"target"}, target, columns)
++		if len(moves) != 0 {
++			t.Errorf("moves = %v, want none", moves)
++		}
++		if len(notes) != 1 || !strings.Contains(notes[0], "multiple category amounts") {
++			t.Errorf("notes = %v, want multiple-amounts note", notes)
++		}
++	})
++	t.Run("already in target", func(t *testing.T) {
++		entries := []*RegisterEntry{{RowID: 5, Name: "TARGET", Date: "12/07/20", Key: "k1"}}
++		moves, notes := ss.PlanCategoryMoves(sheet(entries, [][]any{row("", "20.00", "")}), []string{"target"}, target, columns)
++		if len(moves) != 0 {
++			t.Errorf("moves = %v, want none", moves)
++		}
++		if len(notes) != 1 || !strings.Contains(notes[0], "already in Rent") {
++			t.Errorf("notes = %v, want already-in-target note", notes)
++		}
++	})
++}
++
++func Test_registerService_MoveCategoryCells(t *testing.T) {
++	sheet := RegisterSheet{ID: 1, TabName: RegisterTabName}
++	if err := ss.MoveCategoryCells(sheet, nil); err != nil {
++		t.Errorf("MoveCategoryCells(nil) error = %v, want nil", err)
++	}
++	moves := []CategoryMove{
++		{Key: "k1", RowID: 5, FromIndex: 11, ToIndex: 12, Value: 46.80, Color: models.ColorBlue},
++	}
++	if err := ss.MoveCategoryCells(sheet, moves); err != nil {
++		t.Errorf("MoveCategoryCells() error = %v, want nil", err)
++	}
++}
+diff --git a/api/services/sheets_service/row_builder_test.go b/api/services/sheets_service/row_builder_test.go
+new file mode 100644
+index 0000000..b89d502
+--- /dev/null
++++ b/api/services/sheets_service/row_builder_test.go
+@@ -0,0 +1,136 @@
++package sheets_service
++
++import (
++	"testing"
++
++	"register/pkg/config"
++	"register/pkg/models"
++)
++
++func Test_rowBuilder_populateCells(t *testing.T) {
++	columns := []models.Column{
++		{Name: "Register", ColumnIndex: 8},
++		{Name: "Cleared", ColumnIndex: 9},
++		{Name: "Delta", ColumnIndex: 10},
++		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++	}
++	formulas := func(rowIndex int64) ([]string, error) {
++		return []string{"=F1", "=F2", "=F3"}, nil
++	}
++	t.Run("checking transaction", func(t *testing.T) {
++		rb := &RowBuilder{
++			Columns:            columns,
++			TransNameToColName: map[string]string{"TARGET": "Grocery"},
++			FirstRowToUpdate:   5,
++			ReadFormulas:       formulas,
++		}
++		trans := []*models.Transaction{
++			{Source: "WellsFargo", Date: "12/07/20", Name: "TARGET", Withdrawal: 46.80, Budget: 46.80},
++		}
++		rows, err := rb.populateCells(trans)
++		if err != nil {
++			t.Fatalf("populateCells() error = %v, want nil", err)
++		}
++		if len(rows) != 2 {
++			t.Fatalf("len(rows) = %d, want 2 (data + empty second row)", len(rows))
++		}
++		data := rows[0]
++		if len(data.Values) != 11 {
++			t.Fatalf("len(data cells) = %d, want 11", len(data.Values))
++		}
++		if got := *data.Values[3].UserEnteredValue.StringValue; got != "TARGET" {
++			t.Errorf("name cell = %q, want TARGET", got)
++		}
++		if got := *data.Values[4].UserEnteredValue.NumberValue; got != 46.80 {
++			t.Errorf("withdrawal cell = %v, want 46.80", got)
++		}
++		for i, want := range []string{"=F1", "=F2", "=F3"} {
++			if got := *data.Values[7+i].UserEnteredValue.FormulaValue; got != want {
++				t.Errorf("formula cell[%d] = %q, want %q", i, got, want)
++			}
++		}
++		if got := *data.Values[10].UserEnteredValue.NumberValue; got != 46.80 {
++			t.Errorf("Grocery cell = %v, want 46.80", got)
++		}
++		if len(rows[1].Values) != 0 {
++			t.Errorf("second row len = %d, want 0 (no note)", len(rows[1].Values))
++		}
++	})
++	t.Run("income transaction uses salary allocation", func(t *testing.T) {
++		rb := &RowBuilder{
++			Columns:       columns,
++			IncomeSources: []config.IncomeSource{{Name: "Taylor House Paycheck", Frequency: "biweekly"}},
++			CategoriesMap: map[string]*BudgetEntry{
++				"Grocery": {Category: "Grocery", BiWeekly: 240},
++			},
++			FirstRowToUpdate: 5,
++			ReadFormulas:     formulas,
++		}
++		trans := []*models.Transaction{
++			{Source: "WellsFargo", Date: "12/07/20", Name: "Taylor House Paycheck", Deposit: 1000},
++		}
++		rows, err := rb.populateCells(trans)
++		if err != nil {
++			t.Fatalf("populateCells() error = %v, want nil", err)
++		}
++		if len(rows) != 2 {
++			t.Fatalf("len(rows) = %d, want 2", len(rows))
++		}
++		if got := *rows[0].Values[10].UserEnteredValue.NumberValue; got != 240 {
++			t.Errorf("Grocery salary cell = %v, want 240 (biweekly allocation)", got)
++		}
++	})
++	t.Run("note transaction adds a note row", func(t *testing.T) {
++		rb := &RowBuilder{
++			Columns:            columns,
++			TransNameToColName: map[string]string{},
++			FirstRowToUpdate:   5,
++			ReadFormulas:       formulas,
++		}
++		trans := []*models.Transaction{
++			{Source: "WellsFargo", Date: "12/07/20", Name: "TARGET", Withdrawal: 10, Note: "call bank"},
++		}
++		rows, err := rb.populateCells(trans)
++		if err != nil {
++			t.Fatalf("populateCells() error = %v, want nil", err)
++		}
++		if len(rows) != 2 {
++			t.Fatalf("len(rows) = %d, want 2", len(rows))
++		}
++		note := rows[1]
++		if len(note.Values) != 4 {
++			t.Fatalf("len(note row) = %d, want 4", len(note.Values))
++		}
++		if got := *note.Values[3].UserEnteredValue.StringValue; got != "call bank" {
++			t.Errorf("note cell = %q, want call bank", got)
++		}
++	})
++	t.Run("formula read error", func(t *testing.T) {
++		rb := &RowBuilder{
++			Columns:      columns,
++			ReadFormulas: func(rowIndex int64) ([]string, error) { return nil, errTestProvider },
++		}
++		trans := []*models.Transaction{
++			{Source: "WellsFargo", Date: "12/07/20", Name: "TARGET", Withdrawal: 10},
++		}
++		if _, err := rb.populateCells(trans); err == nil {
++			t.Errorf("populateCells() error = nil, want error")
++		}
++	})
++}
++
++func Test_rowBuilder_makeNoteRow(t *testing.T) {
++	rb := &RowBuilder{EndColumnIndex: 12}
++	got := rb.makeNoteRow("call bank")
++	if len(got.Values) != 4 {
++		t.Fatalf("len(cells) = %d, want 4", len(got.Values))
++	}
++	for i := 0; i < 3; i++ {
++		if got := *got.Values[i].UserEnteredValue.StringValue; got != "" {
++			t.Errorf("cell[%d] = %q, want empty", i, got)
++		}
++	}
++	if got := *got.Values[3].UserEnteredValue.StringValue; got != "call bank" {
++		t.Errorf("note cell = %q, want call bank", got)
++	}
++}
+diff --git a/pkg/banking/banking_test.go b/pkg/banking/banking_test.go
+new file mode 100644
+index 0000000..d5f8916
+--- /dev/null
++++ b/pkg/banking/banking_test.go
+@@ -0,0 +1,122 @@
++package banking
++
++import (
++	"strings"
++	"testing"
++
++	"register/pkg/config"
++	"register/pkg/models"
++
++	"github.com/plaid/plaid-go/v15/plaid"
++)
++
++func TestNewClient(t *testing.T) {
++	banks := map[string]config.Bank{
++		"wellsfargo": {ID: "wellsfargo", Name: "Wells Fargo"},
++	}
++	sources := []config.IncomeSource{{Name: "Taylor House Paycheck"}}
++	c := NewClient("user1", banks, sources, "client-id", "secret", plaid.Sandbox, nil)
++	if c.UserID != "user1" || c.ClientID != "client-id" || c.Secret != "secret" {
++		t.Errorf("identity = %q/%q/%q, want user1/client-id/secret", c.UserID, c.ClientID, c.Secret)
++	}
++	if c.Environment != plaid.Sandbox {
++		t.Errorf("Environment = %v, want Sandbox", c.Environment)
++	}
++	if len(c.Banks) != 1 || c.Banks["wellsfargo"].Name != "Wells Fargo" {
++		t.Errorf("Banks = %v, want wellsfargo entry", c.Banks)
++	}
++	if len(c.IncomeSources) != 1 || c.IncomeSources[0].Name != "Taylor House Paycheck" {
++		t.Errorf("IncomeSources = %v, want one source", c.IncomeSources)
++	}
++	if c.PlaidClient == nil {
++		t.Errorf("PlaidClient = nil, want non-nil client")
++	}
++	if c.Progress != nil {
++		t.Errorf("Progress = non-nil, want nil as passed")
++	}
++}
++
++func TestClient_GetBalances(t *testing.T) {
++	c := NewClient("user1", map[string]config.Bank{
++		"wellsfargo": {ID: "wellsfargo", Name: "Wells Fargo"},
++	}, nil, "cid", "sec", plaid.Sandbox, nil)
++	t.Run("no banks", func(t *testing.T) {
++		got := c.GetBalances(nil)
++		if len(got) != 0 {
++			t.Errorf("GetBalances(nil) = %v, want empty map", got)
++		}
++	})
++	t.Run("bank without token", func(t *testing.T) {
++		got := c.GetBalances([]string{"wellsfargo"})
++		bal, ok := got["wellsfargo"]
++		if !ok {
++			t.Fatalf("GetBalances() missing wellsfargo entry")
++		}
++		if bal.BankName != "Wells Fargo" {
++			t.Errorf("BankName = %q, want Wells Fargo", bal.BankName)
++		}
++		if bal.Error == nil || !strings.Contains(bal.Error.Error(), "no Plaid access token") {
++			t.Errorf("Error = %v, want missing-token error", bal.Error)
++		}
++	})
++	t.Run("unknown bank id", func(t *testing.T) {
++		got := c.GetBalances([]string{"nope"})
++		bal, ok := got["nope"]
++		if !ok {
++			t.Fatalf("GetBalances() missing nope entry")
++		}
++		if bal.Error == nil {
++			t.Errorf("Error = nil, want missing-token error for unknown bank")
++		}
++	})
++}
++
++func TestSortTransactions(t *testing.T) {
++	mk := func(date, name string) *models.Transaction {
++		return &models.Transaction{Date: date, Name: name}
++	}
++	tests := []struct {
++		name string
++		in   []*models.Transaction
++		want []string
++	}{
++		{
++			name: "by date",
++			in:   []*models.Transaction{mk("12/08/20", "B"), mk("12/07/20", "A"), mk("12/09/20", "C")},
++			want: []string{"A", "B", "C"},
++		},
++		{
++			name: "same date by name",
++			in:   []*models.Transaction{mk("12/07/20", "TARGET"), mk("12/07/20", "AMAZON")},
++			want: []string{"AMAZON", "TARGET"},
++		},
++		{
++			name: "already sorted",
++			in:   []*models.Transaction{mk("12/07/20", "A"), mk("12/08/20", "B")},
++			want: []string{"A", "B"},
++		},
++		{
++			name: "empty",
++			in:   []*models.Transaction{},
++			want: []string{},
++		},
++		{
++			name: "single",
++			in:   []*models.Transaction{mk("12/07/20", "A")},
++			want: []string{"A"},
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got := SortTransactions(tt.in)
++			if len(got) != len(tt.want) {
++				t.Fatalf("len = %d, want %d", len(got), len(tt.want))
++			}
++			for i, w := range tt.want {
++				if got[i].Name != w {
++					t.Errorf("position %d = %q, want %q", i, got[i].Name, w)
++				}
++			}
++		})
++	}
++}

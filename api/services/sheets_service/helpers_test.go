@@ -2,6 +2,7 @@ package sheets_service
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -43,6 +44,10 @@ var getFormulaProviderFunc = func(range_ string) ([][]any, error) {
 	values[0][0] = "=SUM(A1:A2)"
 	return values, nil
 }
+
+// errTestProvider is a canned provider error for tests that exercise error
+// propagation through the provider seam.
+var errTestProvider = errors.New("test provider error")
 
 func (p *providerMock) GetValues(range_ string) ([][]any, error) {
 	return getValuesProviderFunc(range_)
@@ -2406,4 +2411,36 @@ func Test_addSourceDateNameCells(t *testing.T) {
 	if len(got) != 4 {
 		t.Errorf("addSourceDateNameCells() produced %d cells, want 4", len(got))
 	}
+}
+
+func Test_WriteJSONFile(t *testing.T) {
+	t.Run("round trip", func(t *testing.T) {
+		dir := t.TempDir()
+		path := dir + "/out.json"
+		data := map[string]any{"name": "Grocery", "amount": float64(120)}
+		if err := WriteJSONFile(path, data); err != nil {
+			t.Fatalf("WriteJSONFile() error = %v, want nil", err)
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile() error = %v, want nil", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatalf("Unmarshal() error = %v, want nil", err)
+		}
+		if !reflect.DeepEqual(got, data) {
+			t.Errorf("round trip = %v, want %v", got, data)
+		}
+	})
+	t.Run("unmarshalable data", func(t *testing.T) {
+		if err := WriteJSONFile(t.TempDir()+"/out.json", func() {}); err == nil {
+			t.Errorf("WriteJSONFile() error = nil, want marshal error")
+		}
+	})
+	t.Run("bad path", func(t *testing.T) {
+		if err := WriteJSONFile("/nonexistent-dir-xyz/out.json", map[string]any{}); err == nil {
+			t.Errorf("WriteJSONFile() error = nil, want write error")
+		}
+	})
 }

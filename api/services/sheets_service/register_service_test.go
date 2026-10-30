@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"register/pkg/config"
 	"register/pkg/models"
 
 	"google.golang.org/api/sheets/v4"
@@ -145,5 +146,113 @@ func Test_registerService_shiftFormulaColumn(t *testing.T) {
 func checkTestingError(t *testing.T, err error) {
 	if err != nil {
 		t.Fatalf("error: %s\n", err.Error())
+	}
+}
+
+func Test_registerService_NewRegisterSheet(t *testing.T) {
+	cfg := &config.Config{RegisterStartRow: 5, RegisterEndRow: 100}
+	columns := []models.Column{
+		{Name: "Check", ColumnIndex: 2},
+		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
+		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
+	}
+	got, err := ss.NewRegisterSheet(cfg, columns)
+	if err != nil {
+		t.Fatalf("NewRegisterSheet() error = %v, want nil", err)
+	}
+	if got.TabName != RegisterTabName {
+		t.Errorf("TabName = %q, want %q", got.TabName, RegisterTabName)
+	}
+	if got.ID != 617336355 {
+		t.Errorf("ID = %d, want 617336355", got.ID)
+	}
+	if got.SheetCoords.RowCount != 1000 || got.SheetCoords.ColumnCount != 47 {
+		t.Errorf("grid = %dx%d, want 1000x47", got.SheetCoords.RowCount, got.SheetCoords.ColumnCount)
+	}
+	if got.SheetCoords.StartRow != 5 || got.SheetCoords.EndRow != 100 {
+		t.Errorf("rows = %d..%d, want 5..100", got.SheetCoords.StartRow, got.SheetCoords.EndRow)
+	}
+	// End comes from the DB's highest column: index 12 -> L, offset 11.
+	if got.SheetCoords.EndColumnName != "L" || got.SheetCoords.EndColumnIndex != 11 {
+		t.Errorf("end = %q/%d, want L/11", got.SheetCoords.EndColumnName, got.SheetCoords.EndColumnIndex)
+	}
+
+	// No DB columns: the end comes from the sheet's own grid width.
+	got, err = ss.NewRegisterSheet(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewRegisterSheet(nil columns) error = %v, want nil", err)
+	}
+	if got.SheetCoords.EndColumnName != "AU" || got.SheetCoords.EndColumnIndex != 46 {
+		t.Errorf("end without columns = %q/%d, want AU/46", got.SheetCoords.EndColumnName, got.SheetCoords.EndColumnIndex)
+	}
+}
+
+func Test_registerService_isEmptyRow(t *testing.T) {
+	tests := []struct {
+		name string
+		row  []any
+		want bool
+	}{
+		{"empty date", []any{"", "WellsFargo", "", "TARGET"}, true},
+		{"date present", []any{"", "WellsFargo", "12/07/20", "TARGET"}, false},
+		{"short row", []any{}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ss.isEmptyRow(tt.row); got != tt.want {
+				t.Errorf("isEmptyRow() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_registerService_getRowID(t *testing.T) {
+	sheet := RegisterSheet{SheetCoords: SheetCoords{StartRow: 5}}
+	tests := []struct {
+		i    int64
+		want int64
+	}{
+		{0, 5},
+		{4, 9},
+		{100, 105},
+	}
+	for _, tt := range tests {
+		if got := ss.getRowID(sheet, tt.i); got != tt.want {
+			t.Errorf("getRowID(%d) = %d, want %d", tt.i, got, tt.want)
+		}
+	}
+}
+
+func Test_registerService_populateRegisterEntry(t *testing.T) {
+	row := []any{"X", "WellsFargo", "12/07/20", "TARGET", "46.80", "", "", "8761.12", "", ""}
+	got, err := ss.populateRegisterEntry(row)
+	if err != nil {
+		t.Fatalf("populateRegisterEntry() error = %v, want nil", err)
+	}
+	if got.Key != "wellsfargo:12/07/20:46.80" {
+		t.Errorf("Key = %q, want wellsfargo:12/07/20:46.80", got.Key)
+	}
+	if got.Reconciled != "X" || got.Source != "wellsfargo" || got.Date != "12/07/20" || got.Name != "TARGET" {
+		t.Errorf("identity fields = %+v, want X/wellsfargo/12/07/20/TARGET", got)
+	}
+	if got.Withdrawal != 46.80 || got.Deposit != 0 || got.CreditPurchase != 0 {
+		t.Errorf("amounts = %v/%v/%v, want 46.80/0/0", got.Withdrawal, got.Deposit, got.CreditPurchase)
+	}
+	if got.BankRegister != 8761.12 || got.Cleared != 0 || got.Delta != 0 {
+		t.Errorf("register fields = %v/%v/%v, want 8761.12/0/0", got.BankRegister, got.Cleared, got.Delta)
+	}
+
+	depositRow := []any{"", "WellsFargo", "12/08/20", "PAYCHECK", "", "1022.69", "", "", "", ""}
+	got, err = ss.populateRegisterEntry(depositRow)
+	if err != nil {
+		t.Fatalf("populateRegisterEntry(deposit) error = %v, want nil", err)
+	}
+	if got.Deposit != 1022.69 || got.Key != "wellsfargo:12/08/20:1022.69" {
+		t.Errorf("deposit entry = %+v, want Deposit 1022.69 key wellsfargo:12/08/20:1022.69", got)
+	}
+
+	badRow := []any{"", "WellsFargo", "12/07/20", "TARGET", "not-a-number", "", "", "", "", ""}
+	if _, err := ss.populateRegisterEntry(badRow); err == nil {
+		t.Errorf("populateRegisterEntry(bad amount) error = nil, want error")
 	}
 }
