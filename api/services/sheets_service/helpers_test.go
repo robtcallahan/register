@@ -2347,10 +2347,13 @@ func Test_readCell(t *testing.T) {
 }
 
 func Test_WriteCell(t *testing.T) {
-	w := readTestFixture(t, registerServiceJSONDir+"WriteCell.json")
-	var want *sheets.UpdateValuesResponse
-	err := json.Unmarshal(w, &want)
-	checkTestingError(t, err)
+	want := &sheets.UpdateValuesResponse{
+		SpreadsheetId:  "1-i_rA_q39tlN9reW_7c8vnXTgO5n3JxdK7rvDLdTwbI",
+		UpdatedCells:   1,
+		UpdatedColumns: 1,
+		UpdatedRange:   "Register!G1",
+		UpdatedRows:    1,
+	}
 
 	type args struct {
 		cell  string

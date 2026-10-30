@@ -38,11 +38,16 @@ func Test_monthlyService_updateMonthly(t *testing.T) {
 
 func Test_monthlyService_addSummarySalaryRow(t *testing.T) {
 	months := []string{"Jan", "Feb", "Mar"}
-	b := readTestFixture(t, "json/addSummarySalaryRow.json")
-	var want *sheets.RowData
-	err := json.Unmarshal(b, &want)
-	if err != nil {
-		t.Fatalf("could not unmarshal json test data: %s\n", err.Error())
+	v := float64(30)
+	cellData := &sheets.CellData{
+		EffectiveValue: &sheets.ExtendedValue{
+			NumberValue: &v,
+		},
+	}
+	rowData := make([]*sheets.CellData, 1)
+	rowData[0] = cellData
+	want := &sheets.RowData{
+		Values: rowData,
 	}
 
 	aggData := make(map[string]map[string]float64)

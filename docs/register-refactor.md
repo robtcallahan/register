@@ -176,8 +176,8 @@
 - [X] Printing policy design item (progress callback)
 - [X] IncomeSource.Match → MatchPattern rename (deferred)
 - [ ] Remove external JSON files from test that use them
-  - [ ] Test_WriteCell — includes the mock's read of the same file, so that goes too
-  - [ ] Test_addAmountCell
+  - [X] Test_WriteCell — includes the mock's read of the same file, so that goes too
+  - [X] Test_addAmountCell
   - [ ] Test_monthlyService_addSummarySalaryRow
   - [ ] Test_monthlyService_addSummaryTopRow
 
