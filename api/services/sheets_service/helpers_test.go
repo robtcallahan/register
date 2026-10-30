@@ -76,20 +76,12 @@ func (p *providerMock) ClearValues(_ string) error {
 }
 
 func (p *providerMock) Update(_ string, _ *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
-	w, err := os.ReadFile(registerServiceJSONDir + "WriteCell.json")
-	if err != nil {
-		if p.t != nil {
-			p.t.Fatalf("error: %s\n", err.Error())
-		}
-		return nil, err
-	}
-	var resp *sheets.UpdateValuesResponse
-	err = json.Unmarshal(w, &resp)
-	if err != nil {
-		if p.t != nil {
-			p.t.Fatalf("error: %s\n", err.Error())
-		}
-		return nil, err
+	resp := &sheets.UpdateValuesResponse{
+		SpreadsheetId:  "1-i_rA_q39tlN9reW_7c8vnXTgO5n3JxdK7rvDLdTwbI",
+		UpdatedCells:   1,
+		UpdatedColumns: 1,
+		UpdatedRange:   "Register!G1",
+		UpdatedRows:    1,
 	}
 	return resp, nil
 }
