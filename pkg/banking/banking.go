@@ -37,16 +37,6 @@ type PlaidHttpBodyResponse struct {
 	SuggestedAction  plaid.NullableString `json:"suggested_action"`
 }
 
-type ClientOptions struct {
-	PlaidClientID    string
-	PlaidSecret      string
-	PlaidEnvironment plaid.Environment
-	UserID           string
-	Banks            map[string]config.Bank
-	IncomeSources    []config.IncomeSource
-	Progress         func(_ string)
-}
-
 type Client struct {
 	PlaidClient   *plaid.APIClient
 	ClientID      string
@@ -64,20 +54,20 @@ type Balance struct {
 	Error    error
 }
 
-func NewClient(o *ClientOptions) *Client {
+func NewClient(userID string, banks map[string]config.Bank, incomeSources []config.IncomeSource, clientID, secret string, env plaid.Environment, progress func(_ string)) *Client {
 	c := &Client{
-		ClientID:      o.PlaidClientID,
-		Secret:        o.PlaidSecret,
-		Environment:   o.PlaidEnvironment,
-		UserID:        o.UserID,
-		Banks:         o.Banks,
-		IncomeSources: o.IncomeSources,
-		Progress:      o.Progress,
+		ClientID:      clientID,
+		Secret:        secret,
+		Environment:   env,
+		UserID:        userID,
+		Banks:         banks,
+		IncomeSources: incomeSources,
+		Progress:      progress,
 	}
 	configuration := plaid.NewConfiguration()
-	configuration.AddDefaultHeader("PLAID-CLIENT-ID", o.PlaidClientID)
-	configuration.AddDefaultHeader("PLAID-SECRET", o.PlaidSecret)
-	configuration.UseEnvironment(o.PlaidEnvironment)
+	configuration.AddDefaultHeader("PLAID-CLIENT-ID", c.ClientID)
+	configuration.AddDefaultHeader("PLAID-SECRET", c.Secret)
+	configuration.UseEnvironment(c.Environment)
 	client := plaid.NewAPIClient(configuration)
 	c.PlaidClient = client
 	return c

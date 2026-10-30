@@ -11,13 +11,5 @@ func GetBankingClient() *banking.Client {
 	if config.PlaidEnvironment == "production" {
 		plaidEnvironment = plaid.Production
 	}
-	return banking.NewClient(&banking.ClientOptions{
-		UserID:           config.UserID,
-		Banks:            config.Banks,
-		IncomeSources:    config.IncomeSources,
-		PlaidClientID:    config.PlaidClientID,
-		PlaidSecret:      config.PlaidEnvSecrets[config.PlaidEnvironment],
-		PlaidEnvironment: plaidEnvironment,
-		Progress:         func(_ string) {},
-	})
+	return banking.NewClient(config.UserID, config.Banks, config.IncomeSources, config.PlaidClientID, config.PlaidEnvSecrets[config.PlaidEnvironment], plaidEnvironment, func(_ string) {})
 }
