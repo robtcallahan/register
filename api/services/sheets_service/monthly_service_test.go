@@ -1,7 +1,6 @@
 package sheets_service
 
 import (
-	"os"
 	"reflect"
 	"register/pkg/models"
 	"testing"
@@ -129,9 +128,9 @@ func Test_monthlyService_addSummaryTopRow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := addSummaryTopRow(tt.args.months)
-			for idx := 1; idx <= 3; idx++ {
+			for idx := range 4 {
 				if *got.Values[idx].UserEnteredValue.StringValue != *want.Values[idx].UserEnteredValue.StringValue {
-					t.Errorf("addSummarySalaryRow() *got.Values[%d].UserEnteredValue.StringValue = %v, want %v",
+					t.Errorf("addSummaryTopRow() *got.Values[%d].UserEnteredValue.StringValue = %v, want %v",
 						idx, *got.Values[idx].UserEnteredValue.StringValue, *want.Values[idx].UserEnteredValue.StringValue)
 				}
 			}
@@ -181,15 +180,4 @@ func Test_monthlyService_readRangeFormulas(t *testing.T) {
 		values[0][0] = "=SUM(A1:A2)"
 		return values, nil
 	}
-}
-
-// readTestFixture reads a test fixture file, skipping the test when the
-// fixture is absent. Fixtures live on Rob's Mac, not in the repo.
-func readTestFixture(t *testing.T, path string) []byte {
-	t.Helper()
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Skipf("fixture not in repo: %s", path)
-	}
-	return b
 }

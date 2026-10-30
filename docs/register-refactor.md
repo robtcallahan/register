@@ -175,11 +175,11 @@
 - [X] Shared bufio.Reader for readString/readInt (one reader, created once)
 - [X] Printing policy design item (progress callback)
 - [X] IncomeSource.Match → MatchPattern rename (deferred)
-- [ ] Remove external JSON files from test that use them
+- [X] Remove external JSON files from test that use them
   - [X] Test_WriteCell — includes the mock's read of the same file, so that goes too
   - [X] Test_addAmountCell
   - [X] Test_monthlyService_addSummarySalaryRow
-  - [ ] Test_monthlyService_addSummaryTopRow
+  - [X] Test_monthlyService_addSummaryTopRow
 
 ## Phase 18 — Test coverage
 
