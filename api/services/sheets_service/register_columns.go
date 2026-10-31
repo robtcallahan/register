@@ -13,8 +13,8 @@ import (
 )
 
 // CheckRegisterColumns reports drift between the columns table and the
-// Register tab: structural problems in the DB indexes, a sheet grid wider
-// or narrower than the DB's last column, and row-4 header names that
+// Register tab: structural problems in the DB indexes, a sheet grid narrower
+// than the DB's last column, and row-4 header names that
 // disagree with the DB. Report-only; it never writes anything.
 func (ss *RegisterService) CheckRegisterColumns(registerSheet RegisterSheet, columns []models.Column) ([]string, error) {
 	set := models.NewColumnSet(columns)
@@ -32,9 +32,9 @@ func (ss *RegisterService) CheckRegisterColumns(registerSheet RegisterSheet, col
 	problems = append(problems, compareColumnHeaders(columns, headerRow)...)
 
 	if end, ok := set.End(); ok {
-		if count := registerSheet.SheetCoords.ColumnCount; count > 0 && int64(end.ColumnIndex) != count {
+		if count := registerSheet.SheetCoords.ColumnCount; count > 0 && int64(end.ColumnIndex) > count {
 			problems = append(problems, fmt.Sprintf(
-				"column count mismatch: DB ends at %s (index %d) but the sheet grid has %d columns",
+				"sheet narrower than DB: DB ends at %s (index %d) but the sheet grid has only %d columns",
 				set.LetterFor(end.ColumnIndex), end.ColumnIndex, count))
 		}
 	}
