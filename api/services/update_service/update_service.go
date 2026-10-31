@@ -14,6 +14,8 @@ import (
 	"register/pkg/csv"
 	"register/pkg/models"
 	"register/pkg/repository"
+
+	"google.golang.org/api/sheets/v4"
 )
 
 type UpdateService struct {
@@ -133,7 +135,18 @@ func (s *UpdateService) ApplyTransactions(tabName string, transactions []*models
 	}
 
 	s.Progress("  - updating spreadsheet")
-	if err := s.UpdateSpreadsheet(transactions); err != nil {
+
+	if len(dateCorrections) == 0 || s.Options.DryRun {
+		s.Progress("    > no date changes needed")
+	} else {
+		if err := s.ApplyDateCorrections(tabName, dateCorrections); err != nil {
+			return err
+		}
+	}
+
+	if len(transactions) == 0 || s.Options.DryRun {
+		s.Progress("    > no updates needed")
+	} else if err := s.UpdateSpreadsheet(transactions); err != nil {
 		return err
 	}
 
@@ -148,6 +161,19 @@ func (s *UpdateService) ApplyTransactions(tabName string, transactions []*models
 	s.Progress("  - updating balances in spreadsheet")
 	if err := s.UpdateBalances(tabName, balances); err != nil {
 		return err
+	}
+	return nil
+}
+
+// ApplyDateCorrections updates all spreadsheet row entries where the transaction ID matches with that of new transactions fetched
+// but the date has changed.
+func (s *UpdateService) ApplyDateCorrections(tabName string, dateCorrections []*DateCorrection) error {
+	for _, c := range dateCorrections {
+		cellData := &sheets.ValueRange{Values: [][]any{{c.NewDate}}}
+		_, err := s.RegisterService.Provider.Update(fmt.Sprintf("%s!C%d", tabName, c.Entry.RowID), cellData)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -262,11 +288,6 @@ func (s *UpdateService) DedupeAgainstSheet(transactions []*models.Transaction, s
 // refreshes the bank balances. Skipped when there is nothing to write or on
 // --dry-run runs.
 func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) error {
-	if len(transactions) == 0 || s.Options.DryRun {
-		s.Progress("No updates needed")
-		return nil
-	}
-
 	registerSheet, err := s.RegisterService.NewRegisterSheet(s.Config, nil)
 	if err != nil {
 		return err
@@ -284,19 +305,13 @@ func (s *UpdateService) UpdateSpreadsheet(transactions []*models.Transaction) er
 		return err
 	}
 
-	s.Progress(fmt.Sprintf("    (%3s) %-12s %-10s %8s %-30s %s", "Num", "Source", "Date", "Amount", "Name", "Note"))
-	s.Progress(fmt.Sprintf("    (%3s) %-12s %-10s %8s %-30s %s", dashes(3), dashes(12), dashes(10), dashes(8), dashes(30), dashes(15)))
-	for i, r := range transactions {
-		s.Progress(fmt.Sprintf("    (%3d) %-12s %-10s %8.2f %-30s %s", i+1, r.Source, r.Date, -1*r.Amount, r.Name, r.Note))
-	}
-
 	// add the needed number of rows for transactions
-	s.Progress("  - adding rows...")
+	s.Progress("  - adding new rows at the end...")
 	if err := s.RegisterService.CopyRows(*registerSheet, len(transactions)); err != nil {
 		return err
 	}
 
-	s.Progress("  - updating spreadsheet...")
+	s.Progress("  - inserting new transactions...")
 	columns, err := s.QueryRepo.GetColumns()
 	if err != nil {
 		return err
