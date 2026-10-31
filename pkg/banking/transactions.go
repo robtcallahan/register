@@ -164,13 +164,16 @@ func SortTransactions(trans []*models.Transaction) []*models.Transaction {
 }
 
 // FilterRecordedTransactions removes transactions that are already contained in the register spreadsheet
-func FilterRecordedTransactions(trans []*models.Transaction, regLookup map[string]bool) []*models.Transaction {
+func FilterRecordedTransactions(trans []*models.Transaction, sheetIDs map[string]bool, sheetKeys map[string]bool) []*models.Transaction {
 	var filtered []*models.Transaction
-	i := 0
 	for _, t := range trans {
-		if _, ok := regLookup[t.Key]; !ok {
+		if t.TransactionID != "" {
+			if _, ok := sheetIDs[t.TransactionID]; ok {
+				continue
+			}
+		}
+		if _, ok := sheetKeys[t.Key]; !ok {
 			filtered = append(filtered, t)
-			i++
 		}
 	}
 	return filtered

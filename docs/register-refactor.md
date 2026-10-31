@@ -181,12 +181,14 @@
   - [X] Test_monthlyService_addSummarySalaryRow
   - [X] Test_monthlyService_addSummaryTopRow
 
-## Phase 17.5 - Miscellaneous Fixes that came up
-- [X] 17.5.1 Column AR moved and replace A (Recon). Cleared column formulas updated. Code and tests updated to match.
-- [ ] 17.5.2 Sheet-ID dedupe in PrepareTransactions
-- [ ] 17.5.3 Date correction on ID match (checks skipped, agreed)
-- [ ] 17.5.4 Delete the fuzzy dates (FuzzyKeySet ±1 day)
-- [ ] 17.5.5 Fix the column_count_mismatch test (narrower-sheet case, new message)
+## Phase 17-5 - Miscellaneous Fixes that came up
+- [X] 17-5.1 Create a tmp cmd to update a new Transaction ID column in Register
+- [X] 17-5.1 Add transaction id column to Register, col AR. Add transaction IDs to new column
+- [X] 17-5.1 Column AR moved and replace A (Recon). Cleared column formulas updated. Code and tests updated to match.
+- [X] 17-5.2 Sheet-ID dedupe in PrepareTransactions
+- [ ] 17-5.3 Date correction on ID match (checks skipped, agreed)
+- [X] 17-5.4 Delete the fuzzy dates (FuzzyKeySet ±1 day)
+- [X] 17-5.5 Fix the column_count_mismatch test (narrower-sheet case, new message)
 
 ## Phase 18 — Test coverage
 

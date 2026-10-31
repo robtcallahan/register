@@ -74,63 +74,74 @@ func Test_updateService_PersistTransactions(t *testing.T) {
 }
 
 func Test_updateService_DedupeAgainstSheet(t *testing.T) {
-	fuzzyMerchants := map[string]bool{
-		"Amazon":             true,
-		"Amazon Marketplace": true,
-	}
-	regEntries := []*sheets_service.RegisterEntry{
+	entries := []*sheets_service.RegisterEntry{
 		{
-			Key:  "amazon:12/31/25:25.00",
-			Name: "Amazon",
-		}, {
-			Key:  "wellsfargo:01/05/26:100.00",
-			Name: "T-Mobile",
+			TransactionID: "24011346003100057563677; 05812; ; ; ; ;",
+			Key:           "fidelity:01/01/26:10.00",
+			Date:          "01/01/26",
+			Amount:        10.00,
+			Name:          "Martins",
 		},
 	}
 	trans := []*models.Transaction{
-		{Key: "amazon:01/01/26:25.00"},      // +1 day shift: duplicate
-		{Key: "amazon:12/30/25:25.00"},      // -1 day shift: duplicate
-		{Key: "wellsfargo:01/05/26:100.00"}, // exact match: duplicate
-		{Key: "wellsfargo:01/06/26:100.00"}, // ±1 shift, non-listed merchant: new
-		{Key: "amazon:01/01/26:30.00"},      // different amount: new
-		{Key: "chase:01/01/26:25.00"},       // different source: new
+		{ // match on TransID: duplicate
+			TransactionID: "24011346003100057563677; 05812; ; ; ; ;",
+			Key:           "fidelity:01/01/26:10.00",
+			Date:          "01/01/26",
+			Amount:        10.00,
+			Name:          "Martins",
+		},
+		{ // match on Key: duplicate
+			TransactionID: "",
+			Key:           "fidelity:01/01/26:10.00",
+			Date:          "01/01/26",
+			Amount:        10.00,
+			Name:          "Martins",
+		},
+		{ // no TransID, no Key: new
+			TransactionID: "",
+			Key:           "",
+			Date:          "02/01/26",
+			Amount:        10.00,
+			Name:          "Weis",
+		},
+		{ // TransID, different date: duplicate but keep and update date in Register
+			TransactionID: "24011346003100057563677; 05812; ; ; ; ;",
+			Key:           "fidelity:01/01/26:10.00",
+			Date:          "01/01/26",
+			Amount:        10.00,
+			Name:          "Martins",
+		},
+	}
+
+	want := []*models.Transaction{
+		{
+			TransactionID: "",
+			Key:           "",
+			Date:          "02/01/26",
+			Amount:        10.00,
+			Name:          "Weis",
+		},
+	}
+
+	sheetIDs := make(map[string]bool)
+	sheetKeys := make(map[string]bool)
+	for _, e := range entries {
+		if e.TransactionID != "" {
+			sheetIDs[e.TransactionID] = true
+		}
+		sheetKeys[e.Key] = true
 	}
 
 	bankClient := &banking.Client{}
 	updateService := NewUpdateService(nil, nil, bankClient, nil, nil, &cfg.Options{DryRun: false})
-	fuzziedKeysMap := updateService.ExpandFuzzyKeys(regEntries, fuzzyMerchants)
-	got := updateService.DedupeAgainstSheet(trans, fuzziedKeysMap)
+	got := updateService.DedupeAgainstSheet(trans, sheetIDs, sheetKeys)
 
-	if len(got) != 3 {
-		t.Fatalf("expected 3 new transactions, got %d", len(got))
+	if len(got) != 1 {
+		t.Fatalf("expected 1 new transaction, got %d", len(got))
 	}
-	if got[0].Key != "wellsfargo:01/06/26:100.00" || got[1].Key != "amazon:01/01/26:30.00" || got[2].Key != "chase:01/01/26:25.00" {
-		t.Errorf("unexpected survivors: %s, %s, %s", got[0].Key, got[1].Key, got[2].Key)
-	}
-}
-
-func Test_updateService_FuzzyKeySet(t *testing.T) {
-	keys := map[string]bool{
-		"amazon:12/31/25:25.00": true,
-		"badkey":                true,
-		"chase:01/01/26:10.00":  true,
-	}
-	us := &UpdateService{nil, nil, nil, nil, nil, nil, nil}
-	fuzzy := us.FuzzyKeySet(keys)
-
-	for _, want := range []string{
-		"amazon:12/30/25:25.00",
-		"amazon:12/31/25:25.00",
-		"amazon:01/01/26:25.00", // year boundary
-		"badkey",
-		"chase:12/31/25:10.00",
-		"chase:01/02/26:10.00",
-	} {
-		if !fuzzy[want] {
-			t.Errorf("missing variant %q", want)
-		}
-	}
-	if fuzzy["amazon:01/02/26:25.00"] {
-		t.Error("did not expect a +2 day variant")
+	if got[0].Date != "02/01/26" || got[0].Amount != 10.00 || got[0].Name != "Weis" {
+		t.Errorf("got: Date %s, Amount %0.2f Name %s, want: Date %s, Amount %0.2f Name %s",
+			got[0].Date, got[0].Amount, got[0].Name, want[0].Date, want[0].Amount, want[0].Name)
 	}
 }

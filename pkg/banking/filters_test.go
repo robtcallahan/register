@@ -21,7 +21,8 @@ func TestFilterRecordedTransactions(t *testing.T) {
 	tests := []struct {
 		name      string
 		trans     []*models.Transaction
-		regLookup map[string]bool
+		sheetIDs  map[string]bool
+		sheetKeys map[string]bool
 		wantKeys  []string
 	}{
 		{
@@ -31,7 +32,10 @@ func TestFilterRecordedTransactions(t *testing.T) {
 				testTransaction("chase:12/07/20:20.00", "AMAZON"),
 				testTransaction("chase:12/07/20:30.00", "COSTCO"),
 			},
-			regLookup: map[string]bool{
+			sheetIDs: map[string]bool{
+				"123456789": true,
+			},
+			sheetKeys: map[string]bool{
 				"chase:12/07/20:20.00": true,
 			},
 			wantKeys: []string{
@@ -45,7 +49,7 @@ func TestFilterRecordedTransactions(t *testing.T) {
 				testTransaction("chase:12/07/20:10.00", "TARGET"),
 				testTransaction("chase:12/07/20:20.00", "AMAZON"),
 			},
-			regLookup: map[string]bool{},
+			sheetKeys: map[string]bool{},
 			wantKeys: []string{
 				"chase:12/07/20:10.00",
 				"chase:12/07/20:20.00",
@@ -56,7 +60,7 @@ func TestFilterRecordedTransactions(t *testing.T) {
 			trans: []*models.Transaction{
 				testTransaction("chase:12/07/20:10.00", "TARGET"),
 			},
-			regLookup: map[string]bool{
+			sheetKeys: map[string]bool{
 				"chase:12/07/20:10.00": true,
 			},
 			wantKeys: []string{},
@@ -64,20 +68,20 @@ func TestFilterRecordedTransactions(t *testing.T) {
 		{
 			name:      "empty transactions returns empty",
 			trans:     []*models.Transaction{},
-			regLookup: map[string]bool{"chase:12/07/20:10.00": true},
+			sheetKeys: map[string]bool{"chase:12/07/20:10.00": true},
 			wantKeys:  []string{},
 		},
 		{
 			name:      "nil transactions returns empty",
 			trans:     nil,
-			regLookup: map[string]bool{},
+			sheetKeys: map[string]bool{},
 			wantKeys:  []string{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FilterRecordedTransactions(tt.trans, tt.regLookup)
+			got := FilterRecordedTransactions(tt.trans, tt.sheetIDs, tt.sheetKeys)
 
 			if len(got) != len(tt.wantKeys) {
 				t.Fatalf("got %d transactions, want %d", len(got), len(tt.wantKeys))
