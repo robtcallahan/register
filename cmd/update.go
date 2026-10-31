@@ -393,7 +393,7 @@ func printTransactions(trans []*models.Transaction, dateCorrections []*update_se
 		fmt.Println("")
 
 	}
-	
+
 	fmt.Printf("New Transactions:\n")
 	fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", "Transaction ID", "Key", "Source", "Date", "Amount", "Name")
 	fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", dashes(57), dashes(30), dashes(12), dashes(8), dashes(8), dashes(60))
