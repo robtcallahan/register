@@ -103,7 +103,7 @@ func update() error {
 		return err
 	}
 
-	if transactions == nil {
+	if transactions == nil && len(dateCorrections) == 0 {
 		fmt.Println("No new transactions")
 		if options.DryRun {
 			fmt.Println("Dry run was on — no spreadsheet or database updates were made.")
