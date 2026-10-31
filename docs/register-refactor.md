@@ -182,7 +182,7 @@
   - [X] Test_monthlyService_addSummaryTopRow
 
 ## Phase 17.5 - Miscellaneous Fixes that came up
-- [X] 17.5.1 Column AR moved and replace A (Recon). Cleared column formulas updated. 
+- [X] 17.5.1 Column AR moved and replace A (Recon). Cleared column formulas updated. Code and tests updated to match.
 - [ ] 17.5.2 Sheet-ID dedupe in PrepareTransactions
 - [ ] 17.5.3 Date correction on ID match (checks skipped, agreed)
 - [ ] 17.5.4 Delete the fuzzy dates (FuzzyKeySet ±1 day)
