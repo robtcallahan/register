@@ -304,7 +304,11 @@ func readFidelityCSVRows(csvFile string, bankID string) ([]*models.Transaction, 
 func processFidelityData(fidelity []*FidelityVisa, bankID string) []*models.Transaction {
 	var trans []*models.Transaction
 	for _, f := range fidelity {
+		if strings.HasPrefix(f.Name, "PAYMENT") {
+			continue
+		}
 		t := &models.Transaction{
+			TransactionID:  f.Memo,
 			Source:         "Fidelity",
 			Date:           models.ReadDateValue(f.Date),
 			Name:           f.Name,
@@ -338,10 +342,8 @@ func readChaseCSVRows(csvFile string, bankID string) ([]*models.Transaction, err
 
 func processChaseData(chase []*ChaseVisa, bankID string) []*models.Transaction {
 	var trans []*models.Transaction
-	re := regexp.MustCompile(`(payment\s+thank you)`)
 	for _, c := range chase {
-		m := re.FindStringSubmatch(strings.ToLower(c.Description))
-		if len(m) > 0 {
+		if strings.HasPrefix(c.Description, "Payment") {
 			continue
 		}
 

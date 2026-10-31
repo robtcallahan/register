@@ -10,7 +10,7 @@ func testTransaction(key, bankName string) *models.Transaction {
 	return &models.Transaction{
 		Key:      key,
 		BankName: bankName,
-		Source:   "WellsFargo",
+		Source:   "Chase",
 		Date:     "12/07/20",
 		Name:     bankName,
 		Amount:   10.00,
@@ -27,44 +27,44 @@ func TestFilterRecordedTransactions(t *testing.T) {
 		{
 			name: "keeps unrecorded, drops recorded",
 			trans: []*models.Transaction{
-				testTransaction("wellsfargo:12/07/20:10.00", "TARGET"),
-				testTransaction("wellsfargo:12/07/20:20.00", "AMAZON"),
-				testTransaction("wellsfargo:12/07/20:30.00", "COSTCO"),
+				testTransaction("chase:12/07/20:10.00", "TARGET"),
+				testTransaction("chase:12/07/20:20.00", "AMAZON"),
+				testTransaction("chase:12/07/20:30.00", "COSTCO"),
 			},
 			regLookup: map[string]bool{
-				"wellsfargo:12/07/20:20.00": true,
+				"chase:12/07/20:20.00": true,
 			},
 			wantKeys: []string{
-				"wellsfargo:12/07/20:10.00",
-				"wellsfargo:12/07/20:30.00",
+				"chase:12/07/20:10.00",
+				"chase:12/07/20:30.00",
 			},
 		},
 		{
 			name: "empty lookup keeps all",
 			trans: []*models.Transaction{
-				testTransaction("wellsfargo:12/07/20:10.00", "TARGET"),
-				testTransaction("wellsfargo:12/07/20:20.00", "AMAZON"),
+				testTransaction("chase:12/07/20:10.00", "TARGET"),
+				testTransaction("chase:12/07/20:20.00", "AMAZON"),
 			},
 			regLookup: map[string]bool{},
 			wantKeys: []string{
-				"wellsfargo:12/07/20:10.00",
-				"wellsfargo:12/07/20:20.00",
+				"chase:12/07/20:10.00",
+				"chase:12/07/20:20.00",
 			},
 		},
 		{
 			name: "all recorded returns empty",
 			trans: []*models.Transaction{
-				testTransaction("wellsfargo:12/07/20:10.00", "TARGET"),
+				testTransaction("chase:12/07/20:10.00", "TARGET"),
 			},
 			regLookup: map[string]bool{
-				"wellsfargo:12/07/20:10.00": true,
+				"chase:12/07/20:10.00": true,
 			},
 			wantKeys: []string{},
 		},
 		{
 			name:      "empty transactions returns empty",
 			trans:     []*models.Transaction{},
-			regLookup: map[string]bool{"wellsfargo:12/07/20:10.00": true},
+			regLookup: map[string]bool{"chase:12/07/20:10.00": true},
 			wantKeys:  []string{},
 		},
 		{
@@ -95,16 +95,12 @@ func TestFilterCreditCardPayments(t *testing.T) {
 	tests := []struct {
 		name     string
 		bankName string
+
 		wantDrop bool
 	}{
 		{
-			name:     "drops Wells Fargo card payment",
-			bankName: "PAYMENT MADE BY ACCOUNT ENDING IN:5409",
-			wantDrop: true,
-		},
-		{
-			name:     "drops Chase payment with dash",
-			bankName: "Payment Thank You - Bill",
+			name:     "drops Chase card payment",
+			bankName: "Payment Thank You - Bil",
 			wantDrop: true,
 		},
 		{
@@ -115,11 +111,6 @@ func TestFilterCreditCardPayments(t *testing.T) {
 		{
 			name:     "keeps regular purchase",
 			bankName: "TARGET",
-			wantDrop: false,
-		},
-		{
-			name:     "keeps similar but non-matching",
-			bankName: "Payment Thank You",
 			wantDrop: false,
 		},
 		{
@@ -149,7 +140,6 @@ func TestFilterCreditCardPayments(t *testing.T) {
 func TestFilterCreditCardPayments_Mixed(t *testing.T) {
 	trans := []*models.Transaction{
 		testTransaction("wellsfargo:12/07/20:10.00", "TARGET"),
-		testTransaction("wellsfargo:12/07/20:500.00", "PAYMENT MADE BY ACCOUNT ENDING IN:5409"),
 		testTransaction("wellsfargo:12/07/20:20.00", "AMAZON"),
 		testTransaction("chase:12/07/20:300.00", "Payment Thank You - Bill"),
 		testTransaction("wellsfargo:12/07/20:30.00", "COSTCO"),

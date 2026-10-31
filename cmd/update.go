@@ -92,12 +92,21 @@ func update() error {
 
 	fmt.Println("Loading Transactions...")
 	transactions, err = updateService.LoadTransactions(registerSheet)
+	if err != nil {
+		return err
+	}
 
 	fmt.Println("Preparing Transactions...")
 	transactions, err = updateService.PrepareTransactions(transactions, registerSheet.Entries)
+	if err != nil {
+		return err
+	}
 
 	if transactions == nil {
 		fmt.Println("No new transactions")
+		if options.DryRun {
+			fmt.Println("Dry run was on — no spreadsheet or database updates were made.")
+		}
 		return nil
 	}
 
@@ -112,12 +121,10 @@ func update() error {
 
 		fmt.Println("Applying transactions:")
 		err = updateService.ApplyTransactions(registerSheet.TabName, transactions)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return err
 	}
+	
+	fmt.Println("Dry run was on — no spreadsheet or database updates were made.")
 	return nil
 }
 

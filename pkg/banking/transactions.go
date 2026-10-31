@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -44,7 +43,9 @@ func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([
 		}
 
 		for _, trans := range transResp {
-			// skip CC payment transaction as these will show up as checking account payments
+			if trans.Pending {
+				continue
+			}
 			register, err := c.buildTransaction(bankConfig.ID, trans)
 			if err != nil {
 				return nil, err
@@ -60,36 +61,47 @@ func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([
 
 func (c *Client) getPlaidTransactions(bankConfig config.Bank, startDate, endDate string) ([]plaid.Transaction, error) {
 	ctx := context.Background()
-
-	request := plaid.NewTransactionsGetRequest(
-		bankConfig.AccessToken,
-		startDate,
-		endDate,
+	const count int32 = 100
+	var (
+		all    []plaid.Transaction
+		offset int32
 	)
-	options := plaid.TransactionsGetRequestOptions{
-		Count:  plaid.PtrInt32(100),
-		Offset: plaid.PtrInt32(0),
-	}
-	request.SetOptions(options)
-
-	resp, httpResp, err := c.PlaidClient.PlaidApi.TransactionsGet(ctx).TransactionsGetRequest(*request).Execute()
-
-	if err != nil {
-		buf := new(bytes.Buffer)
-		_, err2 := buf.ReadFrom(httpResp.Body)
-		if err2 != nil {
-			return nil, err2
+	for {
+		request := plaid.NewTransactionsGetRequest(
+			bankConfig.AccessToken,
+			startDate,
+			endDate,
+		)
+		request.SetOptions(plaid.TransactionsGetRequestOptions{
+			Count:  plaid.PtrInt32(count),
+			Offset: plaid.PtrInt32(offset),
+		})
+		resp, httpResp, err := c.PlaidClient.PlaidApi.TransactionsGet(ctx).TransactionsGetRequest(*request).Execute()
+		if err != nil {
+			if httpResp == nil {
+				return nil, err
+			}
+			buf := new(bytes.Buffer)
+			if _, err2 := buf.ReadFrom(httpResp.Body); err2 != nil {
+				return nil, err2
+			}
+			return nil, fmt.Errorf("%w\n%s", err, buf.String())
 		}
-		return nil, fmt.Errorf("%w\n%s", err, buf.String())
+		all = append(all, resp.Transactions...)
+		offset += int32(len(resp.Transactions))
+		if len(resp.Transactions) == 0 || offset >= resp.TotalTransactions {
+			break
+		}
 	}
-	return resp.Transactions, nil
+	return all, nil
 }
 
 func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.Transaction, error) {
 	tran := &models.Transaction{
-		Date:     models.ReadDateValue(p.Date),
-		Name:     "",
-		BankName: p.Name,
+		TransactionID: p.TransactionId,
+		Date:          models.ReadDateValue(p.Date),
+		Name:          "",
+		BankName:      p.Name,
 	}
 
 	switch bankID {
@@ -164,30 +176,17 @@ func FilterRecordedTransactions(trans []*models.Transaction, regLookup map[strin
 	return filtered
 }
 
-// creditCardPaymentPatterns identify card-payment transactions. Those
+// FilterCreditCardPayments identify card-payment transactions. Those
 // payments also appear as checking-account transactions, so keeping both
 // would double-count them.
-var creditCardPaymentPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`PAYMENT MADE BY ACCOUNT ENDING IN:5409`),
-	regexp.MustCompile(`Payment Thank You - Bill`),
-	regexp.MustCompile(`Payment Thank You Bill`),
-}
-
-// FilterCreditCardPayments drops credit card payment transactions.
 func FilterCreditCardPayments(trans []*models.Transaction) []*models.Transaction {
 	var newTrans []*models.Transaction
 
 	for _, t := range trans {
-		drop := false
-		for _, re := range creditCardPaymentPatterns {
-			if re.MatchString(t.BankName) {
-				drop = true
-				break
-			}
+		if t.Source == "Chase" && strings.HasPrefix(t.BankName, "Payment") {
+			continue
 		}
-		if !drop {
-			newTrans = append(newTrans, t)
-		}
+		newTrans = append(newTrans, t)
 	}
 	return newTrans
 }

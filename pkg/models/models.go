@@ -8,7 +8,8 @@ import (
 
 // Transaction ...
 type Transaction struct {
-	Key            string `gorm:"size:255;uniqueIndex"`
+	Key            string `gorm:"size:255;index"`
+	TransactionID  string
 	Source         string
 	Date           string
 	Name           string
