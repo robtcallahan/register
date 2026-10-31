@@ -123,7 +123,7 @@ func update() error {
 		err = updateService.ApplyTransactions(registerSheet.TabName, transactions)
 		return err
 	}
-	
+
 	fmt.Println("Dry run was on — no spreadsheet or database updates were made.")
 	return nil
 }
@@ -380,8 +380,9 @@ func readInt(reader *bufio.Reader, prompt string) (int, error) {
 }
 
 func printTransactions(trans []*models.Transaction) {
-	fmt.Printf("    (%3s) [%-28s] %-12s %-10s %-8s %2s %-30s %-30s\n", "Num", "Key", "Source", "Date", "Amount", "CI", "Name", "Bank Name")
-	for i, t := range trans {
+	fmt.Printf("%-57s %-12s %-8s %-8s %-60s\n", "Transaction ID", "Source", "Date", "Amount", "Name")
+	fmt.Printf("%-57s %-12s %-8s %-8s %-60s\n", dashes(57), dashes(12), dashes(8), dashes(8), dashes(60))
+	for _, t := range trans {
 		amt := 0.0
 		if t.Source == "WellsFargo" {
 			if t.Deposit != 0 {
@@ -392,7 +393,11 @@ func printTransactions(trans []*models.Transaction) {
 		} else {
 			amt = t.CreditPurchase
 		}
-		fmt.Printf("    (%3d) [%-28s] %-12s %-10s %8.2f %2d %-30s %-30s\n", i+1, t.Key, t.Source, t.Date, amt, t.ColumnIndex, t.Name, t.BankName)
+		fmt.Printf("%-57s %-12s %-8s %8.2f %-60s\n", t.TransactionID, t.Source, t.Date, amt, t.Name)
 	}
 	fmt.Println("")
+}
+
+func dashes(count int) string {
+	return strings.Repeat("-", count)
 }
