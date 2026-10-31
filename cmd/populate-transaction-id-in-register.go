@@ -70,12 +70,12 @@ func popTransID() error {
 	var noMatchIdx = 0
 	var noMatches = make(map[int]*sheets_service.RegisterEntry)
 
-	for id, regRow := range registerSheet.Entries {
+	for _, regRow := range registerSheet.Entries {
 		matches := dbByKey[regRow.Key]
 		switch {
 		case len(matches) == 1 && matches[0].TransactionID != "":
 			// unique match with an ID — write matches[0].TransactionID
-			rows[regRow.RowID-first] = []any{id}
+			rows[regRow.RowID-first] = []any{matches[0].TransactionID}
 			rowsUpdated = rowsUpdated + 1
 		case len(matches) > 1:
 			// twin — leave AR empty for manual resolution
