@@ -16,7 +16,7 @@ func Test_registerService_ReadRegisterSheet(t *testing.T) {
 	getValuesProviderFunc = func(range_ string) ([][]any, error) {
 		var values [][]any
 		if range_ == "Register!A4:J4" {
-			values = [][]any{{"Recon", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
+			values = [][]any{{"Transaction ID", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
 			return values, nil
 		}
 		values = [][]any{
@@ -224,7 +224,7 @@ func Test_registerService_getRowID(t *testing.T) {
 }
 
 func Test_registerService_populateRegisterEntry(t *testing.T) {
-	row := []any{"X", "WellsFargo", "12/07/20", "TARGET", "46.80", "", "", "8761.12", "", ""}
+	row := []any{"YgxnNZPLLXiDA5gg69PwULK3wpAXqvCJzVExA", "WellsFargo", "12/07/20", "TARGET", "46.80", "", "", "8761.12", "", ""}
 	got, err := ss.populateRegisterEntry(row)
 	if err != nil {
 		t.Fatalf("populateRegisterEntry() error = %v, want nil", err)
@@ -232,7 +232,7 @@ func Test_registerService_populateRegisterEntry(t *testing.T) {
 	if got.Key != "wellsfargo:12/07/20:46.80" {
 		t.Errorf("Key = %q, want wellsfargo:12/07/20:46.80", got.Key)
 	}
-	if got.Reconciled != "X" || got.Source != "wellsfargo" || got.Date != "12/07/20" || got.Name != "TARGET" {
+	if got.TransactionID != "YgxnNZPLLXiDA5gg69PwULK3wpAXqvCJzVExA" || got.Source != "wellsfargo" || got.Date != "12/07/20" || got.Name != "TARGET" {
 		t.Errorf("identity fields = %+v, want X/wellsfargo/12/07/20/TARGET", got)
 	}
 	if got.Withdrawal != 46.80 || got.Deposit != 0 || got.CreditPurchase != 0 {

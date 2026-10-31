@@ -393,7 +393,11 @@ func printTransactions(trans []*models.Transaction) {
 		} else {
 			amt = t.CreditPurchase
 		}
-		fmt.Printf("%-57s %-12s %-8s %8.2f %-60s\n", t.TransactionID, t.Source, t.Date, amt, t.Name)
+		tID := t.TransactionID
+		if tID == "" {
+			tID = t.Key
+		}
+		fmt.Printf("%-57s %-12s %-8s %8.2f %-60s\n", tID, t.Source, t.Date, amt, t.Name)
 	}
 	fmt.Println("")
 }

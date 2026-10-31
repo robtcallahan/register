@@ -25,7 +25,7 @@ type RegisterEntry struct {
 	RowID          int64
 	IsCheck        bool
 	Key            string
-	Reconciled     string
+	TransactionID  string
 	Source         string
 	Date           string
 	Name           string
@@ -102,7 +102,7 @@ func (ss *RegisterService) ReadRegisterSheet(registerSheet *RegisterSheet) (*Reg
 	// determine last used row in the spreadsheet
 	registerSheet.SheetCoords.LastRow = ss.getLastRow(*registerSheet, values)
 
-	// The Reconciled..Delta index constants assume fixed positions; verify
+	// The TransactionID..Delta index constants assume fixed positions; verify
 	// the sheet agrees before trusting them.
 	if err := ss.checkRegisterHeaders(*registerSheet); err != nil {
 		return nil, err
@@ -279,7 +279,7 @@ func (ss *RegisterService) populateRegisterEntry(values []any) (*RegisterEntry, 
 	}
 	entry := &RegisterEntry{
 		Key:            getTransactionKey(values),
-		Reconciled:     getStringField(values, Reconciled),
+		TransactionID:  getStringField(values, TransactionID),
 		Source:         getSourceField(values),
 		Date:           getDateField(values),
 		Name:           getNameField(values),
@@ -354,11 +354,11 @@ func (ss *RegisterService) readRangeFormulas(readRange string) ([]string, error)
 }
 
 // registerFixedHeaders are the expected labels of the Register tab's fixed
-// A-J columns (row 4), in position order. They anchor the Reconciled..Delta
+// A-J columns (row 4), in position order. They anchor the TransactionID..Delta
 // index constants: a moved, renamed, or missing header is a loud error,
 // not a silently wrong column.
 var registerFixedHeaders = []string{
-	"Recon", "Check", "Date", "Description", "Withdrawals",
+	"Transaction ID", "Check", "Date", "Description", "Withdrawals",
 	"Deposits", "Credit Purchases", "Register", "Cleared", "Delta",
 }
 

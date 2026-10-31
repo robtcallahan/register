@@ -202,7 +202,7 @@ func mkCellDataFormula(value string, align, colorName string, borders bool) *she
 	}
 }
 
-func getCellDataReconcileColumn(value, align, colorName string, borders bool) *sheets.CellData {
+func getCellDataTransactionIDColumn(value, align, colorName string, borders bool) *sheets.CellData {
 	return &sheets.CellData{
 		UserEnteredValue: &sheets.ExtendedValue{
 			StringValue: &value,

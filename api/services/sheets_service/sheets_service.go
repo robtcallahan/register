@@ -8,7 +8,7 @@ import (
 const (
 	CreditCardColumnName      = "Credit Cards"
 	CheckingAccountSourceName = "WellsFargo"
-	Reconciled                = 0
+	TransactionID             = 0
 	Source                    = 1
 	Date                      = 2
 	Description               = 3

@@ -181,6 +181,13 @@
   - [X] Test_monthlyService_addSummarySalaryRow
   - [X] Test_monthlyService_addSummaryTopRow
 
+## Phase 17.5 - Miscellaneous Fixes that came up
+- [X] 17.5.1 Column AR moved and replace A (Recon). Cleared column formulas updated. 
+- [ ] 17.5.2 Sheet-ID dedupe in PrepareTransactions
+- [ ] 17.5.3 Date correction on ID match (checks skipped, agreed)
+- [ ] 17.5.4 Delete the fuzzy dates (FuzzyKeySet ±1 day)
+- [ ] 17.5.5 Fix the column_count_mismatch test (narrower-sheet case, new message)
+
 ## Phase 18 — Test coverage
 
 Scope: instructive subset by Rob, bulk by Muse. Kickoff coverage (2026-10-30): 28.6% total (up from 25% at Phase 10) — 140 functions at exactly 0%, 41 more partially covered.

@@ -160,8 +160,24 @@ func Test_registerService_CheckRegisterColumns(t *testing.T) {
 				found = true
 			}
 		}
+		if found {
+			t.Errorf("CheckRegisterColumns() problems = %v, do not want count mismatch", problems)
+		}
+
+		narrow := sheet
+		narrow.SheetCoords.ColumnCount = 11
+		problems, err = ss.CheckRegisterColumns(narrow, checkTestColumns())
+		if err != nil {
+			t.Fatalf("CheckRegisterColumns() error = %v, want nil", err)
+		}
+		found = false
+		for _, p := range problems {
+			if strings.Contains(p, "sheet narrower than DB") {
+				found = true
+			}
+		}
 		if !found {
-			t.Errorf("CheckRegisterColumns() problems = %v, want count mismatch", problems)
+			t.Errorf("CheckRegisterColumns() problems = %v, want narrower message", problems)
 		}
 	})
 	t.Run("provider error", func(t *testing.T) {

@@ -112,7 +112,7 @@ func addCCTransaction(trans *models.Transaction, bgColor string, cells []*sheets
 }
 
 func addSourceDateNameCells(cells []*sheets.CellData, trans *models.Transaction, bgColor string) ([]*sheets.CellData, error) {
-	cells = append(cells, getCellDataReconcileColumn("X", "center", bgColor, false))
+	cells = append(cells, getCellDataTransactionIDColumn(trans.TransactionID, "center", bgColor, false))
 	cells = append(cells, mkCellDataString(trans.Source, "center", bgColor, false))
 	dateCell, err := getCellDataDate(trans.Date, "center", bgColor, false)
 	if err != nil {
@@ -145,7 +145,7 @@ func addCategoryCells(cells []*sheets.CellData, trans *models.Transaction, colum
 		for ; nextIndex < col.ColumnIndex; nextIndex++ {
 			cells = append(cells, mkCellDataEmpty("left", "", true))
 		}
-		// i is this column's offset within the category block (0 = H)
+		// var "i" is this column's offset within the category block (0 = H)
 		i := col.ColumnIndex - BankRegister - 1
 		if isRegisterClearedOrDeltaColumn(i) {
 			// first 3 columns are Register, Cleared & Delta. We copied the cell formulas above and are pasting here

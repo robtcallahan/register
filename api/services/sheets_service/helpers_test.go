@@ -26,7 +26,7 @@ var getValuesProviderFunc = func(range_ string) ([][]any, error) {
 	// 9.3 header checks: return the real header rows for the header ranges.
 	var values [][]any
 	if range_ == "Register!A4:J4" {
-		values = [][]any{{"Recon", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
+		values = [][]any{{"TransactionID", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
 		return values, nil
 	}
 	if range_ == "Budget!A1:J1" {
@@ -911,7 +911,7 @@ func Test_getCellDataReconcileColumn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getCellDataReconcileColumn(tt.args.value, tt.args.align, tt.args.colorName, tt.args.bordersOn); !reflect.DeepEqual(got, tt.want) {
+			if got := getCellDataTransactionIDColumn(tt.args.value, tt.args.align, tt.args.colorName, tt.args.bordersOn); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getCellDataReconcileColumn() = %+v, want %+v", got, tt.want)
 			}
 		})
