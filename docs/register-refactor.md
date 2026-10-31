@@ -189,6 +189,7 @@
 - [ ] 17-5.3 Date correction on ID match (checks skipped, agreed)
 - [X] 17-5.4 Delete the fuzzy dates (FuzzyKeySet ±1 day)
 - [X] 17-5.5 Fix the column_count_mismatch test (narrower-sheet case, new message)
+- [ ] 17-5.6 Update Test_FilterRecordedTransactions
 
 ## Phase 18 — Test coverage
 

@@ -97,7 +97,8 @@ func update() error {
 	}
 
 	fmt.Println("Preparing Transactions...")
-	transactions, err = updateService.PrepareTransactions(transactions, registerSheet.Entries)
+	var dateCorrections []*update_service.DateCorrection
+	transactions, dateCorrections, err = updateService.PrepareTransactions(transactions, registerSheet.Entries)
 	if err != nil {
 		return err
 	}
@@ -110,8 +111,7 @@ func update() error {
 		return nil
 	}
 
-	fmt.Printf("New Transactions:\n")
-	printTransactions(transactions)
+	printTransactions(transactions, dateCorrections)
 
 	if !options.DryRun {
 		transactions, err = gatherTransactionInfo(reader, bankClient, queryRepo, transactions)
@@ -120,7 +120,7 @@ func update() error {
 		}
 
 		fmt.Println("Applying transactions:")
-		err = updateService.ApplyTransactions(registerSheet.TabName, transactions)
+		err = updateService.ApplyTransactions(registerSheet.TabName, transactions, dateCorrections)
 		return err
 	}
 
@@ -379,27 +379,43 @@ func readInt(reader *bufio.Reader, prompt string) (int, error) {
 	return i, nil
 }
 
-func printTransactions(trans []*models.Transaction) {
-	fmt.Printf("%-57s %-12s %-8s %-8s %-60s\n", "Transaction ID", "Source", "Date", "Amount", "Name")
-	fmt.Printf("%-57s %-12s %-8s %-8s %-60s\n", dashes(57), dashes(12), dashes(8), dashes(8), dashes(60))
+func printTransactions(trans []*models.Transaction, dateCorrections []*update_service.DateCorrection) {
+	fmt.Println("")
+	if len(dateCorrections) > 0 {
+		fmt.Printf("Updated Transactions:\n")
+		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-8s %-60s\n", "Transaction ID", "Key", "Source", "Old Date", "New Date", "Amount", "Name")
+		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-8s %-60s\n", dashes(57), dashes(30), dashes(12), dashes(8), dashes(8), dashes(8), dashes(60))
+		for _, c := range dateCorrections {
+			e := c.Entry
+			amt := getAmount(e.Source, e.Deposit, e.Withdrawal, e.CreditPurchase)
+			fmt.Printf("%-57s %-30s %-12s %-8s %-8s %8.2f %-60s\n", e.TransactionID, e.Key, e.Source, e.Date, c.NewDate, amt, e.Name)
+		}
+		fmt.Println("")
+
+	}
+	
+	fmt.Printf("New Transactions:\n")
+	fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", "Transaction ID", "Key", "Source", "Date", "Amount", "Name")
+	fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", dashes(57), dashes(30), dashes(12), dashes(8), dashes(8), dashes(60))
 	for _, t := range trans {
-		amt := 0.0
-		if t.Source == "WellsFargo" {
-			if t.Deposit != 0 {
-				amt = t.Deposit
-			} else {
-				amt = t.Withdrawal
-			}
-		} else {
-			amt = t.CreditPurchase
-		}
-		tID := t.TransactionID
-		if tID == "" {
-			tID = t.Key
-		}
-		fmt.Printf("%-57s %-12s %-8s %8.2f %-60s\n", tID, t.Source, t.Date, amt, t.Name)
+		amt := getAmount(t.Source, t.Deposit, t.Withdrawal, t.CreditPurchase)
+		fmt.Printf("%-57s %-30s %-12s %-8s %8.2f %-60s\n", t.TransactionID, t.Key, t.Source, t.Date, amt, t.Name)
 	}
 	fmt.Println("")
+}
+
+func getAmount(source string, deposit, withdrawal, creditPurchase float64) float64 {
+	amt := 0.0
+	if source == "WellsFargo" {
+		if deposit != 0 {
+			amt = deposit
+		} else {
+			amt = withdrawal
+		}
+	} else {
+		amt = creditPurchase
+	}
+	return amt
 }
 
 func dashes(count int) string {

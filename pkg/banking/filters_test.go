@@ -17,7 +17,7 @@ func testTransaction(key, bankName string) *models.Transaction {
 	}
 }
 
-func TestFilterRecordedTransactions(t *testing.T) {
+func Test_FilterRecordedTransactions(t *testing.T) {
 	tests := []struct {
 		name      string
 		trans     []*models.Transaction
@@ -95,7 +95,7 @@ func TestFilterRecordedTransactions(t *testing.T) {
 	}
 }
 
-func TestFilterCreditCardPayments(t *testing.T) {
+func Test_FilterCreditCardPayments(t *testing.T) {
 	tests := []struct {
 		name     string
 		bankName string
@@ -141,7 +141,7 @@ func TestFilterCreditCardPayments(t *testing.T) {
 	}
 }
 
-func TestFilterCreditCardPayments_Mixed(t *testing.T) {
+func Test_FilterCreditCardPayments_Mixed(t *testing.T) {
 	trans := []*models.Transaction{
 		testTransaction("wellsfargo:12/07/20:10.00", "TARGET"),
 		testTransaction("wellsfargo:12/07/20:20.00", "AMAZON"),

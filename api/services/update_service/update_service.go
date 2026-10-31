@@ -38,6 +38,11 @@ func NewUpdateService(registerService *sheets_service.RegisterService, budgetSer
 	}
 }
 
+type DateCorrection struct {
+	NewDate string
+	Entry   *sheets_service.RegisterEntry
+}
+
 // LoadTransactions reads the Register spreadsheet and the bank
 // transactions. It returns the new transactions.
 func (s *UpdateService) LoadTransactions(registerSheet *sheets_service.RegisterSheet) ([]*models.Transaction, error) {
@@ -74,26 +79,38 @@ func (s *UpdateService) LoadTransactions(registerSheet *sheets_service.RegisterS
 // credit card institutions since they are already present in the checking
 // account, and then sorts the remaining list. It then returns the prepared
 // transactions.
-func (s *UpdateService) PrepareTransactions(transactions []*models.Transaction, sheetEntries []*sheets_service.RegisterEntry) ([]*models.Transaction, error) {
+func (s *UpdateService) PrepareTransactions(transactions []*models.Transaction, sheetEntries []*sheets_service.RegisterEntry) ([]*models.Transaction, []*DateCorrection, error) {
 	var err error
 
 	s.Progress("  - normalizing merchants")
 	transactions, err = s.NormalizeMerchants(transactions)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	sheetIDs := make(map[string]bool)
+	sheetTransIDs := make(map[string]bool)
 	sheetKeys := make(map[string]bool)
+	dateCorrectionsByID := make(map[string]*DateCorrection)
+	var dateCorrections []*DateCorrection
+
 	for _, e := range sheetEntries {
 		if e.TransactionID != "" {
-			sheetIDs[e.TransactionID] = true
+			sheetTransIDs[e.TransactionID] = true
+			dateCorrectionsByID[e.TransactionID] = &DateCorrection{Entry: e}
 		}
 		sheetKeys[e.Key] = true
 	}
+	for _, t := range transactions {
+		if t.TransactionID != "" {
+			if dateCorrectionsByID[t.TransactionID] != nil && !t.IsCheck && t.Date != dateCorrectionsByID[t.TransactionID].Entry.Date {
+				c := &DateCorrection{Entry: dateCorrectionsByID[t.TransactionID].Entry, NewDate: t.Date}
+				dateCorrections = append(dateCorrections, c)
+			}
+		}
+	}
 
 	s.Progress("  - de-duping transactions")
-	transactions = s.DedupeAgainstSheet(transactions, sheetIDs, sheetKeys)
+	transactions = s.DedupeAgainstSheet(transactions, sheetTransIDs, sheetKeys)
 
 	s.Progress("  - filtering out credit card payments...")
 	transactions = banking.FilterCreditCardPayments(transactions)
@@ -101,12 +118,12 @@ func (s *UpdateService) PrepareTransactions(transactions []*models.Transaction, 
 	s.Progress("  - Sorting...")
 	transactions = banking.SortTransactions(transactions)
 
-	return transactions, nil
+	return transactions, dateCorrections, nil
 }
 
 // ApplyTransactions takes in transactions, updates the DB, and updates the spreadsheet.
 // If
-func (s *UpdateService) ApplyTransactions(tabName string, transactions []*models.Transaction) error {
+func (s *UpdateService) ApplyTransactions(tabName string, transactions []*models.Transaction, dateCorrections []*DateCorrection) error {
 	var err error
 
 	s.Progress("  - updating database")
