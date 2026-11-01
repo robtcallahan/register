@@ -53,7 +53,6 @@ func (s *UpdateService) LoadTransactions(registerSheet *sheets_service.RegisterS
 		return nil, nil, err
 	}
 
-	// Todo: account for pagination
 	// Due to pagination and no code to account for it, I'm going back about 3 mounths (12 weeks).
 	startDate := weeksAgo(12)
 	endDate := daysAhead(7)
