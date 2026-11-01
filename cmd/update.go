@@ -58,6 +58,7 @@ func update() error {
 	var (
 		reader       = bufio.NewReader(os.Stdin)
 		transactions []*models.Transaction
+		pending      []*models.Transaction
 	)
 
 	conn, err := repository.Connect(&config.DB)
@@ -91,7 +92,7 @@ func update() error {
 	}
 
 	fmt.Println("Loading Transactions...")
-	transactions, err = updateService.LoadTransactions(registerSheet)
+	transactions, pending, err = updateService.LoadTransactions(registerSheet)
 	if err != nil {
 		return err
 	}
@@ -103,15 +104,15 @@ func update() error {
 		return err
 	}
 
-	if transactions == nil && len(dateCorrections) == 0 {
-		fmt.Println("No new transactions")
+	if transactions == nil && pending == nil && len(dateCorrections) == 0 {
+		fmt.Println("No transactions")
 		if options.DryRun {
 			fmt.Println("Dry run was on — no spreadsheet or database updates were made.")
 		}
 		return nil
 	}
 
-	printTransactions(transactions, dateCorrections)
+	printTransactions(transactions, pending, dateCorrections)
 
 	if !options.DryRun {
 		transactions, err = gatherTransactionInfo(reader, bankClient, queryRepo, transactions)
@@ -379,7 +380,7 @@ func readInt(reader *bufio.Reader, prompt string) (int, error) {
 	return i, nil
 }
 
-func printTransactions(trans []*models.Transaction, dateCorrections []*update_service.DateCorrection) {
+func printTransactions(trans []*models.Transaction, pending []*models.Transaction, dateCorrections []*update_service.DateCorrection) {
 	fmt.Println("")
 	if len(dateCorrections) > 0 {
 		fmt.Printf("Updated Transactions:\n")
@@ -394,14 +395,27 @@ func printTransactions(trans []*models.Transaction, dateCorrections []*update_se
 
 	}
 
-	fmt.Printf("New Transactions:\n")
-	fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", "Transaction ID", "Key", "Source", "Date", "Amount", "Name")
-	fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", dashes(57), dashes(30), dashes(12), dashes(8), dashes(8), dashes(60))
-	for _, t := range trans {
-		amt := getAmount(t.Source, t.Deposit, t.Withdrawal, t.CreditPurchase)
-		fmt.Printf("%-57s %-30s %-12s %-8s %8.2f %-60s\n", t.TransactionID, t.Key, t.Source, t.Date, amt, t.Name)
+	if len(pending) > 0 {
+		fmt.Printf("Pending Transactions:\n")
+		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-8s %-60s\n", "Transaction ID", "Key", "Source", "Old Date", "Amount", "Name")
+		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", dashes(57), dashes(30), dashes(12), dashes(8), dashes(8), dashes(60))
+		for _, p := range pending {
+			amt := getAmount(p.Source, p.Deposit, p.Withdrawal, p.CreditPurchase)
+			fmt.Printf("%-57s %-30s %-12s %-8s %8.2f %-60s\n", p.TransactionID, p.Key, p.Source, p.Date, amt, p.Name)
+		}
+		fmt.Println("")
 	}
-	fmt.Println("")
+
+	if len(trans) > 0 {
+		fmt.Printf("New Transactions:\n")
+		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", "Transaction ID", "Key", "Source", "Date", "Amount", "Name")
+		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", dashes(57), dashes(30), dashes(12), dashes(8), dashes(8), dashes(60))
+		for _, t := range trans {
+			amt := getAmount(t.Source, t.Deposit, t.Withdrawal, t.CreditPurchase)
+			fmt.Printf("%-57s %-30s %-12s %-8s %8.2f %-60s\n", t.TransactionID, t.Key, t.Source, t.Date, amt, t.Name)
+		}
+		fmt.Println("")
+	}
 }
 
 func getAmount(source string, deposit, withdrawal, creditPurchase float64) float64 {

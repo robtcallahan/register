@@ -30,9 +30,34 @@ func (r *mysqlQueryRepo) GetTransactions() ([]models.Transaction, error) {
 
 func (r *mysqlQueryRepo) UpdateTransactionTables(transactions []*models.Transaction) error {
 	return r.Conn.Transaction(func(tx *gorm.DB) error {
+		// snapshot: one query, two columns
+		var existing []struct {
+			TransactionID string
+			Key           string
+		}
+		if err := tx.Model(&models.Transaction{}).Select("transaction_id", "`key`").Find(&existing).Error; err != nil {
+			return err
+		}
+		ids := make(map[string]bool)
+		keys := make(map[string]bool)
+		for _, e := range existing {
+			if e.TransactionID != "" {
+				ids[e.TransactionID] = true
+			}
+			keys[e.Key] = true
+		}
+		seen := make(map[string]bool)
 		for _, t := range transactions {
-			if result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(t); result.Error != nil {
-				return result.Error
+			if t.TransactionID != "" {
+				if ids[t.TransactionID] || seen[t.TransactionID] {
+					continue
+				}
+				seen[t.TransactionID] = true
+			} else if keys[t.Key] {
+				continue
+			}
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(t).Error; err != nil {
+				return err
 			}
 		}
 		return nil
@@ -42,6 +67,7 @@ func (r *mysqlQueryRepo) UpdateTransactionTables(transactions []*models.Transact
 // GetColumns ...
 func (r *mysqlQueryRepo) GetColumns() ([]models.Column, error) {
 	var cols []models.Column
+
 	if result := r.Conn.Order("column_index").Find(&cols); result.Error != nil {
 		return nil, fmt.Errorf("unable to get columns: %w", result.Error)
 	}

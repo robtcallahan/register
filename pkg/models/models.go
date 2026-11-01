@@ -12,6 +12,7 @@ type Transaction struct {
 	TransactionID  string
 	Source         string
 	Date           string
+	Pending        bool
 	Name           string
 	BankName       string
 	Note           string

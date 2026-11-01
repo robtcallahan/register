@@ -47,10 +47,10 @@ type DateCorrection struct {
 
 // LoadTransactions reads the Register spreadsheet and the bank
 // transactions. It returns the new transactions.
-func (s *UpdateService) LoadTransactions(registerSheet *sheets_service.RegisterSheet) ([]*models.Transaction, error) {
+func (s *UpdateService) LoadTransactions(registerSheet *sheets_service.RegisterSheet) ([]*models.Transaction, []*models.Transaction, error) {
 	_, err := s.RegisterService.ReadRegisterSheet(registerSheet)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Todo: account for pagination
@@ -58,21 +58,21 @@ func (s *UpdateService) LoadTransactions(registerSheet *sheets_service.RegisterS
 	startDate := weeksAgo(12)
 	endDate := today()
 	bankIDs := []string{models.WellsFargoID, models.ChaseID}
-	transactions, err := s.FetchTransactions(bankIDs, startDate, endDate)
+	transactions, pending, err := s.FetchTransactions(bankIDs, startDate, endDate)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if len(transactions) < 1 {
 		s.Progress("No transactions")
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	s.Progress("  - writing raw transactions CSV file...")
 	if err := s.WriteRawTransactionsCSV(transactions); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return transactions, nil
+	return transactions, pending, nil
 }
 
 // PrepareTransactions normalizes merchant names, expands keys to include
@@ -196,11 +196,12 @@ func (s *UpdateService) PersistTransactions(transactions []*models.Transaction) 
 // FetchTransactions gathers transactions from every bank: Fidelity always
 // comes from its CSV (Plaid no longer supports it), while Wells Fargo and
 // Chase come from CSV or Plaid depending on the --csv flag.
-func (s *UpdateService) FetchTransactions(bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
+func (s *UpdateService) FetchTransactions(bankIDs []string, startDate, endDate string) ([]*models.Transaction, []*models.Transaction, error) {
 	s.Progress("  - getting CSV transactions...")
+	var pending []*models.Transaction
 	transactions, err := getCSVTransactions(s.Config.FinanceDir, s.Config.Banks, []string{models.FidelityID}, s.Progress)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var newTrans []*models.Transaction
@@ -209,12 +210,12 @@ func (s *UpdateService) FetchTransactions(bankIDs []string, startDate, endDate s
 		newTrans, err = getCSVTransactions(s.Config.FinanceDir, s.Config.Banks, bankIDs, s.Progress)
 	} else {
 		s.Progress("  - getting Plaid transactions...")
-		newTrans, err = getTransactions(s.BankClient, bankIDs, startDate, endDate)
+		newTrans, pending, err = getTransactions(s.BankClient, bankIDs, startDate, endDate)
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return append(transactions, newTrans...), nil
+	return append(transactions, newTrans...), pending, nil
 }
 
 // WriteRawTransactionsCSV dumps the fetched transactions to transactions.csv
@@ -347,12 +348,12 @@ func (s *UpdateService) UpdateBalances(tabName string, balances map[string]banki
 }
 
 // getTransactions connects to the Plaid interface to get the bank's transactions
-func getTransactions(bankClient *banking.Client, bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
-	transactions, err := bankClient.GetTransactions(bankIDs, startDate, endDate)
+func getTransactions(bankClient *banking.Client, bankIDs []string, startDate, endDate string) ([]*models.Transaction, []*models.Transaction, error) {
+	transactions, pending, err := bankClient.GetTransactions(bankIDs, startDate, endDate)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return transactions, nil
+	return transactions, pending, nil
 }
 
 // getCSVTransactions reads local CSV files for banks that Plaid cannot talk with

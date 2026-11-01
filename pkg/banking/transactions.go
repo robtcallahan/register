@@ -29,8 +29,9 @@ import (
 	"github.com/plaid/plaid-go/v15/plaid"
 )
 
-func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([]*models.Transaction, error) {
+func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([]*models.Transaction, []*models.Transaction, error) {
 	var transactions []*models.Transaction
+	var pending []*models.Transaction
 	var errors strings.Builder
 	for _, bankID := range bankIDs {
 		bankConfig := c.Banks[bankID]
@@ -43,20 +44,21 @@ func (c *Client) GetTransactions(bankIDs []string, startDate, endDate string) ([
 		}
 
 		for _, trans := range transResp {
-			if trans.Pending {
-				continue
-			}
 			register, err := c.buildTransaction(bankConfig.ID, trans)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			transactions = append(transactions, register)
+			if register.Pending {
+				pending = append(pending, register)
+			} else {
+				transactions = append(transactions, register)
+			}
 		}
 	}
 	if errors.String() != "" {
-		return nil, fmt.Errorf("%s", errors.String())
+		return nil, nil, fmt.Errorf("%s", errors.String())
 	}
-	return transactions, nil
+	return transactions, pending, nil
 }
 
 func (c *Client) getPlaidTransactions(bankConfig config.Bank, startDate, endDate string) ([]plaid.Transaction, error) {
@@ -150,6 +152,7 @@ func (c *Client) buildTransaction(bankID string, p plaid.Transaction) (*models.T
 	default:
 		return nil, fmt.Errorf("unknown bank ID: %s", bankID)
 	}
+	tran.Pending = p.Pending
 	return tran, nil
 }
 
