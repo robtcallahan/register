@@ -9,6 +9,11 @@ func weeksAgo(weeks int) string {
 	return t.Format(PlaidDateFormat)
 }
 
+func daysAhead(days int) string {
+	t := time.Now().AddDate(0, 0, days)
+	return t.Format(PlaidDateFormat)
+}
+
 func today() string {
 	return time.Now().Format(PlaidDateFormat)
 }

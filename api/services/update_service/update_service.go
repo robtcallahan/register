@@ -56,15 +56,15 @@ func (s *UpdateService) LoadTransactions(registerSheet *sheets_service.RegisterS
 	// Todo: account for pagination
 	// Due to pagination and no code to account for it, I'm going back about 3 mounths (12 weeks).
 	startDate := weeksAgo(12)
-	endDate := today()
+	endDate := daysAhead(7)
 	bankIDs := []string{models.WellsFargoID, models.ChaseID}
 	transactions, pending, err := s.FetchTransactions(bankIDs, startDate, endDate)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if len(transactions) < 1 {
-		s.Progress("No transactions")
+	if len(transactions) < 1 && len(pending) < 1 {
+		s.Progress("No pending or posted transactions")
 		return nil, nil, nil
 	}
 
