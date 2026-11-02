@@ -397,7 +397,7 @@ func printTransactions(trans []*models.Transaction, pending []*models.Transactio
 
 	if len(pending) > 0 {
 		fmt.Printf("Pending Transactions:\n")
-		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-8s %-60s\n", "Transaction ID", "Key", "Source", "Old Date", "Amount", "Name")
+		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", "Transaction ID", "Key", "Source", "Old Date", "Amount", "Name")
 		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", dashes(57), dashes(30), dashes(12), dashes(8), dashes(8), dashes(60))
 		for _, p := range pending {
 			amt := getAmount(p.Source, p.Deposit, p.Withdrawal, p.CreditPurchase)

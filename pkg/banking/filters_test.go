@@ -77,6 +77,29 @@ func Test_FilterRecordedTransactions(t *testing.T) {
 			sheetKeys: map[string]bool{},
 			wantKeys:  []string{},
 		},
+		{
+			name: "sheet and new transaction match on transactionID",
+			sheetIDs: map[string]bool{
+				"123456789": true,
+			},
+			trans:     []*models.Transaction{{TransactionID: "123456789"}},
+			sheetKeys: map[string]bool{},
+			wantKeys:  []string{},
+		},
+		{
+			name:      "sheet and new transaction match on transactionID, but date differs",
+			trans:     []*models.Transaction{{TransactionID: "123456789", Key: "chase:10/28/26:10.00"}},
+			sheetIDs:  map[string]bool{"123456789": true},
+			sheetKeys: map[string]bool{"chase:10/25/26:10.00": true},
+			wantKeys:  []string{},
+		},
+		{
+			name:      "blank sheet ID and blank transaction ID keeps transaction",
+			trans:     []*models.Transaction{{TransactionID: "", Key: "chase:10/25/26:20.00"}},
+			sheetIDs:  map[string]bool{"": true},
+			sheetKeys: map[string]bool{},
+			wantKeys:  []string{"chase:10/25/26:20.00"},
+		},
 	}
 
 	for _, tt := range tests {

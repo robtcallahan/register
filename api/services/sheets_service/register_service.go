@@ -358,7 +358,7 @@ func (ss *RegisterService) readRangeFormulas(readRange string) ([]string, error)
 // index constants: a moved, renamed, or missing header is a loud error,
 // not a silently wrong column.
 var registerFixedHeaders = []string{
-	"Transaction ID", "Check", "Date", "Description", "Withdrawals",
+	"Transaction ID", "Source", "Date", "Description", "Withdrawals",
 	"Deposits", "Credit Purchases", "Register", "Cleared", "Delta",
 }
 

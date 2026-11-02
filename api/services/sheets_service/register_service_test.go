@@ -16,7 +16,7 @@ func Test_registerService_ReadRegisterSheet(t *testing.T) {
 	getValuesProviderFunc = func(range_ string) ([][]any, error) {
 		var values [][]any
 		if range_ == "Register!A4:J4" {
-			values = [][]any{{"Transaction ID", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
+			values = [][]any{{"Transaction ID", "Source", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
 			return values, nil
 		}
 		values = [][]any{
@@ -152,7 +152,7 @@ func checkTestingError(t *testing.T, err error) {
 func Test_registerService_NewRegisterSheet(t *testing.T) {
 	cfg := &config.Config{RegisterStartRow: 5, RegisterEndRow: 100}
 	columns := []models.Column{
-		{Name: "Check", ColumnIndex: 2},
+		{Name: "Source", ColumnIndex: 2},
 		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
 		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
 	}

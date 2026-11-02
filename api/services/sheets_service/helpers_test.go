@@ -26,7 +26,7 @@ var getValuesProviderFunc = func(range_ string) ([][]any, error) {
 	// 9.3 header checks: return the real header rows for the header ranges.
 	var values [][]any
 	if range_ == "Register!A4:J4" {
-		values = [][]any{{"TransactionID", "Check", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
+		values = [][]any{{"TransactionID", "Source", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}}
 		return values, nil
 	}
 	if range_ == "Budget!A1:J1" {

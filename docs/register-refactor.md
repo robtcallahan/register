@@ -189,7 +189,7 @@
 - [X] 17-5.3 Date correction on ID match (checks skipped, agreed)
 - [X] 17-5.4 Delete the fuzzy dates (FuzzyKeySet ±1 day)
 - [X] 17-5.5 Fix the column_count_mismatch test (narrower-sheet case, new message)
-- [ ] 17-5.6 Update Test_FilterRecordedTransactions
+- [X] 17-5.6 Update Test_FilterRecordedTransactions
 
 ## Phase 18 — Test coverage
 
@@ -230,3 +230,12 @@ Everything else, by package (zero-coverage counts after removing the 7 distinct 
 
 - Bulk batch 1 (Muse, started 2026-10-30 in background): sheets_service + banking unit-testable zeros.
 - Rob's subset: starts Friday 2026-10-30 after work/evening, continues Saturday 2026-10-31 (day off).
+
+## Recategorize Command Updates
+- [ ] 1.1 Add UpdateTransactionColumns to the QueryRepo interface in pkg/repository/repository.go, next to UpdateTransactionTables. The test RepoMock embeds that interface, so it still compiles with no change there.
+- [ ] 1.2 Implement it in pkg/repository/mysql/mysql.go, mirroring the UpdateTransactionTables shape: same transaction wrapper; per row, match by TransactionID when non-empty, else by Key; update only the column index and color, using map-based Updates (the struct form skips zero values); a row that matches nothing is skipped, best-effort.
+- [ ] 1.3 In cmd/recategorize.go, change syncDB's one call from UpdateTransactionTables to UpdateTransactionColumns. This is the line that inserts today — and with the gate in place, would silently skip instead.
+- [ ] 1.4 Run go test ./... before pushing, then a recategorize --dry-run to see the planned moves print (dry run changes nothing).
+- [ ] 1.5 Verify on one small live move: a single transaction, check its database column index changed, then move it back.
+- [ ] 2.1 17-5.6: update Test_FilterRecordedTransactions with the ID-match case, the date-drift case, and the empty-ID guard case.
+- [ ] 3.1 TrimSpace the substring input in readFromUser (cmd/update.go) — the DMV leading-space fix.
