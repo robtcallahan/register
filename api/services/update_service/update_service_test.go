@@ -1,7 +1,10 @@
 package update_service
 
 import (
+	"errors"
+	"fmt"
 	"reflect"
+	"register/api/providers/sheets_provider"
 	"testing"
 
 	"register/api/services/sheets_service"
@@ -9,6 +12,8 @@ import (
 	cfg "register/pkg/config"
 	"register/pkg/models"
 	"register/pkg/repository"
+
+	"google.golang.org/api/sheets/v4"
 )
 
 type RepoMock struct {
@@ -143,5 +148,45 @@ func Test_updateService_DedupeAgainstSheet(t *testing.T) {
 	if got[0].Date != "02/01/26" || got[0].Amount != 10.00 || got[0].Name != "Weis" {
 		t.Errorf("got: Date %s, Amount %0.2f Name %s, want: Date %s, Amount %0.2f Name %s",
 			got[0].Date, got[0].Amount, got[0].Name, want[0].Date, want[0].Amount, want[0].Name)
+	}
+}
+
+type fakeSheetsProvider struct {
+	getValuesErr error
+}
+
+func (p *fakeSheetsProvider) GetValues(range_ string) ([][]any, error) {
+	return nil, p.getValuesErr
+}
+
+func (p *fakeSheetsProvider) GetFormula(range_ string) ([][]any, error) {
+	return nil, fmt.Errorf("could not get formula")
+}
+func (p *fakeSheetsProvider) GetSpreadsheet(tabName string) (*sheets_provider.Spreadsheet, error) {
+	return nil, fmt.Errorf("could not get spreadsheet")
+}
+func (p *fakeSheetsProvider) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
+	return nil, fmt.Errorf("could not batch update")
+}
+func (p *fakeSheetsProvider) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
+	return nil, fmt.Errorf("could not update value")
+}
+func (p *fakeSheetsProvider) ClearValues(range_ string) error {
+	return fmt.Errorf("could not clear values")
+}
+
+func Test_LoadTransactions(t *testing.T) {
+	fakeErr := errors.New("could not get values")
+	spm := &fakeSheetsProvider{getValuesErr: fakeErr}
+	rs := &sheets_service.RegisterService{Provider: spm}
+	us := &UpdateService{RegisterService: rs}
+	sheet := &sheets_service.RegisterSheet{}
+
+	_, _, got := us.LoadTransactions(sheet)
+	if got == nil {
+		t.Fatalf("got: %v, want: %v", got, nil)
+	}
+	if !errors.Is(got, fakeErr) {
+		t.Fatalf("got: %v, want: %v", got, fakeErr)
 	}
 }

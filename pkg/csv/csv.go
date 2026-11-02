@@ -187,6 +187,9 @@ func (c *Client) readWellsFargoCSV() ([]*models.Transaction, error) {
 	csvFile := c.FinanceDir + "/" + bank.CSVFileName
 
 	fileBytes, err := readFileContents(csvFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not read CSV file: %w", err)
+	}
 
 	// must add header row to the file if not present
 	if !doWellsFargoHeadsExist(fileBytes) {
