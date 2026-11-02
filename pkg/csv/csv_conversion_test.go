@@ -285,3 +285,170 @@ func Test_processWellsFargoData_Multiple(t *testing.T) {
 		keys[tx.Key] = true
 	}
 }
+
+func Test_processChaseData(t *testing.T) {
+	tests := []struct {
+		name    string
+		rows    []*ChaseVisa
+		bankID  string
+		checkTx *models.Transaction
+	}{
+		{
+			name: "charge (negative amount)",
+			rows: []*ChaseVisa{
+				{TransactionDate: "09/28/2026", PostDate: "09/29/2026", Description: "AMAZON", Category: "Shopping", Type: "Sale", Amount: -20.00},
+			},
+			bankID: models.ChaseID,
+			checkTx: &models.Transaction{
+				Source:         "Chase",
+				Date:           "09/28/26",
+				Amount:         -20.00,
+				BankName:       "AMAZON",
+				Name:           "AMAZON",
+				CreditPurchase: 20.00,
+				Budget:         -20.00,
+				Key:            "chase:09/28/26:20.00",
+			},
+		},
+		{
+			name: "refund (positive amount)",
+			rows: []*ChaseVisa{
+				{TransactionDate: "09/30/2026", PostDate: "10/01/2026", Description: "AMAZON REFUND", Category: "Shopping", Type: "Return", Amount: 15.00},
+			},
+			bankID: models.ChaseID,
+			checkTx: &models.Transaction{
+				Source:         "Chase",
+				Date:           "09/30/26",
+				Amount:         15.00,
+				BankName:       "AMAZON REFUND",
+				Name:           "AMAZON REFUND",
+				CreditPurchase: -15.00,
+				Budget:         15.00,
+				Key:            "chase:09/30/26:-15.00",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := processChaseData(tt.rows, tt.bankID)
+			if len(got) != 1 {
+				t.Fatalf("got %d transactions, want 1", len(got))
+			}
+			tx := got[0]
+			want := tt.checkTx
+
+			if tx.Source != want.Source {
+				t.Errorf("Source = %q, want %q", tx.Source, want.Source)
+			}
+			if tx.Date != want.Date {
+				t.Errorf("Date = %q, want %q", tx.Date, want.Date)
+			}
+			if tx.Amount != want.Amount {
+				t.Errorf("Amount = %v, want %v", tx.Amount, want.Amount)
+			}
+			if tx.BankName != want.BankName {
+				t.Errorf("BankName = %q, want %q", tx.BankName, want.BankName)
+			}
+			if tx.Name != want.Name {
+				t.Errorf("Name = %q, want %q", tx.Name, want.Name)
+			}
+			if tx.CreditPurchase != want.CreditPurchase {
+				t.Errorf("CreditPurchase = %v, want %v", tx.CreditPurchase, want.CreditPurchase)
+			}
+			if tx.Budget != want.Budget {
+				t.Errorf("Budget = %v, want %v", tx.Budget, want.Budget)
+			}
+			if tx.Key != want.Key {
+				t.Errorf("Key = %q, want %q", tx.Key, want.Key)
+			}
+		})
+	}
+}
+
+func Test_processChaseData_SkipsPayments(t *testing.T) {
+	rows := []*ChaseVisa{
+		{TransactionDate: "09/30/2026", PostDate: "10/01/2026", Description: "Payment Thank You", Category: "Payment", Type: "Payment", Amount: 500.00},
+		{TransactionDate: "09/28/2026", PostDate: "09/29/2026", Description: "AMAZON", Category: "Shopping", Type: "Sale", Amount: -20.00},
+	}
+	got := processChaseData(rows, models.ChaseID)
+	if len(got) != 1 {
+		t.Fatalf("got %d transactions, want 1 (Payment row skipped)", len(got))
+	}
+	if got[0].BankName != "AMAZON" {
+		t.Errorf("kept row BankName = %q, want AMAZON", got[0].BankName)
+	}
+}
+
+func Test_processBankOfAmericaData(t *testing.T) {
+	tests := []struct {
+		name    string
+		rows    []*BankOfAmerica
+		bankID  string
+		checkTx *models.Transaction
+	}{
+		{
+			name: "purchase",
+			rows: []*BankOfAmerica{
+				{PostedDate: "09/28/2026", ReferenceNumber: "REF1", Payee: "AMAZON", Address: "Seattle", Amount: 19.99},
+			},
+			bankID: models.BoAID,
+			checkTx: &models.Transaction{
+				Source:         models.BoAID,
+				Date:           "09/28/26",
+				Amount:         -19.99,
+				BankName:       "AMAZON",
+				Name:           "AMAZON",
+				CreditPurchase: 19.99,
+				Key:            "boa:09/28/26:19.99",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := processBankOfAmericaData(tt.rows, tt.bankID)
+			if len(got) != 1 {
+				t.Fatalf("got %d transactions, want 1", len(got))
+			}
+			tx := got[0]
+			want := tt.checkTx
+
+			if tx.Source != want.Source {
+				t.Errorf("Source = %q, want %q", tx.Source, want.Source)
+			}
+			if tx.Date != want.Date {
+				t.Errorf("Date = %q, want %q", tx.Date, want.Date)
+			}
+			if tx.Amount != want.Amount {
+				t.Errorf("Amount = %v, want %v", tx.Amount, want.Amount)
+			}
+			if tx.BankName != want.BankName {
+				t.Errorf("BankName = %q, want %q", tx.BankName, want.BankName)
+			}
+			if tx.Name != want.Name {
+				t.Errorf("Name = %q, want %q", tx.Name, want.Name)
+			}
+			if tx.CreditPurchase != want.CreditPurchase {
+				t.Errorf("CreditPurchase = %v, want %v", tx.CreditPurchase, want.CreditPurchase)
+			}
+			if tx.Key != want.Key {
+				t.Errorf("Key = %q, want %q", tx.Key, want.Key)
+			}
+		})
+	}
+}
+
+func Test_processBankOfAmericaData_SkipsElectronicPayments(t *testing.T) {
+	rows := []*BankOfAmerica{
+		{PostedDate: "09/29/2026", ReferenceNumber: "REF2", Payee: "BA Electronic Payment", Address: "Somewhere", Amount: 500.00},
+		{PostedDate: "09/28/2026", ReferenceNumber: "REF1", Payee: "AMAZON", Address: "Seattle", Amount: 19.99},
+	}
+	got := processBankOfAmericaData(rows, models.BoAID)
+	if len(got) != 1 {
+		t.Fatalf("got %d transactions, want 1 (electronic payment skipped)", len(got))
+	}
+	if got[0].BankName != "AMAZON" {
+		t.Errorf("kept row BankName = %q, want AMAZON", got[0].BankName)
+	}
+}

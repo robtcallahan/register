@@ -1,0 +1,1082 @@
+diff --git a/api/services/update_service/helpers_test.go b/api/services/update_service/helpers_test.go
+index 3c8de2d..9ed59d2 100644
+--- a/api/services/update_service/helpers_test.go
++++ b/api/services/update_service/helpers_test.go
+@@ -53,3 +53,21 @@ func TestDashes(t *testing.T) {
+ 		}
+ 	}
+ }
++
++func TestDaysAhead(t *testing.T) {
++	for _, days := range []int{0, 7} {
++		got := daysAhead(days)
++		gotTime, err := time.Parse(PlaidDateFormat, got)
++		if err != nil {
++			t.Fatalf("daysAhead(%d) = %q, unparseable: %v", days, got, err)
++		}
++		want := time.Now().AddDate(0, 0, days)
++		want, _ = time.Parse(PlaidDateFormat, want.Format(PlaidDateFormat))
++		if diff := want.Sub(gotTime); diff > 24*time.Hour || diff < -24*time.Hour {
++			t.Errorf("daysAhead(%d) = %q, want ~%d days ahead", days, got, days)
++		}
++		if len(got) != 10 || got[4] != '-' || got[7] != '-' {
++			t.Errorf("daysAhead(%d) = %q, want YYYY-MM-DD format", days, got)
++		}
++	}
++}
+diff --git a/pkg/banking/plaid_test.go b/pkg/banking/plaid_test.go
+new file mode 100644
+index 0000000..670e33e
+--- /dev/null
++++ b/pkg/banking/plaid_test.go
+@@ -0,0 +1,321 @@
++package banking
++
++import (
++	"context"
++	"encoding/json"
++	"fmt"
++	"net/http"
++	"net/http/httptest"
++	"strings"
++	"testing"
++
++	"register/pkg/config"
++
++	"github.com/plaid/plaid-go/v15/plaid"
++)
++
++// newPlaidTestClient builds a banking Client whose Plaid API calls go to
++// the given test server instead of Plaid. plaid-go honors the
++// Configuration.Servers override (its OperationServers map is empty by
++// default), so no production code changes are needed to redirect it.
++func newPlaidTestClient(t *testing.T, handler http.HandlerFunc) (*Client, *httptest.Server) {
++	t.Helper()
++	ts := httptest.NewServer(handler)
++	t.Cleanup(ts.Close)
++	cfg := plaid.NewConfiguration()
++	cfg.Servers = plaid.ServerConfigurations{{URL: ts.URL}}
++	return &Client{
++		PlaidClient: plaid.NewAPIClient(cfg),
++		Banks: map[string]config.Bank{
++			"wellsfargo": {ID: "wellsfargo", Name: "Wells Fargo", AccessToken: "token-wf"},
++			"chase":      {ID: "chase", Name: "Chase", AccessToken: "token-chase"},
++		},
++		Progress: func(_ string) {},
++	}, ts
++}
++
++func writeJSON(t *testing.T, w http.ResponseWriter, status int, v any) {
++	t.Helper()
++	w.Header().Set("Content-Type", "application/json")
++	w.WriteHeader(status)
++	if err := json.NewEncoder(w).Encode(v); err != nil {
++		t.Fatalf("encode fake plaid response: %v", err)
++	}
++}
++
++func TestClient_GetAccounts(t *testing.T) {
++	t.Run("success", func(t *testing.T) {
++		c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
++			if r.URL.Path != "/accounts/get" {
++				t.Errorf("path = %q, want /accounts/get", r.URL.Path)
++			}
++			writeJSON(t, w, http.StatusOK, map[string]any{
++				"accounts": []map[string]any{
++					{"account_id": "acc1", "name": "Checking", "type": "depository", "subtype": "checking",
++						"balances": map[string]any{"available": 100.0, "current": 200.0, "iso_currency_code": "USD"}},
++					{"account_id": "acc2", "name": "Savings", "type": "depository", "subtype": "savings",
++						"balances": map[string]any{"available": 300.0, "current": 400.0, "iso_currency_code": "USD"}},
++				},
++			})
++		})
++		got, err := c.GetAccounts(context.Background(), "token-wf")
++		if err != nil {
++			t.Fatalf("GetAccounts = %v, want nil", err)
++		}
++		if len(got) != 2 {
++			t.Fatalf("got %d accounts, want 2", len(got))
++		}
++		if got[0].AccountId != "acc1" || got[0].Name != "Checking" {
++			t.Errorf("account 0 = %+v, want acc1/Checking", got[0])
++		}
++		if got[1].AccountId != "acc2" {
++			t.Errorf("account 1 id = %q, want acc2", got[1].AccountId)
++		}
++	})
++
++	t.Run("plaid error", func(t *testing.T) {
++		c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
++			writeJSON(t, w, http.StatusBadRequest, map[string]any{
++				"error_type": "INVALID_REQUEST", "error_code": "INVALID_ACCESS_TOKEN",
++				"error_message": "bad token", "request_id": "req1",
++			})
++		})
++		if _, err := c.GetAccounts(context.Background(), "bad-token"); err == nil {
++			t.Error("GetAccounts(error response) = nil, want error")
++		}
++	})
++}
++
++func TestClient_GetBalance(t *testing.T) {
++	t.Run("success", func(t *testing.T) {
++		c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
++			if r.URL.Path != "/accounts/balance/get" {
++				t.Errorf("path = %q, want /accounts/balance/get", r.URL.Path)
++			}
++			writeJSON(t, w, http.StatusOK, map[string]any{
++				"accounts": []map[string]any{
++					{"account_id": "acc1", "balances": map[string]any{"current": 1234.56, "iso_currency_code": "USD"}},
++				},
++			})
++		})
++		got, err := c.GetBalance(context.Background(), "token-wf", "wellsfargo")
++		if err != nil {
++			t.Fatalf("GetBalance = %v, want nil", err)
++		}
++		if got == nil || *got != 1234.56 {
++			t.Errorf("GetBalance = %v, want 1234.56", got)
++		}
++	})
++
++	t.Run("current not set", func(t *testing.T) {
++		c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
++			writeJSON(t, w, http.StatusOK, map[string]any{
++				"accounts": []map[string]any{
++					{"account_id": "acc1", "balances": map[string]any{"iso_currency_code": "USD"}},
++				},
++			})
++		})
++		if _, err := c.GetBalance(context.Background(), "token-wf", "wellsfargo"); err == nil {
++			t.Error("GetBalance(unset current) = nil, want error")
++		} else if !strings.Contains(err.Error(), "available balance is not set") {
++			t.Errorf("GetBalance(unset current) = %v, want not-set error", err)
++		}
++	})
++
++	t.Run("plaid error", func(t *testing.T) {
++		c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
++			writeJSON(t, w, http.StatusBadRequest, map[string]any{
++				"error_type": "INVALID_REQUEST", "error_code": "NOPE",
++				"error_message": "boom", "request_id": "req1",
++			})
++		})
++		if _, err := c.GetBalance(context.Background(), "token-wf", "wellsfargo"); err == nil {
++			t.Error("GetBalance(error response) = nil, want error")
++		}
++	})
++}
++
++func TestClient_GetBankStatus(t *testing.T) {
++	t.Run("success", func(t *testing.T) {
++		c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
++			if r.URL.Path != "/institutions/get_by_id" {
++				t.Errorf("path = %q, want /institutions/get_by_id", r.URL.Path)
++			}
++			writeJSON(t, w, http.StatusOK, map[string]any{
++				"institution": map[string]any{
++					"institution_id": "ins_1", "name": "Test Bank",
++					"products": []string{"transactions"}, "country_codes": []string{"US"},
++				},
++			})
++		})
++		got, err := c.GetBankStatus("wellsfargo")
++		if err != nil {
++			t.Fatalf("GetBankStatus = %v, want nil", err)
++		}
++		if got.InstitutionId != "ins_1" || got.Name != "Test Bank" {
++			t.Errorf("institution = %+v, want ins_1/Test Bank", got)
++		}
++	})
++
++	t.Run("plaid error", func(t *testing.T) {
++		c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
++			writeJSON(t, w, http.StatusBadRequest, map[string]any{
++				"error_type": "INVALID_REQUEST", "error_code": "NOPE",
++				"error_message": "boom", "request_id": "req1",
++			})
++		})
++		if _, err := c.GetBankStatus("wellsfargo"); err == nil {
++			t.Error("GetBankStatus(error response) = nil, want error")
++		}
++	})
++}
++
++func plaidTx(id string, amount float64, pending bool, checkNumber string) map[string]any {
++	tx := map[string]any{
++		"transaction_id": id, "account_id": "acc1", "amount": amount,
++		"date": "2026-10-28", "name": "TX " + id, "pending": pending,
++	}
++	if checkNumber != "" {
++		tx["check_number"] = checkNumber
++	}
++	return tx
++}
++
++func TestClient_GetTransactions(t *testing.T) {
++	t.Run("splits pending and posted", func(t *testing.T) {
++		c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
++			writeJSON(t, w, http.StatusOK, map[string]any{
++				"accounts": []map[string]any{{"account_id": "acc1"}},
++				"transactions": []map[string]any{
++					plaidTx("tx-posted", -50.00, false, ""),
++					plaidTx("tx-pending", -25.00, true, ""),
++				},
++				"total_transactions": 2,
++			})
++		})
++		posted, pending, err := c.GetTransactions([]string{"wellsfargo"}, "2026-10-01", "2026-11-08")
++		if err != nil {
++			t.Fatalf("GetTransactions = %v, want nil", err)
++		}
++		if len(posted) != 1 || len(pending) != 1 {
++			t.Fatalf("posted = %d, pending = %d; want 1, 1", len(posted), len(pending))
++		}
++		if posted[0].TransactionID != "tx-posted" || posted[0].Pending {
++			t.Errorf("posted[0] = %+v, want tx-posted, not pending", posted[0])
++		}
++		if pending[0].TransactionID != "tx-pending" || !pending[0].Pending {
++			t.Errorf("pending[0] = %+v, want tx-pending, pending", pending[0])
++		}
++		if posted[0].Deposit != 50.00 || posted[0].Key != "wellsfargo:10/28/26:50.00" {
++			t.Errorf("posted[0] Deposit = %v, Key = %q; want 50.00 and wellsfargo:10/28/26:50.00", posted[0].Deposit, posted[0].Key)
++		}
++	})
++
++	t.Run("check transaction", func(t *testing.T) {
++		c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
++			writeJSON(t, w, http.StatusOK, map[string]any{
++				"transactions": []map[string]any{
++					plaidTx("tx-check", -250.00, false, "1234"),
++				},
++				"total_transactions": 1,
++			})
++		})
++		posted, _, err := c.GetTransactions([]string{"wellsfargo"}, "2026-10-01", "2026-11-08")
++		if err != nil {
++			t.Fatalf("GetTransactions = %v, want nil", err)
++		}
++		if len(posted) != 1 || !posted[0].IsCheck || posted[0].Source != "1234" {
++			t.Errorf("posted = %+v, want one check with source 1234", posted)
++		}
++	})
++
++	t.Run("unknown bank id", func(t *testing.T) {
++		c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
++			writeJSON(t, w, http.StatusOK, map[string]any{
++				"transactions":       []map[string]any{plaidTx("tx1", -10.00, false, "")},
++				"total_transactions": 1,
++			})
++		})
++		c.Banks["nope"] = config.Bank{ID: "nope", Name: "Nope", AccessToken: "token-nope"}
++		if _, _, err := c.GetTransactions([]string{"nope"}, "2026-10-01", "2026-11-08"); err == nil {
++			t.Error("GetTransactions(unknown bank) = nil, want error")
++		} else if !strings.Contains(err.Error(), "unknown bank ID: nope") {
++			t.Errorf("GetTransactions(unknown bank) = %v, want unknown-bank error", err)
++		}
++	})
++
++	t.Run("plaid error accumulates", func(t *testing.T) {
++		c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
++			writeJSON(t, w, http.StatusBadRequest, map[string]any{
++				"error_type": "INVALID_REQUEST", "error_code": "NOPE",
++				"error_message": "boom", "request_id": "req1",
++			})
++		})
++		posted, pending, err := c.GetTransactions([]string{"wellsfargo", "chase"}, "2026-10-01", "2026-11-08")
++		if err == nil {
++			t.Error("GetTransactions(failing plaid) = nil, want error")
++		}
++		if posted != nil || pending != nil {
++			t.Errorf("GetTransactions(failing plaid) = %v, %v; want nil, nil", posted, pending)
++		}
++	})
++}
++
++func Test_getPlaidTransactions_pagination(t *testing.T) {
++	const total = 150
++	c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
++		var req struct {
++			Options struct {
++				Count  int32 `json:"count"`
++				Offset int32 `json:"offset"`
++			} `json:"options"`
++		}
++		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
++			t.Errorf("decode transactions request: %v", err)
++		}
++		start := int(req.Options.Offset)
++		end := start + int(req.Options.Count)
++		if end > total {
++			end = total
++		}
++		var txs []map[string]any
++		for i := start; i < end; i++ {
++			txs = append(txs, plaidTx(fmt.Sprintf("tx-%03d", i), -10.00, false, ""))
++		}
++		writeJSON(t, w, http.StatusOK, map[string]any{
++			"transactions": txs, "total_transactions": total,
++		})
++	})
++	got, err := c.getPlaidTransactions(config.Bank{ID: "wellsfargo", AccessToken: "token-wf"}, "2026-10-01", "2026-11-08")
++	if err != nil {
++		t.Fatalf("getPlaidTransactions = %v, want nil", err)
++	}
++	if len(got) != total {
++		t.Fatalf("got %d transactions, want %d", len(got), total)
++	}
++	if got[0].TransactionId != "tx-000" || got[total-1].TransactionId != "tx-149" {
++		t.Errorf("first = %q, last = %q; want tx-000, tx-149", got[0].TransactionId, got[total-1].TransactionId)
++	}
++}
++
++func Test_getPlaidTransactions_errors(t *testing.T) {
++	t.Run("plaid error includes body", func(t *testing.T) {
++		c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
++			writeJSON(t, w, http.StatusBadRequest, map[string]any{
++				"error_type": "INVALID_REQUEST", "error_code": "NOPE",
++				"error_message": "boom", "request_id": "req1",
++			})
++		})
++		if _, err := c.getPlaidTransactions(config.Bank{ID: "wellsfargo", AccessToken: "token-wf"}, "2026-10-01", "2026-11-08"); err == nil {
++			t.Error("getPlaidTransactions(error response) = nil, want error")
++		}
++	})
++
++	t.Run("unreachable server", func(t *testing.T) {
++		c, ts := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {})
++		ts.Close() // t.Cleanup will close again; Close on a closed server is a no-op.
++		if _, err := c.getPlaidTransactions(config.Bank{ID: "wellsfargo", AccessToken: "token-wf"}, "2026-10-01", "2026-11-08"); err == nil {
++			t.Error("getPlaidTransactions(closed server) = nil, want error")
++		}
++	})
++}
+diff --git a/pkg/config/config_test.go b/pkg/config/config_test.go
+index 6d7dbdf..a4b08be 100644
+--- a/pkg/config/config_test.go
++++ b/pkg/config/config_test.go
+@@ -2,6 +2,8 @@ package config
+ 
+ import (
+ 	"encoding/json"
++	"os"
++	"strings"
+ 	"testing"
+ )
+ 
+@@ -38,3 +40,50 @@ func TestConfig_NoIncomeSources(t *testing.T) {
+ 		t.Errorf("missing income_sources should mean none configured, got %+v", cfg.IncomeSources)
+ 	}
+ }
++
++func TestReadConfig(t *testing.T) {
++	dir := t.TempDir()
++	path := dir + "/config.json"
++	data := []byte(`{
++		"user_id": "user1",
++		"banks": {
++			"wellsfargo": {"id": "wellsfargo", "name": "Wells Fargo", "csv_file_name": "wf.csv"}
++		},
++		"income_sources": [
++			{"name": "Taylor House", "match_pattern": "Winchester Eats PAYROLL", "frequency": "biweekly"}
++		]
++	}`)
++	if err := os.WriteFile(path, data, 0o644); err != nil {
++		t.Fatal(err)
++	}
++	cfg, err := ReadConfig(path)
++	if err != nil {
++		t.Fatalf("ReadConfig = %v, want nil", err)
++	}
++	if cfg.UserID != "user1" {
++		t.Errorf("UserID = %q, want user1", cfg.UserID)
++	}
++	bank, ok := cfg.Banks["wellsfargo"]
++	if !ok || bank.Name != "Wells Fargo" || bank.CSVFileName != "wf.csv" {
++		t.Errorf("Banks[wellsfargo] = %+v, want Wells Fargo entry", bank)
++	}
++	if len(cfg.IncomeSources) != 1 || cfg.IncomeSources[0].Name != "Taylor House" {
++		t.Errorf("IncomeSources = %v, want one Taylor House entry", cfg.IncomeSources)
++	}
++
++	if _, err := ReadConfig(dir + "/nope.json"); err == nil {
++		t.Error("ReadConfig(nonexistent) = nil, want error")
++	} else if !strings.Contains(err.Error(), "could not read config file") {
++		t.Errorf("ReadConfig(nonexistent) = %v, want read error", err)
++	}
++
++	bad := dir + "/bad.json"
++	if err := os.WriteFile(bad, []byte(`{not json`), 0o644); err != nil {
++		t.Fatal(err)
++	}
++	if _, err := ReadConfig(bad); err == nil {
++		t.Error("ReadConfig(invalid json) = nil, want error")
++	} else if !strings.Contains(err.Error(), "could not unmarshal config file") {
++		t.Errorf("ReadConfig(invalid json) = %v, want unmarshal error", err)
++	}
++}
+diff --git a/pkg/csv/csv_conversion_test.go b/pkg/csv/csv_conversion_test.go
+index efe3d85..b7ddba9 100644
+--- a/pkg/csv/csv_conversion_test.go
++++ b/pkg/csv/csv_conversion_test.go
+@@ -285,3 +285,170 @@ func Test_processWellsFargoData_Multiple(t *testing.T) {
+ 		keys[tx.Key] = true
+ 	}
+ }
++
++func Test_processChaseData(t *testing.T) {
++	tests := []struct {
++		name    string
++		rows    []*ChaseVisa
++		bankID  string
++		checkTx *models.Transaction
++	}{
++		{
++			name: "charge (negative amount)",
++			rows: []*ChaseVisa{
++				{TransactionDate: "09/28/2026", PostDate: "09/29/2026", Description: "AMAZON", Category: "Shopping", Type: "Sale", Amount: -20.00},
++			},
++			bankID: models.ChaseID,
++			checkTx: &models.Transaction{
++				Source:         "Chase",
++				Date:           "09/28/26",
++				Amount:         -20.00,
++				BankName:       "AMAZON",
++				Name:           "AMAZON",
++				CreditPurchase: 20.00,
++				Budget:         -20.00,
++				Key:            "chase:09/28/26:20.00",
++			},
++		},
++		{
++			name: "refund (positive amount)",
++			rows: []*ChaseVisa{
++				{TransactionDate: "09/30/2026", PostDate: "10/01/2026", Description: "AMAZON REFUND", Category: "Shopping", Type: "Return", Amount: 15.00},
++			},
++			bankID: models.ChaseID,
++			checkTx: &models.Transaction{
++				Source:         "Chase",
++				Date:           "09/30/26",
++				Amount:         15.00,
++				BankName:       "AMAZON REFUND",
++				Name:           "AMAZON REFUND",
++				CreditPurchase: -15.00,
++				Budget:         15.00,
++				Key:            "chase:09/30/26:-15.00",
++			},
++		},
++	}
++
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got := processChaseData(tt.rows, tt.bankID)
++			if len(got) != 1 {
++				t.Fatalf("got %d transactions, want 1", len(got))
++			}
++			tx := got[0]
++			want := tt.checkTx
++
++			if tx.Source != want.Source {
++				t.Errorf("Source = %q, want %q", tx.Source, want.Source)
++			}
++			if tx.Date != want.Date {
++				t.Errorf("Date = %q, want %q", tx.Date, want.Date)
++			}
++			if tx.Amount != want.Amount {
++				t.Errorf("Amount = %v, want %v", tx.Amount, want.Amount)
++			}
++			if tx.BankName != want.BankName {
++				t.Errorf("BankName = %q, want %q", tx.BankName, want.BankName)
++			}
++			if tx.Name != want.Name {
++				t.Errorf("Name = %q, want %q", tx.Name, want.Name)
++			}
++			if tx.CreditPurchase != want.CreditPurchase {
++				t.Errorf("CreditPurchase = %v, want %v", tx.CreditPurchase, want.CreditPurchase)
++			}
++			if tx.Budget != want.Budget {
++				t.Errorf("Budget = %v, want %v", tx.Budget, want.Budget)
++			}
++			if tx.Key != want.Key {
++				t.Errorf("Key = %q, want %q", tx.Key, want.Key)
++			}
++		})
++	}
++}
++
++func Test_processChaseData_SkipsPayments(t *testing.T) {
++	rows := []*ChaseVisa{
++		{TransactionDate: "09/30/2026", PostDate: "10/01/2026", Description: "Payment Thank You", Category: "Payment", Type: "Payment", Amount: 500.00},
++		{TransactionDate: "09/28/2026", PostDate: "09/29/2026", Description: "AMAZON", Category: "Shopping", Type: "Sale", Amount: -20.00},
++	}
++	got := processChaseData(rows, models.ChaseID)
++	if len(got) != 1 {
++		t.Fatalf("got %d transactions, want 1 (Payment row skipped)", len(got))
++	}
++	if got[0].BankName != "AMAZON" {
++		t.Errorf("kept row BankName = %q, want AMAZON", got[0].BankName)
++	}
++}
++
++func Test_processBankOfAmericaData(t *testing.T) {
++	tests := []struct {
++		name    string
++		rows    []*BankOfAmerica
++		bankID  string
++		checkTx *models.Transaction
++	}{
++		{
++			name: "purchase",
++			rows: []*BankOfAmerica{
++				{PostedDate: "09/28/2026", ReferenceNumber: "REF1", Payee: "AMAZON", Address: "Seattle", Amount: 19.99},
++			},
++			bankID: models.BoAID,
++			checkTx: &models.Transaction{
++				Source:         models.BoAID,
++				Date:           "09/28/26",
++				Amount:         -19.99,
++				BankName:       "AMAZON",
++				Name:           "AMAZON",
++				CreditPurchase: 19.99,
++				Key:            "boa:09/28/26:19.99",
++			},
++		},
++	}
++
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got := processBankOfAmericaData(tt.rows, tt.bankID)
++			if len(got) != 1 {
++				t.Fatalf("got %d transactions, want 1", len(got))
++			}
++			tx := got[0]
++			want := tt.checkTx
++
++			if tx.Source != want.Source {
++				t.Errorf("Source = %q, want %q", tx.Source, want.Source)
++			}
++			if tx.Date != want.Date {
++				t.Errorf("Date = %q, want %q", tx.Date, want.Date)
++			}
++			if tx.Amount != want.Amount {
++				t.Errorf("Amount = %v, want %v", tx.Amount, want.Amount)
++			}
++			if tx.BankName != want.BankName {
++				t.Errorf("BankName = %q, want %q", tx.BankName, want.BankName)
++			}
++			if tx.Name != want.Name {
++				t.Errorf("Name = %q, want %q", tx.Name, want.Name)
++			}
++			if tx.CreditPurchase != want.CreditPurchase {
++				t.Errorf("CreditPurchase = %v, want %v", tx.CreditPurchase, want.CreditPurchase)
++			}
++			if tx.Key != want.Key {
++				t.Errorf("Key = %q, want %q", tx.Key, want.Key)
++			}
++		})
++	}
++}
++
++func Test_processBankOfAmericaData_SkipsElectronicPayments(t *testing.T) {
++	rows := []*BankOfAmerica{
++		{PostedDate: "09/29/2026", ReferenceNumber: "REF2", Payee: "BA Electronic Payment", Address: "Somewhere", Amount: 500.00},
++		{PostedDate: "09/28/2026", ReferenceNumber: "REF1", Payee: "AMAZON", Address: "Seattle", Amount: 19.99},
++	}
++	got := processBankOfAmericaData(rows, models.BoAID)
++	if len(got) != 1 {
++		t.Fatalf("got %d transactions, want 1 (electronic payment skipped)", len(got))
++	}
++	if got[0].BankName != "AMAZON" {
++		t.Errorf("kept row BankName = %q, want AMAZON", got[0].BankName)
++	}
++}
+diff --git a/pkg/csv/csv_test.go b/pkg/csv/csv_test.go
+new file mode 100644
+index 0000000..e44c870
+--- /dev/null
++++ b/pkg/csv/csv_test.go
+@@ -0,0 +1,392 @@
++package csv
++
++import (
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++
++	"register/pkg/config"
++	"register/pkg/models"
++)
++
++func writeCSVFile(t *testing.T, dir, name, content string) string {
++	t.Helper()
++	path := filepath.Join(dir, name)
++	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
++		t.Fatalf("write fixture %s: %v", name, err)
++	}
++	return path
++}
++
++func TestNew(t *testing.T) {
++	banks := map[string]config.Bank{
++		models.FidelityID: {ID: models.FidelityID, CSVFileName: "fidelity.csv"},
++	}
++	progress := func(_ string) {}
++	c := New("/tmp/fin", banks, []string{models.FidelityID}, progress)
++	if c.FinanceDir != "/tmp/fin" {
++		t.Errorf("FinanceDir = %q, want /tmp/fin", c.FinanceDir)
++	}
++	if len(c.Banks) != 1 || c.Banks[models.FidelityID].CSVFileName != "fidelity.csv" {
++		t.Errorf("Banks = %v, want fidelity entry", c.Banks)
++	}
++	if len(c.BankIDs) != 1 || c.BankIDs[0] != models.FidelityID {
++		t.Errorf("BankIDs = %v, want [fidelity]", c.BankIDs)
++	}
++	if c.Progress == nil {
++		t.Error("Progress = nil, want non-nil func as passed")
++	}
++}
++
++func Test_normalizeHeader(t *testing.T) {
++	tests := []struct {
++		in   string
++		want string
++	}{
++		{"Date", "date"},
++		{"  Transaction Date  ", "transaction date"},
++		{"AMOUNT", "amount"},
++		{"CHECK #", "check #"},
++		{"", ""},
++	}
++	for _, tt := range tests {
++		if got := normalizeHeader(tt.in); got != tt.want {
++			t.Errorf("normalizeHeader(%q) = %q, want %q", tt.in, got, tt.want)
++		}
++	}
++}
++
++type csvHeadersSample struct {
++	A string `csv:"Alpha"`
++	B int    `csv:"-"`
++	C string
++	D string `csv:"Delta"`
++}
++
++func Test_csvHeaders(t *testing.T) {
++	want := []string{"Alpha", "Delta"}
++	for _, sample := range []any{csvHeadersSample{}, &csvHeadersSample{}} {
++		got := csvHeaders(sample)
++		if len(got) != len(want) {
++			t.Fatalf("csvHeaders(%T) = %v, want %v", sample, got, want)
++		}
++		for i, w := range want {
++			if got[i] != w {
++				t.Errorf("csvHeaders(%T)[%d] = %q, want %q", sample, i, got[i], w)
++			}
++		}
++	}
++}
++
++func Test_checkCSVHeaders(t *testing.T) {
++	dir := t.TempDir()
++	full := writeCSVFile(t, dir, "full.csv", `"Date","Transaction","Name","Memo","Amount"`+"\n")
++	if err := checkCSVHeaders(full, FidelityVisa{}); err != nil {
++		t.Errorf("checkCSVHeaders(full) = %v, want nil", err)
++	}
++
++	variant := writeCSVFile(t, dir, "variant.csv", `date, transaction ,NAME,memo,amount`+"\n")
++	if err := checkCSVHeaders(variant, FidelityVisa{}); err != nil {
++		t.Errorf("checkCSVHeaders(case/whitespace variant) = %v, want nil", err)
++	}
++
++	missing := writeCSVFile(t, dir, "missing.csv", `"Date","Transaction","Name","Amount"`+"\n")
++	if err := checkCSVHeaders(missing, FidelityVisa{}); err == nil {
++		t.Error("checkCSVHeaders(missing Memo) = nil, want error")
++	} else if !strings.Contains(err.Error(), "Memo") {
++		t.Errorf("checkCSVHeaders(missing Memo) = %v, want error naming Memo", err)
++	}
++
++	if err := checkCSVHeaders(filepath.Join(dir, "nope.csv"), FidelityVisa{}); err == nil {
++		t.Error("checkCSVHeaders(nonexistent) = nil, want error")
++	} else if !strings.Contains(err.Error(), "could not open file") {
++		t.Errorf("checkCSVHeaders(nonexistent) = %v, want open error", err)
++	}
++
++	empty := writeCSVFile(t, dir, "empty.csv", "")
++	if err := checkCSVHeaders(empty, FidelityVisa{}); err == nil {
++		t.Error("checkCSVHeaders(empty) = nil, want error")
++	}
++}
++
++func Test_readFileContents(t *testing.T) {
++	dir := t.TempDir()
++	path := writeCSVFile(t, dir, "data.csv", "hello")
++	got, err := readFileContents(path)
++	if err != nil {
++		t.Fatalf("readFileContents = %v, want nil", err)
++	}
++	if string(got) != "hello" {
++		t.Errorf("readFileContents = %q, want %q", got, "hello")
++	}
++	// NOTE: the missing-file error case is deliberately untested here.
++	// readFileContents shadows its err (:= inside the if), so a failed
++	// read returns (nil, nil) instead of the error. That is a production
++	// bug to fix first; asserting today's behavior would enshrine it.
++}
++
++func Test_doWellsFargoHeadsExist(t *testing.T) {
++	tests := []struct {
++		name  string
++		bytes []byte
++		want  bool
++	}{
++		{"quoted DATE prefix", []byte(`"DATE","DESCRIPTION"`), true},
++		{"unquoted DATE prefix", []byte(`DATE,DESCRIPTION`), false},
++		{"other content", []byte(`12/07/2020,-46.80`), false},
++		{"empty", []byte{}, false},
++		{"nil", nil, false},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			if got := doWellsFargoHeadsExist(tt.bytes); got != tt.want {
++				t.Errorf("doWellsFargoHeadsExist = %v, want %v", got, tt.want)
++			}
++		})
++	}
++}
++
++func Test_addWellsFargoHeads(t *testing.T) {
++	dir := t.TempDir()
++	path := writeCSVFile(t, dir, "wf.csv", "12/07/2020,-46.80\n")
++	orig, _ := os.ReadFile(path)
++	if err := addWellsFargoHeads(path, orig); err != nil {
++		t.Fatalf("addWellsFargoHeads = %v, want nil", err)
++	}
++	got, _ := os.ReadFile(path)
++	want := `"date","amount","dummy1","dummy2","name"` + "\n" + "12/07/2020,-46.80\n"
++	if string(got) != want {
++		t.Errorf("file after addWellsFargoHeads = %q, want %q", got, want)
++	}
++	if err := addWellsFargoHeads(filepath.Join(dir, "no", "wf.csv"), orig); err == nil {
++		t.Error("addWellsFargoHeads(bad path) = nil, want error")
++	}
++}
++
++const wellsFargoFixture = `"DATE","DESCRIPTION","AMOUNT","CHECK #","STATUS"
++"12/07/2020","TARGET","-46.80","","posted"
++"12/01/2020","DIRECT DEPOSIT","1500.00","","posted"
++"12/15/2020","CHECK # 1234","-250.00","CHECK # 1234","posted"
++`
++
++const fidelityFixture = `"Date","Transaction","Name","Memo","Amount"
++"2026-09-28","DEBIT","Netflix","memo123","-19.99"
++"2026-09-29","DEBIT","PAYMENT - THANK YOU","memo456","-100.00"
++`
++
++const chaseFixture = `"Transaction Date","Post Date","Description","Category","Type","Amount"
++"09/28/2026","09/29/2026","AMAZON","Shopping","Sale","-20.00"
++"09/30/2026","10/01/2026","Payment Thank You","Payment","Payment","500.00"
++`
++
++const bankOfAmericaFixture = `"Posted Date","Reference Number","Payee","Address","Amount"
++"09/28/2026","REF1","AMAZON","Seattle","19.99"
++"09/29/2026","REF2","BA Electronic Payment","Somewhere","500.00"
++`
++
++func Test_readWellsFargoCSVRows(t *testing.T) {
++	dir := t.TempDir()
++	path := writeCSVFile(t, dir, "wf.csv", wellsFargoFixture)
++	got, err := readWellsFargoCSVRows(path, models.WellsFargoID)
++	if err != nil {
++		t.Fatalf("readWellsFargoCSVRows = %v, want nil", err)
++	}
++	if len(got) != 3 {
++		t.Fatalf("got %d transactions, want 3", len(got))
++	}
++	if got[0].Date != "12/07/20" || got[0].Amount != -46.80 || got[0].Withdrawal != 46.80 || got[0].Key != "wellsfargo:12/07/20:-46.80" {
++		t.Errorf("row 0 = %+v, want TARGET withdrawal", got[0])
++	}
++	if got[1].Deposit != 1500.00 {
++		t.Errorf("row 1 Deposit = %v, want 1500.00", got[1].Deposit)
++	}
++	if !got[2].IsCheck || got[2].Source != "1234" || got[2].Name != models.CheckRegisterName {
++		t.Errorf("row 2 = %+v, want check 1234", got[2])
++	}
++	if _, err := readWellsFargoCSVRows(filepath.Join(dir, "nope.csv"), models.WellsFargoID); err == nil {
++		t.Error("readWellsFargoCSVRows(nonexistent) = nil, want error")
++	}
++}
++
++func Test_readFidelityCSVRows(t *testing.T) {
++	dir := t.TempDir()
++	path := writeCSVFile(t, dir, "fid.csv", fidelityFixture)
++	got, err := readFidelityCSVRows(path, models.FidelityID)
++	if err != nil {
++		t.Fatalf("readFidelityCSVRows = %v, want nil", err)
++	}
++	if len(got) != 1 {
++		t.Fatalf("got %d transactions, want 1 (PAYMENT row skipped)", len(got))
++	}
++	tx := got[0]
++	if tx.TransactionID != "memo123" || tx.Date != "09/28/26" || tx.CreditPurchase != 19.99 || tx.Key != "fidelity:09/28/26:19.99" {
++		t.Errorf("tx = %+v, want Netflix charge", tx)
++	}
++
++	noHeader := writeCSVFile(t, dir, "noheader.csv", `"Date","Transaction","Name","Amount"`+"\n")
++	if _, err := readFidelityCSVRows(noHeader, models.FidelityID); err == nil {
++		t.Error("readFidelityCSVRows(missing Memo header) = nil, want error")
++	}
++	if _, err := readFidelityCSVRows(filepath.Join(dir, "nope.csv"), models.FidelityID); err == nil {
++		t.Error("readFidelityCSVRows(nonexistent) = nil, want error")
++	}
++}
++
++func Test_readChaseCSVRows(t *testing.T) {
++	dir := t.TempDir()
++	path := writeCSVFile(t, dir, "chase.csv", chaseFixture)
++	got, err := readChaseCSVRows(path, models.ChaseID)
++	if err != nil {
++		t.Fatalf("readChaseCSVRows = %v, want nil", err)
++	}
++	if len(got) != 1 {
++		t.Fatalf("got %d transactions, want 1 (Payment row skipped)", len(got))
++	}
++	tx := got[0]
++	if tx.Date != "09/28/26" || tx.Amount != -20.00 || tx.CreditPurchase != 20.00 || tx.Budget != -20.00 || tx.Key != "chase:09/28/26:20.00" {
++		t.Errorf("tx = %+v, want AMAZON charge", tx)
++	}
++
++	noHeader := writeCSVFile(t, dir, "noheader.csv", `"Transaction Date","Description","Amount"`+"\n")
++	if _, err := readChaseCSVRows(noHeader, models.ChaseID); err == nil {
++		t.Error("readChaseCSVRows(missing headers) = nil, want error")
++	}
++}
++
++func Test_readBankOfAmericaCSVRows(t *testing.T) {
++	dir := t.TempDir()
++	path := writeCSVFile(t, dir, "boa.csv", bankOfAmericaFixture)
++	got, err := readBankOfAmericaCSVRows(path, models.BoAID)
++	if err != nil {
++		t.Fatalf("readBankOfAmericaCSVRows = %v, want nil", err)
++	}
++	if len(got) != 1 {
++		t.Fatalf("got %d transactions, want 1 (electronic payment skipped)", len(got))
++	}
++	tx := got[0]
++	if tx.Source != models.BoAID || tx.Date != "09/28/26" || tx.Amount != -19.99 || tx.CreditPurchase != 19.99 || tx.Key != "boa:09/28/26:19.99" {
++		t.Errorf("tx = %+v, want AMAZON purchase", tx)
++	}
++
++	noHeader := writeCSVFile(t, dir, "noheader.csv", `"Posted Date","Payee","Amount"`+"\n")
++	if _, err := readBankOfAmericaCSVRows(noHeader, models.BoAID); err == nil {
++		t.Error("readBankOfAmericaCSVRows(missing headers) = nil, want error")
++	}
++}
++
++func Test_readWellsFargoCSV(t *testing.T) {
++	dir := t.TempDir()
++	banks := map[string]config.Bank{
++		models.WellsFargoID: {ID: models.WellsFargoID, CSVFileName: "wf.csv"},
++	}
++	c := New(dir, banks, []string{models.WellsFargoID}, func(_ string) {})
++
++	withHeads := writeCSVFile(t, dir, "wf.csv", wellsFargoFixture)
++	_ = withHeads
++	got, err := c.readWellsFargoCSV()
++	if err != nil {
++		t.Fatalf("readWellsFargoCSV(with headers) = %v, want nil", err)
++	}
++	if len(got) != 3 {
++		t.Fatalf("got %d transactions, want 3", len(got))
++	}
++
++	// Headerless file: the client prepends the legacy header and reads on.
++	// gocsv matches headers to struct tags case-sensitively, so the
++	// lowercase legacy header leaves the rows unmapped (zero values) —
++	// assert the file mutation and the row count, which is what this
++	// path actually guarantees.
++	legacy := writeCSVFile(t, dir, "wf.csv", "12/07/2020,-46.80,foo,bar,baz\n")
++	_ = legacy
++	got, err = c.readWellsFargoCSV()
++	if err != nil {
++		t.Fatalf("readWellsFargoCSV(headerless) = %v, want nil", err)
++	}
++	if len(got) != 1 {
++		t.Fatalf("got %d transactions, want 1", len(got))
++	}
++	contents, _ := os.ReadFile(filepath.Join(dir, "wf.csv"))
++	if !strings.HasPrefix(string(contents), `"date","amount","dummy1","dummy2","name"`) {
++		t.Errorf("headerless file after read = %q, want legacy header prepended", contents)
++	}
++
++	// NOTE: the missing-file case is deliberately untested here. It runs
++	// through readFileContents, which swallows read errors (see
++	// Test_readFileContents), so a missing Wells Fargo file currently
++	// yields an empty list and a created header-only file instead of an
++	// error. That needs the readFileContents fix first.
++}
++
++func Test_readBankCSVClients(t *testing.T) {
++	dir := t.TempDir()
++	writeCSVFile(t, dir, "fid.csv", fidelityFixture)
++	writeCSVFile(t, dir, "chase.csv", chaseFixture)
++	writeCSVFile(t, dir, "boa.csv", bankOfAmericaFixture)
++	banks := map[string]config.Bank{
++		models.FidelityID: {ID: models.FidelityID, CSVFileName: "fid.csv"},
++		models.ChaseID:    {ID: models.ChaseID, CSVFileName: "chase.csv"},
++		models.BoAID:      {ID: models.BoAID, CSVFileName: "boa.csv"},
++	}
++	c := New(dir, banks, nil, func(_ string) {})
++
++	if got, err := c.readFidelityCSV(); err != nil || len(got) != 1 {
++		t.Errorf("readFidelityCSV = %d transactions, %v; want 1, nil", len(got), err)
++	}
++	if got, err := c.readChaseCSV(); err != nil || len(got) != 1 {
++		t.Errorf("readChaseCSV = %d transactions, %v; want 1, nil", len(got), err)
++	}
++	if got, err := c.readBankOfAmericaCSV(); err != nil || len(got) != 1 {
++		t.Errorf("readBankOfAmericaCSV = %d transactions, %v; want 1, nil", len(got), err)
++	}
++}
++
++func TestClient_GetTransactions(t *testing.T) {
++	dir := t.TempDir()
++	writeCSVFile(t, dir, "fid.csv", fidelityFixture)
++	writeCSVFile(t, dir, "chase.csv", chaseFixture)
++	writeCSVFile(t, dir, "wf.csv", wellsFargoFixture)
++	banks := map[string]config.Bank{
++		models.FidelityID:   {ID: models.FidelityID, CSVFileName: "fid.csv"},
++		models.ChaseID:      {ID: models.ChaseID, CSVFileName: "chase.csv"},
++		models.WellsFargoID: {ID: models.WellsFargoID, CSVFileName: "wf.csv"},
++	}
++	var progress []string
++	c := New(dir, banks, []string{models.FidelityID, models.ChaseID, models.WellsFargoID, "unknown"}, func(s string) {
++		progress = append(progress, s)
++	})
++	got, err := c.GetTransactions()
++	if err != nil {
++		t.Fatalf("GetTransactions = %v, want nil", err)
++	}
++	if len(got) != 5 {
++		t.Fatalf("got %d transactions, want 5 (1 fidelity + 1 chase + 3 wells fargo)", len(got))
++	}
++	for _, want := range []string{"Fidelity", "Chase", "Wells Fargo"} {
++		found := false
++		for _, p := range progress {
++			if strings.Contains(p, want) {
++				found = true
++			}
++		}
++		if !found {
++			t.Errorf("progress %v missing %q", progress, want)
++		}
++	}
++
++	// A bank whose file is missing fails the whole run.
++	bad := New(dir, map[string]config.Bank{
++		models.FidelityID: {ID: models.FidelityID, CSVFileName: "nope.csv"},
++	}, []string{models.FidelityID}, func(_ string) {})
++	if _, err := bad.GetTransactions(); err == nil {
++		t.Error("GetTransactions(missing file) = nil, want error")
++	} else if !strings.Contains(err.Error(), "could not read CSV file") {
++		t.Errorf("GetTransactions(missing file) = %v, want wrapped read error", err)
++	}
++
++	// No bank IDs means no transactions and no error.
++	empty := New(dir, banks, nil, func(_ string) {})
++	if got, err := empty.GetTransactions(); err != nil || len(got) != 0 {
++		t.Errorf("GetTransactions(nil banks) = %d transactions, %v; want 0, nil", len(got), err)
++	}
++}
+diff --git a/pkg/models/column_set_test.go b/pkg/models/column_set_test.go
+index ff24dd8..ec10424 100644
+--- a/pkg/models/column_set_test.go
++++ b/pkg/models/column_set_test.go
+@@ -56,3 +56,23 @@ func TestColumnSetValidate(t *testing.T) {
+ 		t.Errorf("Validate() = %v; want 3 problems", problems)
+ 	}
+ }
++
++func TestColumnSetColumns(t *testing.T) {
++	columns := []Column{
++		{ID: 1, Name: "Recon", ColumnIndex: 1},
++		{ID: 10, Name: "Delta", ColumnIndex: 10},
++		{ID: 58, Name: "Emergency Fund", ColumnIndex: 42},
++	}
++	got := NewColumnSet(columns).Columns()
++	if len(got) != len(columns) {
++		t.Fatalf("Columns() len = %d, want %d", len(got), len(columns))
++	}
++	for i, want := range columns {
++		if got[i] != want {
++			t.Errorf("Columns()[%d] = %+v, want %+v", i, got[i], want)
++		}
++	}
++	if got := NewColumnSet(nil).Columns(); len(got) != 0 {
++		t.Errorf("Columns() on empty set len = %d, want 0", len(got))
++	}
++}
+diff --git a/pkg/models/models_test.go b/pkg/models/models_test.go
+new file mode 100644
+index 0000000..d1794cf
+--- /dev/null
++++ b/pkg/models/models_test.go
+@@ -0,0 +1,24 @@
++package models
++
++import "testing"
++
++func TestColumnIsCategory(t *testing.T) {
++	tests := []struct {
++		name  string
++		index int
++		want  bool
++	}{
++		{"zero index", 0, false},
++		{"last fixed position", 10, false},
++		{"first category position", FirstCategoryIndex, true},
++		{"later category", 42, true},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			col := Column{ColumnIndex: tt.index}
++			if got := col.IsCategory(); got != tt.want {
++				t.Errorf("Column{ColumnIndex: %d}.IsCategory() = %v, want %v", tt.index, got, tt.want)
++			}
++		})
++	}
++}
+diff --git a/pkg/repository/repository_test.go b/pkg/repository/repository_test.go
+new file mode 100644
+index 0000000..2f8eb80
+--- /dev/null
++++ b/pkg/repository/repository_test.go
+@@ -0,0 +1,28 @@
++package repository
++
++import (
++	"testing"
++
++	"register/pkg/models"
++)
++
++func TestColumnNames(t *testing.T) {
++	columns := []models.Column{
++		{Name: "Grocery"},
++		{Name: "Dining Out"},
++		{Name: "Emergency Fund"},
++	}
++	got := ColumnNames(columns)
++	want := []string{"Grocery", "Dining Out", "Emergency Fund"}
++	if len(got) != len(want) {
++		t.Fatalf("ColumnNames() = %v, want %v", got, want)
++	}
++	for i, w := range want {
++		if got[i] != w {
++			t.Errorf("ColumnNames()[%d] = %q, want %q", i, got[i], w)
++		}
++	}
++	if got := ColumnNames(nil); len(got) != 0 {
++		t.Errorf("ColumnNames(nil) len = %d, want 0", len(got))
++	}
++}

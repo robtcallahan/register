@@ -213,19 +213,15 @@ One case per technique, chosen from real coverage gaps. Rob writes these with gu
 Everything else, by package (zero-coverage counts after removing the 7 distinct zero-coverage functions in Rob's subset; the error-path case overlaps the update_service zeros). Partials topped up alongside.
 
 - [X] sheets_service — 39 zero + 32 partial (budget/register/monthly/columns/write/row_builder)
-- [ ] cmd — 31 zero + 1 partial (cobra harness technique)
-- [ ] csv — 18 zero
-- [ ] update_service — 8 zero + 2 partial (remaining pipeline stages)
-- [ ] banking — 8 zero + 2 partial (excludes `FindByBankPattern`)
-- [ ] sheets_provider — 4 zero + 1 partial (excludes `GetFormula`)
-- [ ] models — 2 zero + 3 partial
-- [ ] repository — 2 zero
-- [ ] config — 1 zero
-- [ ] root package — 1 zero
-- [ ] sheets_auth — 4 zero (deferred: token-file flows need a strategy first)
-- [ ] mysql — 13 zero (separate item: test-database strategy first, per the 10.13 pattern)
-- [ ] plaid_auth — 2 zero (excluded: interactive browser flows, not unit-testable)
-
+- [ ] sheets_service: ~90 (cells, monthly, register_write, register_service, helpers, columns, budget, values, row_builder, row_decoder)
+- [ ] cmd: ~40 (update, columns, root, recategorize, monthly, migrate, copy, budget, clients)
+- [ ] csv: 20
+- [ ] update_service: 17
+- [ ] banking: 15
+- [ ] sheets_provider: 6
+- [ ] models: 10 (mostly column_set)
+- [ ] sheets_auth: 5, mysql: 13, repository: 2, config: 1, root: 1, plaid_auth: 2
+  
 ## Sequencing
 
 - Bulk batch 1 (Muse, started 2026-10-30 in background): sheets_service + banking unit-testable zeros.

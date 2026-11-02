@@ -53,3 +53,21 @@ func TestDashes(t *testing.T) {
 		}
 	}
 }
+
+func TestDaysAhead(t *testing.T) {
+	for _, days := range []int{0, 7} {
+		got := daysAhead(days)
+		gotTime, err := time.Parse(PlaidDateFormat, got)
+		if err != nil {
+			t.Fatalf("daysAhead(%d) = %q, unparseable: %v", days, got, err)
+		}
+		want := time.Now().AddDate(0, 0, days)
+		want, _ = time.Parse(PlaidDateFormat, want.Format(PlaidDateFormat))
+		if diff := want.Sub(gotTime); diff > 24*time.Hour || diff < -24*time.Hour {
+			t.Errorf("daysAhead(%d) = %q, want ~%d days ahead", days, got, days)
+		}
+		if len(got) != 10 || got[4] != '-' || got[7] != '-' {
+			t.Errorf("daysAhead(%d) = %q, want YYYY-MM-DD format", days, got)
+		}
+	}
+}

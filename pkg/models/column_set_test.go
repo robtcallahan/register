@@ -56,3 +56,23 @@ func TestColumnSetValidate(t *testing.T) {
 		t.Errorf("Validate() = %v; want 3 problems", problems)
 	}
 }
+
+func TestColumnSetColumns(t *testing.T) {
+	columns := []Column{
+		{ID: 1, Name: "Recon", ColumnIndex: 1},
+		{ID: 10, Name: "Delta", ColumnIndex: 10},
+		{ID: 58, Name: "Emergency Fund", ColumnIndex: 42},
+	}
+	got := NewColumnSet(columns).Columns()
+	if len(got) != len(columns) {
+		t.Fatalf("Columns() len = %d, want %d", len(got), len(columns))
+	}
+	for i, want := range columns {
+		if got[i] != want {
+			t.Errorf("Columns()[%d] = %+v, want %+v", i, got[i], want)
+		}
+	}
+	if got := NewColumnSet(nil).Columns(); len(got) != 0 {
+		t.Errorf("Columns() on empty set len = %d, want 0", len(got))
+	}
+}
