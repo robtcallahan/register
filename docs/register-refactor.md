@@ -213,7 +213,7 @@ One case per technique, chosen from real coverage gaps. Rob writes these with gu
 Everything else, by package (zero-coverage counts after removing the 7 distinct zero-coverage functions in Rob's subset; the error-path case overlaps the update_service zeros). Partials topped up alongside.
 
 - [X] sheets_service — 39 zero + 32 partial (budget/register/monthly/columns/write/row_builder)
-- [ ] sheets_service: ~90 (cells, monthly, register_write, register_service, helpers, columns, budget, values, row_builder, row_decoder)
+- [X] sheets_service: ~90 (cells, monthly, register_write, register_service, helpers, columns, budget, values, row_builder, row_decoder)
 - [ ] cmd: ~40 (update, columns, root, recategorize, monthly, migrate, copy, budget, clients)
 - [ ] csv: 20
 - [ ] update_service: 17

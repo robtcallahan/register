@@ -79,6 +79,9 @@ func (c *Client) GetAccounts(ctx context.Context, accessToken string) ([]plaid.A
 
 	if err != nil {
 		buf := new(bytes.Buffer)
+		if httpResponse == nil {
+			return nil, err
+		}
 		_, err2 := buf.ReadFrom(httpResponse.Body)
 		if err2 != nil {
 			return nil, err2
@@ -131,6 +134,9 @@ func (c *Client) GetBalance(ctx context.Context, accessToken string, bankID stri
 		*balancesGetReq,
 	).Execute()
 	if err != nil {
+		if httpResponse == nil {
+			return nil, err
+		}
 		buf := new(bytes.Buffer)
 		_, err2 := buf.ReadFrom(httpResponse.Body)
 		if err2 != nil {
@@ -156,6 +162,9 @@ func (c *Client) GetBankStatus(bankID string) (*plaid.Institution, error) {
 	}
 	resp, httpResp, err := c.PlaidClient.PlaidApi.InstitutionsGetById(ctx).InstitutionsGetByIdRequest(req).Execute()
 	if err != nil {
+		if httpResp == nil {
+			return nil, err
+		}
 		buf := new(bytes.Buffer)
 		_, err2 := buf.ReadFrom(httpResp.Body)
 		if err2 != nil {

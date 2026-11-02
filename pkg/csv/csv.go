@@ -405,8 +405,9 @@ func processBankOfAmericaData(boa []*BankOfAmerica, bankID string) []*models.Tra
 }
 
 func readFileContents(path string) ([]byte, error) {
+	var contents []uint8
 	var err error
-	if contents, err := myReadFile(path); err == nil {
+	if contents, err = myReadFile(path); err == nil {
 		return contents, nil
 	}
 	return nil, err
