@@ -492,7 +492,7 @@ func writeJSON(t *testing.T, w http.ResponseWriter, status int, v any) {
 	}
 }
 
-func Test_LoadTransactions_Banking(t *testing.T) {
+func Test_LoadTransactions_Plaid(t *testing.T) {
 	tmpDir := t.TempDir()
 	fidelityFile := "Fidelity.csv"
 	f, err := os.CreateTemp(tmpDir, fidelityFile)
@@ -566,6 +566,9 @@ func Test_LoadTransactions_Banking(t *testing.T) {
 		}
 		if len(gotTrans) != 3 {
 			t.Fatalf("got %d posted transactions, want 3", len(gotTrans))
+		}
+		if len(gotPending) != 2 {
+			t.Fatalf("got %d pending transactions, want 2", len(gotPending))
 		}
 		if gotTrans[0].Name != "SQ *PLUME HOUSE VAPE C Winchester    VA" || gotTrans[0].Date != "10/02/26" || gotTrans[0].Pending != false {
 			t.Errorf("[0] Name: %v, Date: %v, Pending: %v, want Name: %v, Date: %v, Pending: %v",
