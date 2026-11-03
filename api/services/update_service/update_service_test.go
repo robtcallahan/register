@@ -1,6 +1,8 @@
 package update_service
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +11,7 @@ import (
 	"register/api/providers/sheets_provider"
 	"strings"
 	"testing"
+	"unsafe"
 
 	"register/api/services/sheets_service"
 	"register/pkg/banking"
@@ -356,5 +359,98 @@ func Test_LoadTransactions_HasTransactions(t *testing.T) {
 	if trans[0].Amount != -26.32 || trans[1].BankName != "Amazon web services" || trans[2].Date != "10/01/26" {
 		t.Fatalf("got wrong transaction values. want: %v, %v, %v, got: %v, %v, %v", -26.32, "Amazon web services", "10/01/26",
 			trans[0].Amount, trans[1].BankName, trans[2].Date)
+	}
+}
+
+func Test_LoadTransactions_CheckTransactionsCSV(t *testing.T) {
+	// create the CSV files, headers only, in the tmp dir
+	tmpDir := t.TempDir()
+	fidelityFile := "Fidelity.csv"
+	chaseFile := "Chase.csv"
+	wfFile := `Wells Fargo.csv`
+	transFile := "transactions.csv"
+	f, err := os.CreateTemp(tmpDir, fidelityFile)
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer f.Close()
+	c, err := os.CreateTemp(tmpDir, chaseFile)
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer c.Close()
+	w, err := os.CreateTemp(tmpDir, wfFile)
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer w.Close()
+
+	err = os.WriteFile(filepath.Join(tmpDir, fidelityFile),
+		[]byte(`"Date","Transaction","Name","Memo","Amount"
+"2026-01-02","DEBIT","SQ *PLUME HOUSE VAPE C Winchester    VA","24692165365100996015344; 05999; ; ; ; ;","-26.32"`), 0644)
+	if err != nil {
+		t.Fatalf("failed to write %s file: %v", fidelityFile, err)
+	}
+	err = os.WriteFile(filepath.Join(tmpDir, chaseFile), []byte(`Transaction Date,Post Date,Description,Category,Type,Amount,Memo
+10/01/2026,10/02/2026,Amazon web services,Bills & Utilities,Sale,-0.16,
+10/01/2026,10/02/2026,Amazon.com*596611C21,Shopping,Sale,-52.48,`), 0644)
+	if err != nil {
+		t.Fatalf("failed to write %s file: %v", chaseFile, err)
+	}
+	err = os.WriteFile(filepath.Join(tmpDir, wfFile), []byte(``), 0644)
+	if err != nil {
+		t.Fatalf("failed to write %s file: %v", wfFile, err)
+	}
+
+	spm := &fakeSheetsProvider{
+		getValues: [][]any{{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}},
+	}
+	rs := &sheets_service.RegisterService{Provider: spm}
+
+	us := &UpdateService{
+		RegisterService: rs,
+		Progress:        func(_ string) {},
+		Config: &cfg.Config{
+			FinanceDir: tmpDir,
+			Banks: map[string]cfg.Bank{
+				"fidelity": {
+					ID:          "fidelity",
+					Name:        "Fidelity",
+					CSVFileName: fidelityFile,
+				},
+				"chase": {
+					ID:          "chase",
+					Name:        "Chase",
+					CSVFileName: chaseFile,
+				},
+				"wellsfargo": {
+					ID:          "wellsfargo",
+					Name:        "Wells Fargo",
+					CSVFileName: wfFile,
+				},
+			},
+		},
+		Options: &cfg.Options{UseCSVFiles: true},
+	}
+	sheet := &sheets_service.RegisterSheet{}
+
+	_, _, got := us.LoadTransactions(sheet)
+	if got != nil {
+		t.Fatalf("unexpected error returned. got: %v, want: %v", got, nil)
+	}
+	file, err := os.OpenFile(filepath.Join(tmpDir, transFile), os.O_RDONLY, 0644)
+	if err != nil {
+		t.Fatalf("failed to open %s file: %v", transFile, err)
+	}
+	defer file.Close()
+	contents := bufio.NewReader(file)
+	gotLine, _, err := contents.ReadLine()
+	if err != nil {
+		t.Fatalf("failed to read %s file: %v", transFile, err)
+	}
+	want := []byte(`Fidelity,01/02/26,SQ *PLUME HOUSE VAPE C Winchester    VA,-26.32,0.00,0.00,26.32`)
+	if !bytes.Equal(want, gotLine) {
+		t.Fatalf("got wrong %s value. want: %v, got: %v",
+			transFile, unsafe.String(&want[0], len(want)), unsafe.String(&gotLine[0], len(gotLine)))
 	}
 }
