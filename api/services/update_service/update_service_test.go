@@ -9,15 +9,13 @@ import (
 	"path/filepath"
 	"reflect"
 	"register/api/providers/sheets_provider"
-	"strings"
-	"testing"
-	"unsafe"
-
 	"register/api/services/sheets_service"
 	"register/pkg/banking"
 	cfg "register/pkg/config"
 	"register/pkg/models"
 	"register/pkg/repository"
+	"strings"
+	"testing"
 
 	"google.golang.org/api/sheets/v4"
 )
@@ -444,13 +442,19 @@ func Test_LoadTransactions_CheckTransactionsCSV(t *testing.T) {
 	}
 	defer file.Close()
 	contents := bufio.NewReader(file)
-	gotLine, _, err := contents.ReadLine()
-	if err != nil {
-		t.Fatalf("failed to read %s file: %v", transFile, err)
+	var want = [3][]byte{
+		[]byte(`Fidelity,01/02/26,SQ *PLUME HOUSE VAPE C Winchester    VA,-26.32,0.00,0.00,26.32`),
+		[]byte(`Chase,10/01/26,Amazon web services,-0.16,0.00,0.00,0.16`),
+		[]byte(`Chase,10/01/26,Amazon.com*596611C21,-52.48,0.00,0.00,52.48`),
 	}
-	want := []byte(`Fidelity,01/02/26,SQ *PLUME HOUSE VAPE C Winchester    VA,-26.32,0.00,0.00,26.32`)
-	if !bytes.Equal(want, gotLine) {
-		t.Fatalf("got wrong %s value. want: %v, got: %v",
-			transFile, unsafe.String(&want[0], len(want)), unsafe.String(&gotLine[0], len(gotLine)))
+	for i := range 3 {
+		gotLine, _, err := contents.ReadLine()
+		if err != nil {
+			t.Fatalf("failed to read %s file: %v", transFile, err)
+		}
+		if !bytes.Equal(want[i], gotLine) {
+			t.Fatalf("got wrong %s value. want: %v, got: %v",
+				transFile, string(want[i]), string(gotLine))
+		}
 	}
 }
