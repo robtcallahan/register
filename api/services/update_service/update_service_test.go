@@ -3,8 +3,11 @@ package update_service
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"register/api/providers/sheets_provider"
+	"strings"
 	"testing"
 
 	"register/api/services/sheets_service"
@@ -153,10 +156,15 @@ func Test_updateService_DedupeAgainstSheet(t *testing.T) {
 
 type fakeSheetsProvider struct {
 	getValuesErr error
+	getValues    [][]any
 }
 
 func (p *fakeSheetsProvider) GetValues(range_ string) ([][]any, error) {
-	return nil, p.getValuesErr
+	if strings.Contains(range_, "A4:J4") {
+		// wants the header values, so return them with nil error
+		return [][]any{{"Transaction ID", "Source", "Date", "Description", "Withdrawals", "Deposits", "Credit Purchases", "Register", "Cleared", "Delta"}}, nil
+	}
+	return p.getValues, p.getValuesErr
 }
 
 func (p *fakeSheetsProvider) GetFormula(range_ string) ([][]any, error) {
@@ -175,7 +183,7 @@ func (p *fakeSheetsProvider) ClearValues(range_ string) error {
 	return fmt.Errorf("could not clear values")
 }
 
-func Test_LoadTransactions(t *testing.T) {
+func Test_LoadTransactions_SheetReadError(t *testing.T) {
 	fakeErr := errors.New("could not get values")
 	spm := &fakeSheetsProvider{getValuesErr: fakeErr}
 	rs := &sheets_service.RegisterService{Provider: spm}
@@ -188,5 +196,165 @@ func Test_LoadTransactions(t *testing.T) {
 	}
 	if !errors.Is(got, fakeErr) {
 		t.Fatalf("got: %v, want: %v", got, fakeErr)
+	}
+}
+
+func Test_LoadTransactions_NoTransactions(t *testing.T) {
+	// create the CSV files, headers only, in the tmp dir
+	tmpDir := t.TempDir()
+	fidelityFile := "Fidelity.csv"
+	chaseFile := "Chase.csv"
+	wfFile := `Wells Fargo.csv`
+	f, err := os.CreateTemp(tmpDir, fidelityFile)
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer f.Close()
+	c, err := os.CreateTemp(tmpDir, chaseFile)
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer c.Close()
+	w, err := os.CreateTemp(tmpDir, wfFile)
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer w.Close()
+
+	err = os.WriteFile(filepath.Join(tmpDir, fidelityFile), []byte(`"Date","Transaction","Name","Memo","Amount"`), 0644)
+	if err != nil {
+		t.Fatalf("failed to write %s file: %v", fidelityFile, err)
+	}
+	err = os.WriteFile(filepath.Join(tmpDir, chaseFile), []byte(`Transaction Date,Post Date,Description,Category,Type,Amount,Memo`), 0644)
+	if err != nil {
+		t.Fatalf("failed to write %s file: %v", chaseFile, err)
+	}
+	err = os.WriteFile(filepath.Join(tmpDir, wfFile), []byte(``), 0644)
+	if err != nil {
+		t.Fatalf("failed to write %s file: %v", wfFile, err)
+	}
+
+	spm := &fakeSheetsProvider{
+		getValues: [][]any{{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}},
+	}
+	rs := &sheets_service.RegisterService{Provider: spm}
+
+	us := &UpdateService{
+		RegisterService: rs,
+		Progress:        func(_ string) {},
+		Config: &cfg.Config{
+			FinanceDir: tmpDir,
+			Banks: map[string]cfg.Bank{
+				"fidelity": {
+					ID:          "fidelity",
+					Name:        "Fidelity",
+					CSVFileName: fidelityFile,
+				},
+				"chase": {
+					ID:          "chase",
+					Name:        "Chase",
+					CSVFileName: chaseFile,
+				},
+				"wellsfargo": {
+					ID:          "wellsfargo",
+					Name:        "Wells Fargo",
+					CSVFileName: wfFile,
+				},
+			},
+		},
+		Options: &cfg.Options{UseCSVFiles: true},
+	}
+	sheet := &sheets_service.RegisterSheet{}
+
+	_, _, got := us.LoadTransactions(sheet)
+	if got != nil {
+		t.Fatalf("unexpected error returned. got: %v, want: %v", got, nil)
+	}
+}
+
+func Test_LoadTransactions_HasTransactions(t *testing.T) {
+	// create the CSV files, headers only, in the tmp dir
+	tmpDir := t.TempDir()
+	fidelityFile := "Fidelity.csv"
+	chaseFile := "Chase.csv"
+	wfFile := `Wells Fargo.csv`
+	f, err := os.CreateTemp(tmpDir, fidelityFile)
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer f.Close()
+	c, err := os.CreateTemp(tmpDir, chaseFile)
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer c.Close()
+	w, err := os.CreateTemp(tmpDir, wfFile)
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer w.Close()
+
+	err = os.WriteFile(filepath.Join(tmpDir, fidelityFile),
+		[]byte(`"Date","Transaction","Name","Memo","Amount"
+"2026-01-02","DEBIT","SQ *PLUME HOUSE VAPE C Winchester    VA","24692165365100996015344; 05999; ; ; ; ;","-26.32"`), 0644)
+	if err != nil {
+		t.Fatalf("failed to write %s file: %v", fidelityFile, err)
+	}
+	err = os.WriteFile(filepath.Join(tmpDir, chaseFile), []byte(`Transaction Date,Post Date,Description,Category,Type,Amount,Memo
+10/01/2026,10/02/2026,Amazon web services,Bills & Utilities,Sale,-0.16,
+10/01/2026,10/02/2026,Amazon.com*596611C21,Shopping,Sale,-52.48,`), 0644)
+	if err != nil {
+		t.Fatalf("failed to write %s file: %v", chaseFile, err)
+	}
+	err = os.WriteFile(filepath.Join(tmpDir, wfFile), []byte(``), 0644)
+	if err != nil {
+		t.Fatalf("failed to write %s file: %v", wfFile, err)
+	}
+
+	spm := &fakeSheetsProvider{
+		getValues: [][]any{{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}},
+	}
+	rs := &sheets_service.RegisterService{Provider: spm}
+
+	us := &UpdateService{
+		RegisterService: rs,
+		Progress:        func(_ string) {},
+		Config: &cfg.Config{
+			FinanceDir: tmpDir,
+			Banks: map[string]cfg.Bank{
+				"fidelity": {
+					ID:          "fidelity",
+					Name:        "Fidelity",
+					CSVFileName: fidelityFile,
+				},
+				"chase": {
+					ID:          "chase",
+					Name:        "Chase",
+					CSVFileName: chaseFile,
+				},
+				"wellsfargo": {
+					ID:          "wellsfargo",
+					Name:        "Wells Fargo",
+					CSVFileName: wfFile,
+				},
+			},
+		},
+		Options: &cfg.Options{UseCSVFiles: true},
+	}
+	sheet := &sheets_service.RegisterSheet{}
+
+	trans, _, got := us.LoadTransactions(sheet)
+	if got != nil {
+		t.Fatalf("unexpected error returned. got: %v, want: %v", got, nil)
+	}
+	if got != nil {
+		t.Fatalf("unexpected error returned. got: %v, want: %v", got, nil)
+	}
+	if len(trans) != 3 {
+		t.Fatalf("got %d transactions, want 3", len(trans))
+	}
+	if trans[0].Amount != -26.32 || trans[1].BankName != "Amazon web services" || trans[2].Date != "10/01/26" {
+		t.Fatalf("got wrong transaction values. want: %v, %v, %v, got: %v, %v, %v", -26.32, "Amazon web services", "10/01/26",
+			trans[0].Amount, trans[1].BankName, trans[2].Date)
 	}
 }
