@@ -3,20 +3,24 @@ package update_service
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"register/api/providers/sheets_provider"
 	"register/api/services/sheets_service"
 	"register/pkg/banking"
-	cfg "register/pkg/config"
+	"register/pkg/config"
 	"register/pkg/models"
 	"register/pkg/repository"
 	"strings"
 	"testing"
 
+	"github.com/plaid/plaid-go/v15/plaid"
 	"google.golang.org/api/sheets/v4"
 )
 
@@ -67,7 +71,7 @@ func Test_updateService_PersistTransactions(t *testing.T) {
 
 	for _, tt := range tests {
 		mock := &RepoMock{}
-		s := NewUpdateService(nil, nil, nil, mock, nil, &cfg.Options{DryRun: tt.dryRun})
+		s := NewUpdateService(nil, nil, nil, mock, nil, &config.Options{DryRun: tt.dryRun})
 		_, err := s.PersistTransactions(tt.trans)
 		if err != nil {
 			t.Fatal(err)
@@ -143,7 +147,7 @@ func Test_updateService_DedupeAgainstSheet(t *testing.T) {
 	}
 
 	bankClient := &banking.Client{}
-	updateService := NewUpdateService(nil, nil, bankClient, nil, nil, &cfg.Options{DryRun: false})
+	updateService := NewUpdateService(nil, nil, bankClient, nil, nil, &config.Options{DryRun: false})
 	got := updateService.DedupeAgainstSheet(trans, sheetIDs, sheetKeys)
 
 	if len(got) != 1 {
@@ -243,9 +247,9 @@ func Test_LoadTransactions_NoTransactions(t *testing.T) {
 	us := &UpdateService{
 		RegisterService: rs,
 		Progress:        func(_ string) {},
-		Config: &cfg.Config{
+		Config: &config.Config{
 			FinanceDir: tmpDir,
-			Banks: map[string]cfg.Bank{
+			Banks: map[string]config.Bank{
 				"fidelity": {
 					ID:          "fidelity",
 					Name:        "Fidelity",
@@ -263,7 +267,7 @@ func Test_LoadTransactions_NoTransactions(t *testing.T) {
 				},
 			},
 		},
-		Options: &cfg.Options{UseCSVFiles: true},
+		Options: &config.Options{UseCSVFiles: true},
 	}
 	sheet := &sheets_service.RegisterSheet{}
 
@@ -320,9 +324,9 @@ func Test_LoadTransactions_HasTransactions(t *testing.T) {
 	us := &UpdateService{
 		RegisterService: rs,
 		Progress:        func(_ string) {},
-		Config: &cfg.Config{
+		Config: &config.Config{
 			FinanceDir: tmpDir,
-			Banks: map[string]cfg.Bank{
+			Banks: map[string]config.Bank{
 				"fidelity": {
 					ID:          "fidelity",
 					Name:        "Fidelity",
@@ -340,7 +344,7 @@ func Test_LoadTransactions_HasTransactions(t *testing.T) {
 				},
 			},
 		},
-		Options: &cfg.Options{UseCSVFiles: true},
+		Options: &config.Options{UseCSVFiles: true},
 	}
 	sheet := &sheets_service.RegisterSheet{}
 
@@ -408,9 +412,9 @@ func Test_LoadTransactions_CheckTransactionsCSV(t *testing.T) {
 	us := &UpdateService{
 		RegisterService: rs,
 		Progress:        func(_ string) {},
-		Config: &cfg.Config{
+		Config: &config.Config{
 			FinanceDir: tmpDir,
-			Banks: map[string]cfg.Bank{
+			Banks: map[string]config.Bank{
 				"fidelity": {
 					ID:          "fidelity",
 					Name:        "Fidelity",
@@ -428,7 +432,7 @@ func Test_LoadTransactions_CheckTransactionsCSV(t *testing.T) {
 				},
 			},
 		},
-		Options: &cfg.Options{UseCSVFiles: true},
+		Options: &config.Options{UseCSVFiles: true},
 	}
 	sheet := &sheets_service.RegisterSheet{}
 
@@ -457,4 +461,123 @@ func Test_LoadTransactions_CheckTransactionsCSV(t *testing.T) {
 				transFile, string(want[i]), string(gotLine))
 		}
 	}
+}
+
+// newPlaidTestClient builds a banking Client whose Plaid API calls go to
+// the given test server instead of Plaid. plaid-go honors the
+// Configuration.Servers override (its OperationServers map is empty by
+// default), so no production code changes are needed to redirect it.
+func newPlaidTestClient(t *testing.T, handler http.HandlerFunc) (*banking.Client, *httptest.Server) {
+	t.Helper()
+	ts := httptest.NewServer(handler)
+	t.Cleanup(ts.Close)
+	cfg := plaid.NewConfiguration()
+	cfg.Servers = plaid.ServerConfigurations{{URL: ts.URL}}
+	return &banking.Client{
+		PlaidClient: plaid.NewAPIClient(cfg),
+		Banks: map[string]config.Bank{
+			"wellsfargo": {ID: "wellsfargo", Name: "Wells Fargo", AccessToken: "token-wf"},
+			"chase":      {ID: "chase", Name: "Chase", AccessToken: "token-chase"},
+		},
+		Progress: func(_ string) {},
+	}, ts
+}
+
+func writeJSON(t *testing.T, w http.ResponseWriter, status int, v any) {
+	t.Helper()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		t.Fatalf("encode fake plaid response: %v", err)
+	}
+}
+
+func Test_LoadTransactions_Banking(t *testing.T) {
+	tmpDir := t.TempDir()
+	fidelityFile := "Fidelity.csv"
+	f, err := os.CreateTemp(tmpDir, fidelityFile)
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer f.Close()
+	err = os.WriteFile(filepath.Join(tmpDir, fidelityFile),
+		[]byte(`"Date","Transaction","Name","Memo","Amount"
+"2026-10-02","DEBIT","SQ *PLUME HOUSE VAPE C Winchester    VA","24692165365100996015344; 05999; ; ; ; ;","-26.32"`), 0644)
+	if err != nil {
+		t.Fatalf("failed to write %s file: %v", fidelityFile, err)
+	}
+
+	banks := map[string]config.Bank{
+		"fidelity": {
+			ID:          "fidelity",
+			Name:        "Fidelity",
+			CSVFileName: fidelityFile,
+		},
+		"chase": {
+			ID:   "chase",
+			Name: "Chase",
+		},
+		"wellsfargo": {
+			ID:   "wellsfargo",
+			Name: "Wells Fargo",
+		},
+	}
+	spm := &fakeSheetsProvider{
+		getValues: [][]any{{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}},
+	}
+	rs := &sheets_service.RegisterService{Provider: spm}
+	sheet := &sheets_service.RegisterSheet{}
+	c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/transactions/get" {
+			t.Errorf("path = %q, want /transactions/get", r.URL.Path)
+		}
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"transactions": []map[string]any{
+				{
+					"name":           "Spotify",
+					"date":           "2026-09-24",
+					"amount":         11.99,
+					"pending":        false,
+					"transaction_id": "lPNjeW1nR6CDn5okmGQ6hEpMo4lLNoSrzqDje",
+				},
+				{
+					"name":           "Plaid",
+					"date":           "2026-10-04",
+					"amount":         5.00,
+					"pending":        true,
+					"transaction_id": "mPNjeW1nR6CDn5okmGQ6hEpMo4lLNoSrzqDje",
+				},
+			},
+			"total_transactions": 2,
+		})
+	})
+	us := &UpdateService{
+		RegisterService: rs, // your fake sheet provider, as before
+		BankClient:      c,  // the fake-server client
+		Progress:        func(_ string) {},
+		Config:          &config.Config{FinanceDir: tmpDir, Banks: banks}, // Fidelity fixture still needed
+		Options:         &config.Options{UseCSVFiles: false},
+	}
+
+	t.Run("success", func(t *testing.T) {
+		gotTrans, gotPending, err := us.LoadTransactions(sheet)
+		if err != nil {
+			t.Fatalf("GetTransactions = %v, want nil", err)
+		}
+		if len(gotTrans) != 3 {
+			t.Fatalf("got %d posted transactions, want 3", len(gotTrans))
+		}
+		if gotTrans[0].Name != "SQ *PLUME HOUSE VAPE C Winchester    VA" || gotTrans[0].Date != "10/02/26" || gotTrans[0].Pending != false {
+			t.Errorf("[0] Name: %v, Date: %v, Pending: %v, want Name: %v, Date: %v, Pending: %v",
+				gotTrans[0].Name, gotTrans[0].Date, gotTrans[0].Pending, "SQ *PLUME HOUSE VAPE C Winchester    VA", "10/02/26", false)
+		}
+		if gotTrans[1].Name != "Spotify" || gotTrans[1].Date != "09/24/26" || gotTrans[1].Pending != false {
+			t.Errorf("[1] Name: %v, Date: %v, Pending: %v, want Name: %v, Date: %v, Pending: %v",
+				gotTrans[1].Name, gotTrans[1].Date, gotTrans[1].Pending, "Spotify", "09/24/26", false)
+		}
+		if gotPending[0].Name != "Plaid" || gotPending[0].Date != "10/04/26" || gotPending[0].Pending != true {
+			t.Errorf("1 Name: %v, Date: %v, Pending: %v, want Name: %v, Date: %v, Pending: %v",
+				gotPending[0].Name, gotPending[0].Date, gotPending[0].Pending, "Plaid", "10/04/26", true)
+		}
+	})
 }
