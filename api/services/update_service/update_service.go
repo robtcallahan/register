@@ -185,7 +185,7 @@ func (s *UpdateService) PersistTransactions(transactions []*models.Transaction) 
 		return transactions, nil
 	}
 
-	fmt.Println("Updating transactions table...")
+	s.Progress("Updating transactions table...")
 	if err := s.QueryRepo.UpdateTransactionTables(transactions); err != nil {
 		return nil, err
 	}

@@ -171,7 +171,6 @@ func (p *fakeSheetsProvider) GetValues(range_ string) ([][]any, error) {
 	}
 	return p.getValues, p.getValuesErr
 }
-
 func (p *fakeSheetsProvider) GetFormula(range_ string) ([][]any, error) {
 	return nil, fmt.Errorf("could not get formula")
 }
@@ -187,6 +186,26 @@ func (p *fakeSheetsProvider) Update(writeRange string, vRange *sheets.ValueRange
 func (p *fakeSheetsProvider) ClearValues(range_ string) error {
 	return fmt.Errorf("could not clear values")
 }
+
+type fakeMysqlQueryRepo struct{}
+
+func (q *fakeMysqlQueryRepo) GetLookupData() ([]*models.DataRow, error) {
+	return nil, errors.New("could not get lookup data")
+}
+func (q *fakeMysqlQueryRepo) GetColumns() ([]models.Column, error) { return nil, nil }
+
+func (q *fakeMysqlQueryRepo) AddColumn(col *models.Column) error     { return nil }
+func (q *fakeMysqlQueryRepo) RenameColumn(id int, name string) error { return nil }
+func (q *fakeMysqlQueryRepo) DeleteColumn(id int) error              { return nil }
+func (q *fakeMysqlQueryRepo) MoveColumn(id int, newIndex int) error  { return nil }
+func (q *fakeMysqlQueryRepo) GetMerchantsByColumn(columnID int) ([]models.Merchant, error) {
+	return nil, nil
+}
+func (q *fakeMysqlQueryRepo) CreateMerchant(m *models.Merchant) error                   { return nil }
+func (q *fakeMysqlQueryRepo) GetMaxMerchantPriority() (int, error)                      { return 0, nil }
+func (q *fakeMysqlQueryRepo) GetTransactions() ([]models.Transaction, error)            { return nil, nil }
+func (q *fakeMysqlQueryRepo) UpdateTransactionTables(trans []*models.Transaction) error { return nil }
+func (q *fakeMysqlQueryRepo) GetNameMapToColumn() (map[string]string, error)            { return nil, nil }
 
 func Test_LoadTransactions_SheetReadError(t *testing.T) {
 	fakeErr := errors.New("could not get values")
@@ -581,6 +600,36 @@ func Test_LoadTransactions_Plaid(t *testing.T) {
 		if gotPending[0].Name != "Plaid" || gotPending[0].Date != "10/04/26" || gotPending[0].Pending != true {
 			t.Errorf("1 Name: %v, Date: %v, Pending: %v, want Name: %v, Date: %v, Pending: %v",
 				gotPending[0].Name, gotPending[0].Date, gotPending[0].Pending, "Plaid", "10/04/26", true)
+		}
+	})
+}
+
+func Test_LoadTransactions_IncomeSources(t *testing.T) {
+	us := &UpdateService{
+		BankClient: &banking.Client{
+			IncomeSources: []config.IncomeSource{
+				{
+					Name:         "Taylor House Paycheck",
+					MatchPattern: "Winchester Eats PAYROLL",
+					Frequency:    "biweekly",
+				},
+				{
+					Name:         "Social Security Administration",
+					MatchPattern: "Social Security Administration",
+					Frequency:    "monthly",
+				},
+			},
+		},
+		QueryRepo: &fakeMysqlQueryRepo{},
+		Progress: func(_ string) {}, // GetLookupData returns fakeErr
+	}
+
+	//trans := []*models.Transaction{}
+	//entries := []*sheets_service.RegisterEntry{}
+	t.Run("success", func(t *testing.T) {
+		_, _, err := us.PrepareTransactions(nil, nil)
+		if err == nil {
+			t.Errorf("PrepareTransactions = %v, want error", err)
 		}
 	})
 }
