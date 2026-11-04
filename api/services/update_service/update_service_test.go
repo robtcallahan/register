@@ -643,12 +643,10 @@ func Test_PrepareTransactions(t *testing.T) {
 	// The remaining subtests need the lookup to succeed.
 	us.QueryRepo = &fakeMysqlQueryRepo{}
 
-	var entries []*sheets_service.RegisterEntry
-	var trans []*models.Transaction
-
 	// Income source matching
 	t.Run("income source matching", func(t *testing.T) {
-		trans = []*models.Transaction{
+		var entries []*sheets_service.RegisterEntry
+		trans := []*models.Transaction{
 			{
 				Source:        "Wells Fargo",
 				Name:          "",
@@ -676,7 +674,7 @@ func Test_PrepareTransactions(t *testing.T) {
 
 	// Date Correction
 	t.Run("date correction", func(t *testing.T) {
-		entries = []*sheets_service.RegisterEntry{
+		entries := []*sheets_service.RegisterEntry{
 			{
 				RowID:         20,
 				Source:        "Chase",
@@ -686,7 +684,7 @@ func Test_PrepareTransactions(t *testing.T) {
 				TransactionID: "1002",
 			},
 		}
-		trans = []*models.Transaction{
+		trans := []*models.Transaction{
 			{
 				Name:          "",
 				Source:        "Chase",
@@ -714,7 +712,7 @@ func Test_PrepareTransactions(t *testing.T) {
 
 	// Dedupe drop
 	t.Run("dedupe drop", func(t *testing.T) {
-		entries = []*sheets_service.RegisterEntry{
+		entries := []*sheets_service.RegisterEntry{
 			{
 				RowID:         20,
 				Source:        "Chase",
@@ -724,7 +722,7 @@ func Test_PrepareTransactions(t *testing.T) {
 				TransactionID: "1002",
 			},
 		}
-		trans = []*models.Transaction{
+		trans := []*models.Transaction{
 			{
 				Name:          "",
 				BankName:      "Amazon.com*5P59L1ZW2",
@@ -749,7 +747,7 @@ func Test_PrepareTransactions(t *testing.T) {
 	// Chase payment drop
 	t.Run("chase payment drop", func(t *testing.T) {
 		var entries []*sheets_service.RegisterEntry
-		trans = []*models.Transaction{
+		trans := []*models.Transaction{
 			{
 				Source:        "Chase",
 				Name:          "",
@@ -765,7 +763,7 @@ func Test_PrepareTransactions(t *testing.T) {
 			t.Fatalf("PrepareTransactions: error = %v, want nil", err)
 		}
 		if got != nil || len(got) != 0 {
-			t.Fatalf("PrepareTransactions: got %v posted transactions, want nil", got[0])
+			t.Fatalf("PrepareTransactions: got %v posted transactions, want nil", len(got))
 		}
 		if gotCors != nil {
 			t.Fatalf("PrepareTransactions: got %d corrected transactions, want nil", len(gotCors))
@@ -775,30 +773,30 @@ func Test_PrepareTransactions(t *testing.T) {
 	// survivors sorted
 	t.Run("survivors sorted", func(t *testing.T) {
 		var entries []*sheets_service.RegisterEntry
-		trans = []*models.Transaction{
+		trans := []*models.Transaction{
 			{
 				Source:        "Fidelity",
-				Name:          "",
+				Name:          "Better Business Bureau",
 				BankName:      "Better Business Bureau",
-				Date:          "10/21/26",
+				Date:          "10/02/26",
 				TransactionID: "1001",
-				Key:           "fidelity:10/21/26:78.00",
+				Key:           "fidelity:10/02/26:78.00",
 			},
 			{
 				Source:        "Chase",
-				Name:          "",
+				Name:          "AAA",
 				BankName:      "AAA",
-				Date:          "10/21/26",
+				Date:          "10/03/26",
 				TransactionID: "1002",
-				Key:           "chase:10/21/26:78.00",
+				Key:           "chase:10/03/26:78.00",
 			},
 			{
 				Source:        "Wells Fargo",
-				Name:          "",
+				Name:          "Catoctin Zoo",
 				BankName:      "Catoctin Zoo",
-				Date:          "10/21/26",
+				Date:          "10/01/26",
 				TransactionID: "1003",
-				Key:           "wellsfargo:10/21/26:78.00",
+				Key:           "wellsfargo:10/01/26:78.00",
 			},
 		}
 
@@ -815,9 +813,76 @@ func Test_PrepareTransactions(t *testing.T) {
 		if gotCors != nil {
 			t.Fatalf("PrepareTransactions: got %d corrected transactions, want nil", len(gotCors))
 		}
-		if got[1].BankName != "AAA" {
-			t.Errorf("PrepareTransactions: got[1].Name = %v, want AAA", got[1].BankName)
+		if got[0].BankName != "Catoctin Zoo" {
+			t.Errorf("PrepareTransactions: got[0].BankName = %v, want Catoctin Zoo", got[0].BankName)
 		}
 	})
 
+	//date correction guard: same date → no correction
+	t.Run("same date → no correction", func(t *testing.T) {
+		entries := []*sheets_service.RegisterEntry{
+			{
+				Source:        "Chase",
+				Name:          "AAA",
+				Date:          "10/03/26",
+				Key:           "chase:10/03/26:1000",
+				TransactionID: "",
+			},
+		}
+		trans := []*models.Transaction{
+			{
+				Source:        "Chase",
+				Name:          "AAA",
+				BankName:      "AAA",
+				Date:          "10/03/26",
+				TransactionID: "",
+				Key:           "chase:10/03/26:1000",
+			},
+		}
+
+		got, gotCors, err := us.PrepareTransactions(trans, entries)
+		if err != nil {
+			t.Fatalf("PrepareTransactions: error = %v, want nil", err)
+		}
+		if got != nil {
+			t.Fatalf("PrepareTransactions: got posted transactions %v, want nil", got)
+		}
+		if gotCors != nil {
+			t.Fatalf("PrepareTransactions: got %d corrected transactions, want nil", len(gotCors))
+		}
+	})
+
+	//isCheck guard: IsCheck → no correction
+	t.Run("IsCheck → no correction", func(t *testing.T) {
+		entries := []*sheets_service.RegisterEntry{
+			{
+				Source:        "1001",
+				Name:          "Check",
+				Date:          "10/03/26",
+				Key:           "wellsfargo:10/03/26:1000",
+				TransactionID: "2020",
+			},
+		}
+		trans := []*models.Transaction{
+			{
+				Source:        "1002",
+				Name:          "Check",
+				BankName:      "CHECK",
+				Date:          "10/03/26",
+				Key:           "wellsfargo:10/03/26:1000",
+				TransactionID: "2020",
+			},
+		}
+
+		got, gotCors, err := us.PrepareTransactions(trans, entries)
+		if err != nil {
+			t.Fatalf("PrepareTransactions: error = %v, want nil", err)
+		}
+		if got != nil {
+			t.Fatalf("PrepareTransactions: got posted transactions %v, want nil", got)
+		}
+		if gotCors != nil {
+			t.Fatalf("PrepareTransactions: got %d corrected transactions, want nil", len(gotCors))
+		}
+	})
 }
