@@ -200,7 +200,7 @@ Scope: instructive subset by Rob, bulk by Muse. Kickoff coverage (2026-10-30): 2
 One case per technique, chosen from real coverage gaps. Rob writes these with guidance.
 
 - [X] 18.1 `LoadTransactions` (update_service) — service test with fakes (provider/banking/csv seams)
-- [ ] 18.2 `PrepareTransactions` (update_service) — composition test (its stages are already tested individually)
+- [X] 18.2 `PrepareTransactions` (update_service) — composition test (its stages are already tested individually)
 - [ ] 18.3 `ExtendBudgetTotalsFormulas` (budget_service) — table-driven, concrete row numbers
 - [ ] 18.4 `Aggregate` (monthly_service) — table-driven, map in / map out
 - [X] 18.5 A csv process function (csv package, 9.5%) — table-driven conversions
