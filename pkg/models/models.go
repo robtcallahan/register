@@ -12,7 +12,7 @@ type Transaction struct {
 	TransactionID  string
 	Source         string
 	Date           string
-	Pending        bool
+	Pending        bool `gorm:"-"` // in-memory only: pending rows are display-only, never persisted (no pending column in the table)
 	Name           string
 	BankName       string
 	Note           string

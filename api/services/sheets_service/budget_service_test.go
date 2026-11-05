@@ -1,12 +1,16 @@
 package sheets_service
 
 import (
+	"errors"
 	"reflect"
+	"register/api/providers/sheets_provider"
 	"strings"
 	"testing"
 
 	"register/pkg/config"
 	"register/pkg/models"
+
+	"google.golang.org/api/sheets/v4"
 )
 
 func Test_budgetService_ReadBudgetSheet(t *testing.T) {
@@ -379,6 +383,72 @@ func Test_budgetService_InsertBudgetCategory(t *testing.T) {
 			t.Errorf("InsertBudgetCategory() error = %v, want nil", err)
 		}
 	})
+}
+
+type fakeSheetsProvider struct {
+	getFormulaErr error
+	getFormula    [][]any
+	writeRange    string
+	vRange        *sheets.ValueRange
+}
+
+func (f fakeSheetsProvider) GetValues(range_ string) ([][]any, error) { return nil, nil }
+func (f fakeSheetsProvider) GetFormula(range_ string) ([][]any, error) {
+	return f.getFormula, f.getFormulaErr
+}
+func (f fakeSheetsProvider) GetSpreadsheet(tabName string) (*sheets_provider.Spreadsheet, error) {
+	return nil, nil
+}
+func (f fakeSheetsProvider) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
+	return nil, nil
+}
+func (f fakeSheetsProvider) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
+	f.writeRange = writeRange
+	f.vRange = vRange
+	return nil, nil
+}
+func (f fakeSheetsProvider) ClearValues(range_ string) error {
+	return nil
+}
+
+func Test_ExtendBudgetTotalsFormulas(t *testing.T) {
+	fakeErr := errors.New("could not get formulas")
+	tests := []struct {
+		name        string
+		totalsRow   int
+		totalsRange string
+		err         error
+		wantErr     error
+		writeRange  [][]any
+		mock        *fakeSheetsProvider
+	}{
+		{
+			name:    "GetFormula error",
+			wantErr: fakeErr,
+			mock:    &fakeSheetsProvider{getFormulaErr: fakeErr},
+		}, {
+			name:       "GetFormula success",
+			wantErr:    nil,
+			totalsRow:  12,
+			writeRange: [][]any{{"A12:A12"}},
+			mock:       &fakeSheetsProvider{getFormula: [][]any{{"=SUM(A5:A11)"}}},
+		},
+	}
+
+	for _, tt := range tests {
+		bs := BudgetService{Provider: tt.mock}
+		sheet := BudgetSheet{TabName: BudgetTabName}
+		err := bs.ExtendBudgetTotalsFormulas(sheet, tt.totalsRow)
+		if tt.wantErr != nil && err == nil {
+			t.Errorf("ExtendBudgetTotalsFormulas() error = nil, want error")
+		}
+		if tt.wantErr != nil && err != nil && !errors.Is(err, tt.wantErr) {
+			t.Errorf("ExtendBudgetTotalsFormulas() error = %v, want %v", err, tt.err)
+		}
+		if tt.wantErr == nil && !reflect.DeepEqual(&tt.mock.writeRange, tt.writeRange) {
+			t.Errorf("ExtendBudgetTotalsFormulas() = %v, want %v", tt.mock.writeRange, tt.writeRange)
+		}
+	}
 }
 
 func Test_budgetService_DeleteBudgetCategory(t *testing.T) {
