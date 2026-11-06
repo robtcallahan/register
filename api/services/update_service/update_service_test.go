@@ -17,6 +17,7 @@ import (
 	"register/pkg/config"
 	"register/pkg/models"
 	"register/pkg/repository"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -1310,7 +1311,12 @@ func Test_WriteRawTransactionsCSV_Errors(t *testing.T) {
 	})
 
 	// /dev/full accepts the open but fails every write with ENOSPC.
+	// It does not exist on macOS, where the open instead tries to create
+	// it in /dev and fails with "operation not permitted".
 	t.Run("flush error", func(t *testing.T) {
+		if runtime.GOOS == "darwin" {
+			t.Skip("/dev/full does not exist on macOS")
+		}
 		tmpDir := t.TempDir()
 		if err := os.Symlink("/dev/full", filepath.Join(tmpDir, "transactions.csv")); err != nil {
 			t.Fatalf("symlink /dev/full: %v", err)
@@ -1326,6 +1332,9 @@ func Test_WriteRawTransactionsCSV_Errors(t *testing.T) {
 	})
 
 	t.Run("write error", func(t *testing.T) {
+		if runtime.GOOS == "darwin" {
+			t.Skip("/dev/full does not exist on macOS")
+		}
 		tmpDir := t.TempDir()
 		if err := os.Symlink("/dev/full", filepath.Join(tmpDir, "transactions.csv")); err != nil {
 			t.Fatalf("symlink /dev/full: %v", err)
