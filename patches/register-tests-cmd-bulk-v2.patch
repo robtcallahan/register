@@ -1,0 +1,1330 @@
+diff --git a/cmd/columns_test.go b/cmd/columns_test.go
+new file mode 100644
+index 0000000..15d2929
+--- /dev/null
++++ b/cmd/columns_test.go
+@@ -0,0 +1,205 @@
++package cmd
++
++import (
++	"strings"
++	"testing"
++
++	"register/pkg/models"
++)
++
++func TestConfirm(t *testing.T) {
++	tests := []struct {
++		name  string
++		input string
++		want  bool
++	}{
++		{"lowercase y", "y\n", true},
++		{"uppercase Y", "Y\n", true},
++		{"y with surrounding spaces", "  y  \n", true},
++		{"lowercase n", "n\n", false},
++		{"uppercase N", "N\n", false},
++		{"empty line", "\n", false},
++		{"empty input", "", false},
++		{"yes is not y", "yes\n", false},
++		{"y with trailing text", "yep\n", false},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			var got bool
++			captureStdout(t, func() {
++				got = confirm(newReader(tc.input), "Delete? [y/N] ")
++			})
++			if got != tc.want {
++				t.Errorf("confirm(%q) = %v, want %v", tc.input, got, tc.want)
++			}
++		})
++	}
++}
++
++func TestFindBudgetNeighbor(t *testing.T) {
++	// Budget rows exist for every category except the ones noted.
++	withBudget := func(names ...string) map[string]int {
++		m := make(map[string]int, len(names))
++		for i, n := range names {
++			m[n] = i + 5 // row numbers are irrelevant, only presence matters
++		}
++		return m
++	}
++
++	tests := []struct {
++		name       string
++		final      []models.Column
++		moved      string
++		color      string
++		budget     map[string]int
++		wantBefore string
++		wantAfter  string
++	}{
++		{
++			name: "neighbors on both sides",
++			final: []models.Column{
++				{Name: "A", Color: models.ColorGreen},
++				{Name: "B", Color: models.ColorGreen},
++				{Name: "Moved", Color: models.ColorGreen},
++				{Name: "C", Color: models.ColorGreen},
++				{Name: "D", Color: models.ColorYellow},
++			},
++			moved: "Moved", color: models.ColorGreen,
++			budget:     withBudget("A", "B", "Moved", "C", "D"),
++			wantBefore: "B", wantAfter: "C",
++		},
++		{
++			name: "no same-color neighbors",
++			final: []models.Column{
++				{Name: "X", Color: models.ColorYellow},
++				{Name: "Moved", Color: models.ColorGreen},
++				{Name: "Y", Color: models.ColorYellow},
++			},
++			moved: "Moved", color: models.ColorGreen,
++			budget:     withBudget("X", "Moved", "Y"),
++			wantBefore: "", wantAfter: "",
++		},
++		{
++			name: "neighbor without a budget row is skipped",
++			final: []models.Column{
++				{Name: "A", Color: models.ColorGreen},
++				{Name: "B", Color: models.ColorGreen},
++				{Name: "Moved", Color: models.ColorGreen},
++			},
++			moved: "Moved", color: models.ColorGreen,
++			budget:     withBudget("B", "Moved"),
++			wantBefore: "B", wantAfter: "",
++		},
++		{
++			name: "nearest before is the one right ahead, not the far one",
++			final: []models.Column{
++				{Name: "A", Color: models.ColorGreen},
++				{Name: "B", Color: models.ColorGreen},
++				{Name: "Moved", Color: models.ColorGreen},
++			},
++			moved: "Moved", color: models.ColorGreen,
++			budget:     withBudget("A", "B", "Moved"),
++			wantBefore: "B", wantAfter: "",
++		},
++		{
++			name: "nearest following is the one right after, not the far one",
++			final: []models.Column{
++				{Name: "Moved", Color: models.ColorGreen},
++				{Name: "C", Color: models.ColorGreen},
++				{Name: "D", Color: models.ColorGreen},
++			},
++			moved: "Moved", color: models.ColorGreen,
++			budget:     withBudget("Moved", "C", "D"),
++			wantBefore: "", wantAfter: "C",
++		},
++		{
++			name: "moved first has only a following neighbor",
++			final: []models.Column{
++				{Name: "Moved", Color: models.ColorGreen},
++				{Name: "A", Color: models.ColorGreen},
++			},
++			moved: "Moved", color: models.ColorGreen,
++			budget:     withBudget("Moved", "A"),
++			wantBefore: "", wantAfter: "A",
++		},
++		{
++			name: "moved last has only a before neighbor",
++			final: []models.Column{
++				{Name: "A", Color: models.ColorGreen},
++				{Name: "Moved", Color: models.ColorGreen},
++			},
++			moved: "Moved", color: models.ColorGreen,
++			budget:     withBudget("A", "Moved"),
++			wantBefore: "A", wantAfter: "",
++		},
++		{
++			name: "the moved column itself is never its own neighbor",
++			final: []models.Column{
++				{Name: "Moved", Color: models.ColorGreen},
++			},
++			moved: "Moved", color: models.ColorGreen,
++			budget:     withBudget("Moved"),
++			wantBefore: "", wantAfter: "",
++		},
++		{
++			name:  "empty order",
++			final: []models.Column{},
++			moved: "Moved", color: models.ColorGreen,
++			budget:     withBudget(),
++			wantBefore: "", wantAfter: "",
++		},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			before, following := findBudgetNeighbor(tc.final, tc.moved, tc.color, tc.budget)
++			if before != tc.wantBefore || following != tc.wantAfter {
++				t.Errorf("findBudgetNeighbor = (%q, %q), want (%q, %q)",
++					before, following, tc.wantBefore, tc.wantAfter)
++			}
++		})
++	}
++}
++
++func TestAddColumn_Guards(t *testing.T) {
++	oldColor, oldAfter := addColor, addAfter
++	defer func() { addColor, addAfter = oldColor, oldAfter }()
++
++	tests := []struct {
++		name  string
++		color string
++		col   string
++		want  string
++	}{
++		{"grey is reserved", "grey", "Test", "--color must be green, yellow, or blue"},
++		{"empty color", "", "Test", "--color must be green, yellow, or blue"},
++		{"unknown color", "red", "Test", "--color must be green, yellow, or blue"},
++		{"empty name", "green", "", "column name must not be empty"},
++		{"blank name", "green", "   ", "column name must not be empty"},
++		{"tab name", "yellow", "\t", "column name must not be empty"},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			addColor, addAfter = tc.color, ""
++			err := addColumn(tc.col)
++			if err == nil {
++				t.Fatalf("addColumn(%q) with color %q returned nil error, want %q", tc.col, tc.color, tc.want)
++			}
++			if !strings.Contains(err.Error(), tc.want) {
++				t.Errorf("addColumn error = %q, want it to contain %q", err.Error(), tc.want)
++			}
++		})
++	}
++}
++
++func TestRenameColumn_Guards(t *testing.T) {
++	for _, newName := range []string{"", "   ", "\t"} {
++		err := renameColumn("Grocery", newName)
++		if err == nil {
++			t.Fatalf("renameColumn(%q) returned nil error, want the empty-name error", newName)
++		}
++		if !strings.Contains(err.Error(), "new name must not be empty") {
++			t.Errorf("renameColumn(%q) error = %q, want it to contain %q",
++				newName, err.Error(), "new name must not be empty")
++		}
++	}
++}
+diff --git a/cmd/fake_query_repo_test.go b/cmd/fake_query_repo_test.go
+new file mode 100644
+index 0000000..fc0d1a9
+--- /dev/null
++++ b/cmd/fake_query_repo_test.go
+@@ -0,0 +1,84 @@
++package cmd
++
++import (
++	"register/pkg/models"
++	"register/pkg/repository"
++)
++
++// fakeQueryRepo is a configurable in-memory QueryRepo for cmd tests. Each
++// method returns its configured value (or error); nothing touches a live DB.
++type fakeQueryRepo struct {
++	columns           []models.Column
++	columnsErr        error
++	columnsCalls      int
++	columnsErrOnCall  int // fail GetColumns on this 1-based call (0 = never)
++	lookupData        []*models.DataRow
++	lookupErr         error
++	maxPriority       int
++	maxPriorityErr    error
++	createMerchantErr error
++	transactions      []models.Transaction
++	transactionsErr   error
++	updateErr         error
++	merchants         []models.Merchant
++	merchantsErr      error
++	nameMap           map[string]string
++	nameMapErr        error
++}
++
++var _ repository.QueryRepo = (*fakeQueryRepo)(nil)
++
++func (f *fakeQueryRepo) GetColumns() ([]models.Column, error) {
++	f.columnsCalls++
++	if f.columnsErrOnCall > 0 {
++		if f.columnsCalls == f.columnsErrOnCall {
++			return nil, f.columnsErr
++		}
++		return f.columns, nil
++	}
++	return f.columns, f.columnsErr
++}
++
++func (f *fakeQueryRepo) AddColumn(col *models.Column) error {
++	return nil
++}
++
++func (f *fakeQueryRepo) RenameColumn(id int, name string) error {
++	return nil
++}
++
++func (f *fakeQueryRepo) DeleteColumn(id int) error {
++	return nil
++}
++
++func (f *fakeQueryRepo) MoveColumn(id int, newIndex int) error {
++	return nil
++}
++
++func (f *fakeQueryRepo) GetMerchantsByColumn(columnID int) ([]models.Merchant, error) {
++	return f.merchants, f.merchantsErr
++}
++
++func (f *fakeQueryRepo) CreateMerchant(m *models.Merchant) error {
++	return f.createMerchantErr
++}
++
++func (f *fakeQueryRepo) GetMaxMerchantPriority() (int, error) {
++	return f.maxPriority, f.maxPriorityErr
++}
++
++func (f *fakeQueryRepo) GetTransactions() ([]models.Transaction, error) {
++	return f.transactions, f.transactionsErr
++}
++
++func (f *fakeQueryRepo) UpdateTransactionTables(trans []*models.Transaction) error {
++	return f.updateErr
++}
++
++func (f *fakeQueryRepo) GetLookupData() ([]*models.DataRow, error) {
++	return f.lookupData, f.lookupErr
++}
++
++func (f *fakeQueryRepo) GetNameMapToColumn() (map[string]string, error) {
++	return f.nameMap, f.nameMapErr
++}
+diff --git a/cmd/recategorize_test.go b/cmd/recategorize_test.go
+new file mode 100644
+index 0000000..b865424
+--- /dev/null
++++ b/cmd/recategorize_test.go
+@@ -0,0 +1,88 @@
++package cmd
++
++import (
++	"strings"
++	"testing"
++
++	"register/api/services/sheets_service"
++	"register/pkg/models"
++)
++
++func TestSyncDB(t *testing.T) {
++	target := &models.Column{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue}
++
++	t.Run("moves update the matching transactions", func(t *testing.T) {
++		repo := &fakeQueryRepo{transactions: []models.Transaction{
++			{Key: "k1", ColumnIndex: 11, Color: models.ColorGreen},
++			{Key: "k2", ColumnIndex: 12, Color: models.ColorYellow},
++		}}
++		moves := []sheets_service.CategoryMove{
++			{Key: "k1", RowID: 5, FromIndex: 11, Value: 25},
++			{Key: "missing", RowID: 6, FromIndex: 12, Value: 10},
++		}
++		var err error
++		out := captureStdout(t, func() { err = syncDB(repo, moves, target) })
++		if err != nil {
++			t.Fatalf("syncDB returned error: %v", err)
++		}
++		if repo.transactions[0].ColumnIndex != 12 || repo.transactions[0].Color != models.ColorBlue {
++			t.Errorf("k1 after sync = index %d color %q, want index 12 color %q",
++				repo.transactions[0].ColumnIndex, repo.transactions[0].Color, models.ColorBlue)
++		}
++		if repo.transactions[1].ColumnIndex != 12 || repo.transactions[1].Color != models.ColorYellow {
++			t.Errorf("k2 changed unexpectedly: %+v", repo.transactions[1])
++		}
++		if !strings.Contains(out, "note: row 6 has no matching DB transaction") {
++			t.Errorf("output missing the unmatched-row note:\n%s", out)
++		}
++		if !strings.Contains(out, "moved 2 transaction(s) to Rent") {
++			t.Errorf("output missing the moved count:\n%s", out)
++		}
++	})
++
++	t.Run("no moves moves nothing", func(t *testing.T) {
++		repo := &fakeQueryRepo{transactions: []models.Transaction{
++			{Key: "k1", ColumnIndex: 11, Color: models.ColorGreen},
++		}}
++		var err error
++		out := captureStdout(t, func() { err = syncDB(repo, nil, target) })
++		if err != nil {
++			t.Fatalf("syncDB returned error: %v", err)
++		}
++		if repo.transactions[0].ColumnIndex != 11 {
++			t.Errorf("transaction changed unexpectedly: %+v", repo.transactions[0])
++		}
++		if !strings.Contains(out, "moved 0 transaction(s) to Rent") {
++			t.Errorf("output missing the moved count:\n%s", out)
++		}
++	})
++
++	t.Run("transaction read error is wrapped", func(t *testing.T) {
++		repo := &fakeQueryRepo{transactionsErr: errTestBoom}
++		moves := []sheets_service.CategoryMove{{Key: "k1", RowID: 5, FromIndex: 11, Value: 25}}
++		var err error
++		captureStdout(t, func() { err = syncDB(repo, moves, target) })
++		if err == nil {
++			t.Fatal("syncDB returned nil error, want the read error")
++		}
++		if !strings.Contains(err.Error(), "could not read transactions for the DB update") {
++			t.Errorf("syncDB error = %q, want it to mention the read failure", err.Error())
++		}
++	})
++
++	t.Run("transaction write error is wrapped", func(t *testing.T) {
++		repo := &fakeQueryRepo{
++			transactions: []models.Transaction{{Key: "k1", ColumnIndex: 11, Color: models.ColorGreen}},
++			updateErr:    errTestBoom,
++		}
++		moves := []sheets_service.CategoryMove{{Key: "k1", RowID: 5, FromIndex: 11, Value: 25}}
++		var err error
++		captureStdout(t, func() { err = syncDB(repo, moves, target) })
++		if err == nil {
++			t.Fatal("syncDB returned nil error, want the write error")
++		}
++		if !strings.Contains(err.Error(), "DB update failed") {
++			t.Errorf("syncDB error = %q, want it to mention the DB update failure", err.Error())
++		}
++	})
++}
+diff --git a/cmd/root_test.go b/cmd/root_test.go
+new file mode 100644
+index 0000000..5f7ee77
+--- /dev/null
++++ b/cmd/root_test.go
+@@ -0,0 +1,138 @@
++package cmd
++
++import (
++	"testing"
++
++	cfg "register/pkg/config"
++
++	"github.com/plaid/plaid-go/v15/plaid"
++)
++
++func TestLinkTokenToString(t *testing.T) {
++	tests := []struct {
++		name string
++		tok  LinkToken
++		want string
++	}{
++		{"value", LinkToken{LinkToken: "link-abc"}, "link-abc"},
++		{"empty", LinkToken{}, ""},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			tok := tc.tok
++			if got := tok.ToString(); got != tc.want {
++				t.Errorf("LinkToken.ToString() = %q, want %q", got, tc.want)
++			}
++		})
++	}
++}
++
++func TestAccessTokenToString(t *testing.T) {
++	tests := []struct {
++		name string
++		tok  AccessToken
++		want string
++	}{
++		{"value", AccessToken{AccessToken: "access-abc"}, "access-abc"},
++		{"empty", AccessToken{}, ""},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			tok := tc.tok
++			if got := tok.ToString(); got != tc.want {
++				t.Errorf("AccessToken.ToString() = %q, want %q", got, tc.want)
++			}
++		})
++	}
++}
++
++func TestGetBankingClient(t *testing.T) {
++	old := config
++	defer func() { config = old }()
++
++	t.Run("zero config builds a development client", func(t *testing.T) {
++		config = &cfg.Config{}
++		client := GetBankingClient()
++		if client == nil {
++			t.Fatal("GetBankingClient returned nil")
++		}
++		if client.Environment != plaid.Development {
++			t.Errorf("Environment = %v, want Development", client.Environment)
++		}
++		if client.PlaidClient == nil {
++			t.Error("PlaidClient is nil")
++		}
++	})
++
++	t.Run("production config builds a production client with the prod secret", func(t *testing.T) {
++		config = &cfg.Config{
++			UserID:           "user-1",
++			PlaidClientID:    "client-1",
++			PlaidEnvironment: "production",
++			PlaidEnvSecrets:  map[string]string{"production": "secret-prod"},
++		}
++		client := GetBankingClient()
++		if client == nil {
++			t.Fatal("GetBankingClient returned nil")
++		}
++		if client.Environment != plaid.Production {
++			t.Errorf("Environment = %v, want Production", client.Environment)
++		}
++		if client.UserID != "user-1" {
++			t.Errorf("UserID = %q, want %q", client.UserID, "user-1")
++		}
++		if client.ClientID != "client-1" {
++			t.Errorf("ClientID = %q, want %q", client.ClientID, "client-1")
++		}
++		if client.Secret != "secret-prod" {
++			t.Errorf("Secret = %q, want %q", client.Secret, "secret-prod")
++		}
++	})
++
++	t.Run("non-production environment stays on development", func(t *testing.T) {
++		config = &cfg.Config{PlaidEnvironment: "sandbox"}
++		client := GetBankingClient()
++		if client.Environment != plaid.Development {
++			t.Errorf("Environment = %v, want Development", client.Environment)
++		}
++	})
++}
++
++// TestCobraHelpPaths exercises the command tree through the cobra harness
++// without running any command: --help returns nil and never reaches a RunE,
++// an unknown command returns an error, and neither path calls os.Exit
++// (rootCmd.Execute is called directly, not the package-level Execute,
++// which exits on error).
++func TestCobraHelpPaths(t *testing.T) {
++	for _, args := range [][]string{
++		{"--help"},
++		{"update", "--help"},
++		{"columns", "--help"},
++		{"columns", "list", "--help"},
++		{"budget", "--help"},
++		{"monthly", "--help"},
++		{"copy", "--help"},
++		{"migrate", "--help"},
++		{"recategorize", "--help"},
++	} {
++		t.Run(args[0]+" help", func(t *testing.T) {
++			rootCmd.SetArgs(args)
++			defer rootCmd.SetArgs(nil)
++			var err error
++			captureStdout(t, func() { err = rootCmd.Execute() })
++			if err != nil {
++				t.Errorf("rootCmd.Execute(%v) returned error: %v", args, err)
++			}
++		})
++	}
++
++	t.Run("unknown command returns an error", func(t *testing.T) {
++		rootCmd.SetArgs([]string{"definitely-not-a-command"})
++		defer rootCmd.SetArgs(nil)
++		var err error
++		captureStdout(t, func() { err = rootCmd.Execute() })
++		if err == nil {
++			t.Error("rootCmd.Execute(unknown command) returned nil error, want an error")
++		}
++	})
++}
+diff --git a/cmd/test_helpers_test.go b/cmd/test_helpers_test.go
+new file mode 100644
+index 0000000..94d2e5e
+--- /dev/null
++++ b/cmd/test_helpers_test.go
+@@ -0,0 +1,42 @@
++package cmd
++
++import (
++	"bufio"
++	"bytes"
++	"errors"
++	"io"
++	"os"
++	"strings"
++	"testing"
++)
++
++// errTestBoom is the fake repo's stand-in failure.
++var errTestBoom = errors.New("boom")
++
++// captureStdout runs f with os.Stdout redirected to a pipe and returns
++// everything f printed.
++func captureStdout(t *testing.T, f func()) string {
++	t.Helper()
++	old := os.Stdout
++	r, w, err := os.Pipe()
++	if err != nil {
++		t.Fatalf("os.Pipe: %v", err)
++	}
++	os.Stdout = w
++	f()
++	if err := w.Close(); err != nil {
++		t.Fatalf("closing captured stdout: %v", err)
++	}
++	os.Stdout = old
++	var buf bytes.Buffer
++	if _, err := io.Copy(&buf, r); err != nil {
++		t.Fatalf("reading captured stdout: %v", err)
++	}
++	return buf.String()
++}
++
++// newReader builds the bufio.Reader the stdin-driven helpers expect,
++// backed by scripted input.
++func newReader(input string) *bufio.Reader {
++	return bufio.NewReader(strings.NewReader(input))
++}
+diff --git a/cmd/update_test.go b/cmd/update_test.go
+index 1d619dd..d0e5151 100644
+--- a/cmd/update_test.go
++++ b/cmd/update_test.go
+@@ -1 +1,738 @@
+ package cmd
++
++import (
++	"strings"
++	"testing"
++
++	"register/api/services/sheets_service"
++	"register/api/services/update_service"
++	"register/pkg/banking"
++	cfg "register/pkg/config"
++	"register/pkg/models"
++
++	"github.com/plaid/plaid-go/v15/plaid"
++)
++
++func TestNeedsNameForRegister(t *testing.T) {
++	tests := []struct {
++		name string
++		t    *models.Transaction
++		want bool
++	}{
++		{"empty name needs one", &models.Transaction{BankName: "ACME MARKET", Name: ""}, true},
++		{"bank name as placeholder with no column needs one", &models.Transaction{BankName: "ACME MARKET", Name: "ACME MARKET", ColumnIndex: 0}, true},
++		{"bank name as placeholder with a column does not", &models.Transaction{BankName: "ACME MARKET", Name: "ACME MARKET", ColumnIndex: 11}, false},
++		{"a real name does not", &models.Transaction{BankName: "ACME MARKET", Name: "Acme", ColumnIndex: 11}, false},
++		{"a real name with no column does not", &models.Transaction{BankName: "ACME MARKET", Name: "Acme", ColumnIndex: 0}, false},
++		{"check with empty name takes the check path", &models.Transaction{BankName: "CHECK # 1234", Name: ""}, false},
++		{"check with placeholder name takes the check path", &models.Transaction{BankName: "CHECK # 1234", Name: "CHECK # 1234", ColumnIndex: 0}, false},
++		{"check substring anywhere in the bank name", &models.Transaction{BankName: "BANK CHECK # 99", Name: ""}, false},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			if got := needsNameForRegister(tc.t); got != tc.want {
++				t.Errorf("needsNameForRegister(%+v) = %v, want %v", tc.t, got, tc.want)
++			}
++		})
++	}
++}
++
++func TestNeedUserInfoForTransactions(t *testing.T) {
++	tests := []struct {
++		name  string
++		trans []*models.Transaction
++		want  bool
++	}{
++		{"nil", nil, false},
++		{"empty", []*models.Transaction{}, false},
++		{"all named", []*models.Transaction{
++			{BankName: "ACME", Name: "Acme", ColumnIndex: 11},
++			{BankName: "SHOP", Name: "Shop", ColumnIndex: 12},
++		}, false},
++		{"one unnamed", []*models.Transaction{
++			{BankName: "ACME", Name: "Acme", ColumnIndex: 11},
++			{BankName: "MYSTERY", Name: ""},
++		}, true},
++		{"placeholder name with no column", []*models.Transaction{
++			{BankName: "MYSTERY", Name: "MYSTERY", ColumnIndex: 0},
++		}, true},
++		{"checks do not count", []*models.Transaction{
++			{BankName: "CHECK # 1", Name: ""},
++		}, false},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			if got := needUserInfoForTransactions(tc.trans); got != tc.want {
++				t.Errorf("needUserInfoForTransactions = %v, want %v", got, tc.want)
++			}
++		})
++	}
++}
++
++func TestCategoryColumns(t *testing.T) {
++	tests := []struct {
++		name    string
++		columns []models.Column
++		want    []string // names of the kept columns, in order
++	}{
++		{"nil", nil, nil},
++		{"empty", []models.Column{}, nil},
++		{"mixed keeps only categories in order", []models.Column{
++			{ID: 1, Name: "Recon", ColumnIndex: 1},
++			{ID: 11, Name: "Grocery", ColumnIndex: 11},
++			{ID: 2, Name: "Date", ColumnIndex: 3},
++			{ID: 12, Name: "Rent", ColumnIndex: 12},
++		}, []string{"Grocery", "Rent"}},
++		{"no categories", []models.Column{
++			{ID: 1, Name: "Recon", ColumnIndex: 1},
++			{ID: 2, Name: "Date", ColumnIndex: 3},
++		}, nil},
++		{"first category index counts", []models.Column{
++			{ID: 10, Name: "LastFixed", ColumnIndex: 10},
++			{ID: 11, Name: "Grocery", ColumnIndex: 11},
++		}, []string{"Grocery"}},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			got := categoryColumns(tc.columns)
++			if len(got) != len(tc.want) {
++				t.Fatalf("categoryColumns returned %d columns, want %d: %v", len(got), len(tc.want), got)
++			}
++			for i, name := range tc.want {
++				if got[i].Name != name {
++					t.Errorf("categoryColumns()[%d].Name = %q, want %q", i, got[i].Name, name)
++				}
++			}
++		})
++	}
++}
++
++func TestGetAmount(t *testing.T) {
++	tests := []struct {
++		name                    string
++		source                  string
++		deposit, withdrawal, cp float64
++		want                    float64
++	}{
++		{"WellsFargo deposit", "WellsFargo", 100, 0, 0, 100},
++		{"WellsFargo withdrawal", "WellsFargo", 0, 40, 0, 40},
++		{"WellsFargo deposit wins over withdrawal", "WellsFargo", 100, 40, 0, 100},
++		{"WellsFargo all zero", "WellsFargo", 0, 0, 99, 0},
++		{"Chase uses credit purchases", "Chase", 100, 50, 25, 25},
++		{"Fidelity uses credit purchases", "Fidelity", 0, 0, 7.5, 7.5},
++		{"unknown source uses credit purchases", "Other", 100, 50, 3, 3},
++		{"empty source uses credit purchases", "", 100, 50, 3, 3},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			if got := getAmount(tc.source, tc.deposit, tc.withdrawal, tc.cp); got != tc.want {
++				t.Errorf("getAmount(%q, %v, %v, %v) = %v, want %v",
++					tc.source, tc.deposit, tc.withdrawal, tc.cp, got, tc.want)
++			}
++		})
++	}
++}
++
++func TestDashes(t *testing.T) {
++	tests := []struct {
++		count int
++		want  string
++	}{
++		{0, ""},
++		{1, "-"},
++		{5, "-----"},
++		{10, "----------"},
++	}
++	for _, tc := range tests {
++		if got := dashes(tc.count); got != tc.want {
++			t.Errorf("dashes(%d) = %q, want %q", tc.count, got, tc.want)
++		}
++	}
++}
++
++func TestReadString(t *testing.T) {
++	tests := []struct {
++		name  string
++		input string
++		want  string
++	}{
++		{"plain line", "hello\n", "hello"},
++		{"EOF without newline", "hello", "hello"},
++		{"empty line", "\n", ""},
++		{"empty input", "", ""},
++		{"only the first line is read", "first\nsecond\n", "first"},
++		{"spaces are kept", "  padded  \n", "  padded  "},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			var got string
++			captureStdout(t, func() {
++				got = readString(newReader(tc.input), "Prompt: ")
++			})
++			if got != tc.want {
++				t.Errorf("readString(%q) = %q, want %q", tc.input, got, tc.want)
++			}
++		})
++	}
++}
++
++func TestReadInt(t *testing.T) {
++	tests := []struct {
++		name    string
++		input   string
++		want    int
++		wantErr string // substring of the error; "" means no error
++	}{
++		{"positive", "42\n", 42, ""},
++		{"negative", "-3\n", -3, ""},
++		{"zero", "0\n", 0, ""},
++		{"EOF without newline", "7", 7, ""},
++		{"not a number", "abc\n", 0, "could not convert abc to an int"},
++		{"decimal", "4.5\n", 0, "could not convert 4.5 to an int"},
++		{"leading space", " 42\n", 0, "could not convert  42 to an int"},
++		{"empty", "\n", 0, "could not convert  to an int"},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			var got int
++			var err error
++			captureStdout(t, func() {
++				got, err = readInt(newReader(tc.input), "Column ID: ")
++			})
++			if tc.wantErr == "" {
++				if err != nil {
++					t.Fatalf("readInt(%q) returned unexpected error: %v", tc.input, err)
++				}
++				if got != tc.want {
++					t.Errorf("readInt(%q) = %d, want %d", tc.input, got, tc.want)
++				}
++				return
++			}
++			if err == nil {
++				t.Fatalf("readInt(%q) = %d, want error containing %q", tc.input, got, tc.wantErr)
++			}
++			if !strings.Contains(err.Error(), tc.wantErr) {
++				t.Errorf("readInt(%q) error = %q, want it to contain %q", tc.input, err.Error(), tc.wantErr)
++			}
++		})
++	}
++}
++
++func TestGetTransactionNotes(t *testing.T) {
++	trans := []*models.Transaction{
++		{BankName: "CHK", Name: models.CheckRegisterName, Source: "WellsFargo", Date: "2026-11-01", Amount: 25},
++		{BankName: "AMZN", Name: "Amazon", Source: "Chase", Date: "2026-11-01", Amount: 9.99},
++		{BankName: "AMZN", Name: "Amazon Marketplace", Source: "Chase", Date: "2026-11-02", Amount: 14.5},
++		{BankName: "ACME", Name: "Acme", Source: "Chase", Date: "2026-11-02", Amount: 5},
++		{BankName: "ACME", Name: "amazon", Source: "Chase", Date: "2026-11-02", Amount: 5},
++	}
++	var got []*models.Transaction
++	captureStdout(t, func() {
++		got = getTransactionNotes(newReader("plumber\nbook\nheadphones\n"), trans)
++	})
++	wantNotes := []string{"plumber", "book", "headphones", "", ""}
++	for i, want := range wantNotes {
++		if got[i].Note != want {
++			t.Errorf("trans[%d] (%q).Note = %q, want %q", i, got[i].Name, got[i].Note, want)
++		}
++	}
++
++	// No note-worthy transaction consumes no input and changes nothing.
++	plain := []*models.Transaction{{BankName: "ACME", Name: "Acme"}}
++	got = getTransactionNotes(newReader("unused\n"), plain)
++	if got[0].Note != "" {
++		t.Errorf("plain transaction got Note %q, want empty", got[0].Note)
++	}
++}
++
++func TestPrintColumns(t *testing.T) {
++	columns := []models.Column{
++		{ID: 1, Name: "Recon", ColumnIndex: 1},
++		{ID: 2, Name: "Date", ColumnIndex: 3},
++		{ID: 11, Name: "Grocery", ColumnIndex: 11},
++		{ID: 12, Name: "Rent", ColumnIndex: 12},
++		{ID: 13, Name: "Dining", ColumnIndex: 13},
++		{ID: 14, Name: "Travel", ColumnIndex: 14},
++		{ID: 15, Name: "Fun", ColumnIndex: 15},
++		{ID: 16, Name: "Clothes", ColumnIndex: 16},
++		{ID: 17, Name: "Gifts", ColumnIndex: 17},
++	}
++
++	t.Run("six categories print as two rows of three", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: columns[:8]} // Grocery..Fun: 6 categories
++		var err error
++		out := captureStdout(t, func() { err = printColumns(repo) })
++		if err != nil {
++			t.Fatalf("printColumns returned error: %v", err)
++		}
++		for _, name := range []string{"Grocery", "Rent", "Dining", "Travel", "Fun"} {
++			if !strings.Contains(out, name) {
++				t.Errorf("output missing %q:\n%s", name, out)
++			}
++		}
++		// Non-categories are filtered out.
++		for _, name := range []string{"Recon", "Date"} {
++			if strings.Contains(out, name) {
++				t.Errorf("output should not contain non-category %q:\n%s", name, out)
++			}
++		}
++		if lines := strings.Count(out, "\n"); lines != 2 {
++			t.Errorf("output has %d lines, want 2:\n%s", lines, out)
++		}
++	})
++
++	t.Run("seven categories print two full rows plus a remainder row", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: columns} // 7 categories
++		var err error
++		out := captureStdout(t, func() { err = printColumns(repo) })
++		if err != nil {
++			t.Fatalf("printColumns returned error: %v", err)
++		}
++		if lines := strings.Count(out, "\n"); lines != 3 {
++			t.Errorf("output has %d lines, want 3:\n%s", lines, out)
++		}
++		if !strings.Contains(out, "Gifts") {
++			t.Errorf("output missing remainder row %q:\n%s", "Gifts", out)
++		}
++	})
++
++	t.Run("one category prints a single remainder row", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: []models.Column{{ID: 11, Name: "Grocery", ColumnIndex: 11}}}
++		var err error
++		out := captureStdout(t, func() { err = printColumns(repo) })
++		if err != nil {
++			t.Fatalf("printColumns returned error: %v", err)
++		}
++		if lines := strings.Count(out, "\n"); lines != 1 {
++			t.Errorf("output has %d lines, want 1:\n%s", lines, out)
++		}
++	})
++
++	t.Run("no categories prints nothing", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: []models.Column{{ID: 1, Name: "Recon", ColumnIndex: 1}}}
++		var err error
++		out := captureStdout(t, func() { err = printColumns(repo) })
++		if err != nil {
++			t.Fatalf("printColumns returned error: %v", err)
++		}
++		if out != "" {
++			t.Errorf("output = %q, want empty", out)
++		}
++	})
++
++	t.Run("repo error is returned", func(t *testing.T) {
++		repo := &fakeQueryRepo{columnsErr: errTestBoom}
++		var err error
++		captureStdout(t, func() { err = printColumns(repo) })
++		if err == nil {
++			t.Fatal("printColumns returned nil error, want the repo error")
++		}
++		if !strings.Contains(err.Error(), "boom") {
++			t.Errorf("printColumns error = %q, want it to contain %q", err.Error(), "boom")
++		}
++	})
++}
++
++func TestPrintTransactions(t *testing.T) {
++	trans := []*models.Transaction{
++		{TransactionID: "tx-new", Key: "k-new", Source: "Chase", Date: "2026-11-01", Name: "Acme", CreditPurchase: 7.5},
++	}
++	pending := []*models.Transaction{
++		{TransactionID: "tx-pend", Key: "k-pend", Source: "WellsFargo", Date: "2026-11-01", Name: "Shop", Deposit: 50},
++	}
++	corrections := []*update_service.DateCorrection{
++		{NewDate: "2026-11-02", Entry: &sheets_service.RegisterEntry{
++			TransactionID: "tx-corr", Key: "k-corr", Source: "Chase",
++			Date: "2026-11-01", Name: "Acme", CreditPurchase: 12.34,
++		}},
++	}
++
++	out := captureStdout(t, func() {
++		printTransactions(trans, pending, corrections)
++	})
++	// printTransactions no longer prints Transaction ID / Key — each row
++	// is identified by its amount.
++	for _, want := range []string{
++		"Updated Transactions:", "12.34", "2026-11-02",
++		"Pending Transactions:", "50.00", "Shop",
++		"New Transactions:", "7.50", "Acme",
++	} {
++		if !strings.Contains(out, want) {
++			t.Errorf("output missing %q:\n%s", want, out)
++		}
++	}
++
++	// Nothing to print: only the leading blank line.
++	out = captureStdout(t, func() {
++		printTransactions(nil, nil, nil)
++	})
++	if out != "\n" {
++		t.Errorf("empty printTransactions output = %q, want %q", out, "\n")
++	}
++}
++
++func TestReadFromUser(t *testing.T) {
++	columns := []models.Column{
++		{ID: 11, Name: "Grocery", ColumnIndex: 11},
++		{ID: 12, Name: "Rent", ColumnIndex: 12},
++	}
++
++	t.Run("exact match saves a rule and fills the transaction", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: columns, maxPriority: 5}
++		trans := []*models.Transaction{{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"}}
++		var updated bool
++		var got []*models.Transaction
++		var err error
++		out := captureStdout(t, func() {
++			updated, got, err = readFromUser(newReader("Acme Store\n11\nweekly shop\ne\n"), repo, trans)
++		})
++		if err != nil {
++			t.Fatalf("readFromUser returned error: %v", err)
++		}
++		if !updated {
++			t.Error("readFromUser updated = false, want true")
++		}
++		if got[0].Name != "Acme Store" {
++			t.Errorf("Name = %q, want %q", got[0].Name, "Acme Store")
++		}
++		if got[0].Note != "weekly shop" {
++			t.Errorf("Note = %q, want %q", got[0].Note, "weekly shop")
++		}
++		if got[0].ColumnIndex != 11 {
++			t.Errorf("ColumnIndex = %d, want 11 (position of ID 11)", got[0].ColumnIndex)
++		}
++		if !strings.Contains(out, "Rule saved (priority 0)") {
++			t.Errorf("output missing exact-rule priority line:\n%s", out)
++		}
++	})
++
++	t.Run("bad column ID retries, then substring with a custom pattern", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: columns, maxPriority: 10}
++		trans := []*models.Transaction{{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"}}
++		var updated bool
++		var err error
++		out := captureStdout(t, func() {
++			updated, _, err = readFromUser(newReader("Acme Store\nabc\n11\n\ns\nACME\n"), repo, trans)
++		})
++		if err != nil {
++			t.Fatalf("readFromUser returned error: %v", err)
++		}
++		if !updated {
++			t.Error("readFromUser updated = false, want true")
++		}
++		if !strings.Contains(out, "could not convert abc to an int") {
++			t.Errorf("output missing the retry message for the bad column ID:\n%s", out)
++		}
++		if !strings.Contains(out, "Rule saved (priority 20)") {
++			t.Errorf("output missing substring priority (max 10 + 10):\n%s", out)
++		}
++	})
++
++	t.Run("substring with an empty pattern keeps the bank name", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: columns, maxPriority: 0}
++		trans := []*models.Transaction{{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"}}
++		var err error
++		out := captureStdout(t, func() {
++			_, _, err = readFromUser(newReader("Acme Store\n12\n\ns\n\n"), repo, trans)
++		})
++		if err != nil {
++			t.Fatalf("readFromUser returned error: %v", err)
++		}
++		if trans[0].ColumnIndex != 12 {
++			t.Errorf("ColumnIndex = %d, want 12", trans[0].ColumnIndex)
++		}
++		if !strings.Contains(out, "Rule saved (priority 10)") {
++			t.Errorf("output missing substring priority line:\n%s", out)
++		}
++	})
++
++	t.Run("unknown column ID leaves the column index unset", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: columns}
++		trans := []*models.Transaction{{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"}}
++		var err error
++		captureStdout(t, func() {
++			_, _, err = readFromUser(newReader("Acme Store\n99\n\n\n"), repo, trans)
++		})
++		if err != nil {
++			t.Fatalf("readFromUser returned error: %v", err)
++		}
++		if trans[0].ColumnIndex != 0 {
++			t.Errorf("ColumnIndex = %d, want 0 (ID 99 is not a column)", trans[0].ColumnIndex)
++		}
++	})
++
++	t.Run("no transaction needs a name", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: columns}
++		trans := []*models.Transaction{{BankName: "ACME MARKET", Name: "Acme", ColumnIndex: 11}}
++		var updated bool
++		var err error
++		captureStdout(t, func() {
++			updated, _, err = readFromUser(newReader(""), repo, trans)
++		})
++		if err != nil {
++			t.Fatalf("readFromUser returned error: %v", err)
++		}
++		if updated {
++			t.Error("readFromUser updated = true, want false")
++		}
++	})
++
++	t.Run("checks are skipped", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: columns}
++		trans := []*models.Transaction{{BankName: "CHECK # 1234", Name: ""}}
++		var updated bool
++		var err error
++		captureStdout(t, func() {
++			updated, _, err = readFromUser(newReader(""), repo, trans)
++		})
++		if err != nil {
++			t.Fatalf("readFromUser returned error: %v", err)
++		}
++		if updated {
++			t.Error("readFromUser updated = true, want false (checks take the note path)")
++		}
++	})
++
++	t.Run("priority lookup error is returned", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: columns, maxPriorityErr: errTestBoom}
++		trans := []*models.Transaction{{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"}}
++		var err error
++		captureStdout(t, func() {
++			_, _, err = readFromUser(newReader("Acme Store\n11\n\ns\n\n"), repo, trans)
++		})
++		if err == nil {
++			t.Fatal("readFromUser returned nil error, want the priority lookup error")
++		}
++		if !strings.Contains(err.Error(), "boom") {
++			t.Errorf("readFromUser error = %q, want it to contain %q", err.Error(), "boom")
++		}
++	})
++
++	t.Run("merchant save error is returned", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: columns, createMerchantErr: errTestBoom}
++		trans := []*models.Transaction{{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"}}
++		var err error
++		captureStdout(t, func() {
++			_, _, err = readFromUser(newReader("Acme Store\n11\n\ne\n"), repo, trans)
++		})
++		if err == nil {
++			t.Fatal("readFromUser returned nil error, want the merchant save error")
++		}
++		if !strings.Contains(err.Error(), "boom") {
++			t.Errorf("readFromUser error = %q, want it to contain %q", err.Error(), "boom")
++		}
++	})
++
++	t.Run("column list error is returned", func(t *testing.T) {
++		repo := &fakeQueryRepo{columnsErr: errTestBoom}
++		trans := []*models.Transaction{{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"}}
++		var err error
++		captureStdout(t, func() {
++			_, _, err = readFromUser(newReader("Acme Store\n11\n\ne\n"), repo, trans)
++		})
++		if err == nil {
++			t.Fatal("readFromUser returned nil error, want the column list error")
++		}
++		if !strings.Contains(err.Error(), "boom") {
++			t.Errorf("readFromUser error = %q, want it to contain %q", err.Error(), "boom")
++		}
++	})
++}
++
++func TestGetUserInput(t *testing.T) {
++	columns := []models.Column{
++		{ID: 11, Name: "Grocery", ColumnIndex: 11, Color: models.ColorGreen},
++	}
++	lookup := []*models.DataRow{
++		{BankName: "ACME MARKET", Name: "Acme", MatchType: "substring",
++			ColumnIndex: 11, Color: models.ColorGreen, IsCategory: true},
++	}
++	bankClient := banking.NewClient("", nil, nil, "", "", plaid.Development, func(_ string) {})
++
++	repo := &fakeQueryRepo{columns: columns, lookupData: lookup, maxPriority: 5}
++	trans := []*models.Transaction{{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"}}
++	var got []*models.Transaction
++	var err error
++	out := captureStdout(t, func() {
++		got, err = getUserInput(newReader("Acme Store\n11\n\ns\n\n"), bankClient, repo, trans)
++	})
++	if err != nil {
++		t.Fatalf("getUserInput returned error: %v", err)
++	}
++	// The typed name is replaced by the lookup rule's name on the second pass.
++	if got[0].Name != "Acme" {
++		t.Errorf("Name = %q, want %q (lookup rule name)", got[0].Name, "Acme")
++	}
++	if got[0].ColumnIndex != 11 {
++		t.Errorf("ColumnIndex = %d, want 11", got[0].ColumnIndex)
++	}
++	if got[0].Color != models.ColorGreen {
++		t.Errorf("Color = %q, want %q", got[0].Color, models.ColorGreen)
++	}
++	if !strings.Contains(out, "Rule saved (priority 15)") {
++		t.Errorf("output missing the saved-rule line:\n%s", out)
++	}
++
++	// A lookup error aborts the loop after the prompt pass.
++	repo.lookupErr = errTestBoom
++	trans = []*models.Transaction{{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"}}
++	captureStdout(t, func() {
++		_, err = getUserInput(newReader("Acme Store\n11\n\ne\n"), bankClient, repo, trans)
++	})
++	if err == nil {
++		t.Fatal("getUserInput returned nil error, want the lookup error")
++	}
++	if !strings.Contains(err.Error(), "boom") {
++		t.Errorf("getUserInput error = %q, want it to contain %q", err.Error(), "boom")
++	}
++
++	// A column-list error aborts after the matcher is built. The fake fails
++	// GetColumns on the second call: the first (inside readFromUser)
++	// succeeds, so the error surfaces from getUserInput's own call.
++	repo.lookupErr = nil
++	repo.lookupData = lookup
++	repo.columnsErr = errTestBoom
++	repo.columnsCalls = 0
++	repo.columnsErrOnCall = 2
++	trans = []*models.Transaction{{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"}}
++	captureStdout(t, func() {
++		_, err = getUserInput(newReader("Acme Store\n11\n\ne\n"), bankClient, repo, trans)
++	})
++	if err == nil {
++		t.Fatal("getUserInput returned nil error, want the column list error")
++	}
++	if !strings.Contains(err.Error(), "boom") {
++		t.Errorf("getUserInput error = %q, want it to contain %q", err.Error(), "boom")
++	}
++	repo.columnsErr = nil
++	repo.columnsErrOnCall = 0
++
++	// A bad regex in the lookup data fails the matcher build.
++	repo.columnsErr = nil
++	repo.lookupData = []*models.DataRow{
++		{BankName: "X", Pattern: "[invalid", MatchType: "regex"},
++	}
++	trans = []*models.Transaction{{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"}}
++	captureStdout(t, func() {
++		_, err = getUserInput(newReader("Acme Store\n11\n\ne\n"), bankClient, repo, trans)
++	})
++	if err == nil {
++		t.Fatal("getUserInput returned nil error, want the bad-regex error")
++	}
++	if !strings.Contains(err.Error(), "bad regex") {
++		t.Errorf("getUserInput error = %q, want it to contain %q", err.Error(), "bad regex")
++	}
++
++	// A bad regex in an income source fails the income matcher build.
++	badIncomeClient := banking.NewClient("", nil,
++		[]cfg.IncomeSource{{Name: "X", MatchPattern: "[invalid", MatchType: "regex"}},
++		"", "", plaid.Development, func(_ string) {})
++	repo.lookupData = lookup
++	trans = []*models.Transaction{{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"}}
++	captureStdout(t, func() {
++		_, err = getUserInput(newReader("Acme Store\n11\n\ne\n"), badIncomeClient, repo, trans)
++	})
++	if err == nil {
++		t.Fatal("getUserInput returned nil error, want the bad income-regex error")
++	}
++	if !strings.Contains(err.Error(), "bad regex") {
++		t.Errorf("getUserInput error = %q, want it to contain %q", err.Error(), "bad regex")
++	}
++
++	// A prompt-pass error (merchant save fails) is returned as-is.
++	repo.lookupData = lookup
++	repo.createMerchantErr = errTestBoom
++	trans = []*models.Transaction{{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"}}
++	captureStdout(t, func() {
++		_, err = getUserInput(newReader("Acme Store\n11\n\ne\n"), bankClient, repo, trans)
++	})
++	if err == nil {
++		t.Fatal("getUserInput returned nil error, want the merchant save error")
++	}
++	if !strings.Contains(err.Error(), "boom") {
++		t.Errorf("getUserInput error = %q, want it to contain %q", err.Error(), "boom")
++	}
++}
++
++func TestGatherTransactionInfo(t *testing.T) {
++	columns := []models.Column{
++		{ID: 11, Name: "Grocery", ColumnIndex: 11, Color: models.ColorGreen},
++	}
++	lookup := []*models.DataRow{
++		{BankName: "ACME MARKET", Name: "Acme", MatchType: "substring",
++			ColumnIndex: 11, Color: models.ColorGreen, IsCategory: true},
++	}
++	bankClient := banking.NewClient("", nil, nil, "", "", plaid.Development, func(_ string) {})
++
++	t.Run("no info needed, only a note is prompted", func(t *testing.T) {
++		trans := []*models.Transaction{
++			{BankName: "AMZN", Name: "Amazon", Source: "Chase", Date: "2026-11-01", Amount: 9.99},
++		}
++		var got []*models.Transaction
++		var err error
++		captureStdout(t, func() {
++			got, err = gatherTransactionInfo(newReader("bought a book\n"), nil, nil, trans)
++		})
++		if err != nil {
++			t.Fatalf("gatherTransactionInfo returned error: %v", err)
++		}
++		if got[0].Note != "bought a book" {
++			t.Errorf("Note = %q, want %q", got[0].Note, "bought a book")
++		}
++	})
++
++	t.Run("info needed prompts for the merchant and applies the rule", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: columns, lookupData: lookup, maxPriority: 5}
++		trans := []*models.Transaction{
++			{BankName: "ACME MARKET", Amount: 12.34, Date: "2026-11-01"},
++		}
++		var got []*models.Transaction
++		var err error
++		out := captureStdout(t, func() {
++			got, err = gatherTransactionInfo(newReader("Acme Store\n11\n\ns\n\n"), bankClient, repo, trans)
++		})
++		if err != nil {
++			t.Fatalf("gatherTransactionInfo returned error: %v", err)
++		}
++		if got[0].Name != "Acme" {
++			t.Errorf("Name = %q, want %q", got[0].Name, "Acme")
++		}
++		if !strings.Contains(out, "Info needed...") {
++			t.Errorf("output missing the info-needed banner:\n%s", out)
++		}
++	})
++
++	t.Run("column list error is returned", func(t *testing.T) {
++		repo := &fakeQueryRepo{columnsErr: errTestBoom}
++		trans := []*models.Transaction{
++			{BankName: "MYSTERY", Amount: 1, Date: "2026-11-01"},
++		}
++		var err error
++		captureStdout(t, func() {
++			_, err = gatherTransactionInfo(newReader(""), bankClient, repo, trans)
++		})
++		if err == nil {
++			t.Fatal("gatherTransactionInfo returned nil error, want the column list error")
++		}
++		if !strings.Contains(err.Error(), "boom") {
++			t.Errorf("gatherTransactionInfo error = %q, want it to contain %q", err.Error(), "boom")
++		}
++	})
++
++	t.Run("user-input error is returned", func(t *testing.T) {
++		repo := &fakeQueryRepo{columns: columns, lookupErr: errTestBoom}
++		trans := []*models.Transaction{
++			{BankName: "MYSTERY", Amount: 1, Date: "2026-11-01"},
++		}
++		var err error
++		captureStdout(t, func() {
++			_, err = gatherTransactionInfo(newReader("Mystery Store\n11\n\ne\n"), bankClient, repo, trans)
++		})
++		if err == nil {
++			t.Fatal("gatherTransactionInfo returned nil error, want the lookup error")
++		}
++		if !strings.Contains(err.Error(), "boom") {
++			t.Errorf("gatherTransactionInfo error = %q, want it to contain %q", err.Error(), "boom")
++		}
++	})
++}
