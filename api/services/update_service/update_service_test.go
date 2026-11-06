@@ -19,6 +19,7 @@ import (
 	"register/pkg/repository"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/plaid/plaid-go/v15/plaid"
 	"google.golang.org/api/sheets/v4"
@@ -188,10 +189,15 @@ func (p *fakeSheetsProvider) ClearValues(range_ string) error {
 }
 
 type fakeMysqlQueryRepo struct {
-	lookupData []*models.DataRow
-	lookupErr  error
-	columns    []models.Column
-	columnsErr error
+	lookupData   []*models.DataRow
+	lookupErr    error
+	columns      []models.Column
+	columnsErr   error
+	updateErr    error
+	updateCalls  int
+	updatedTrans []*models.Transaction
+	nameMap      map[string]string
+	nameMapErr   error
 }
 
 func (q *fakeMysqlQueryRepo) GetLookupData() ([]*models.DataRow, error) {
@@ -208,11 +214,17 @@ func (q *fakeMysqlQueryRepo) MoveColumn(id int, newIndex int) error  { return ni
 func (q *fakeMysqlQueryRepo) GetMerchantsByColumn(columnID int) ([]models.Merchant, error) {
 	return nil, nil
 }
-func (q *fakeMysqlQueryRepo) CreateMerchant(m *models.Merchant) error                   { return nil }
-func (q *fakeMysqlQueryRepo) GetMaxMerchantPriority() (int, error)                      { return 0, nil }
-func (q *fakeMysqlQueryRepo) GetTransactions() ([]models.Transaction, error)            { return nil, nil }
-func (q *fakeMysqlQueryRepo) UpdateTransactionTables(trans []*models.Transaction) error { return nil }
-func (q *fakeMysqlQueryRepo) GetNameMapToColumn() (map[string]string, error)            { return nil, nil }
+func (q *fakeMysqlQueryRepo) CreateMerchant(m *models.Merchant) error        { return nil }
+func (q *fakeMysqlQueryRepo) GetMaxMerchantPriority() (int, error)           { return 0, nil }
+func (q *fakeMysqlQueryRepo) GetTransactions() ([]models.Transaction, error) { return nil, nil }
+func (q *fakeMysqlQueryRepo) UpdateTransactionTables(trans []*models.Transaction) error {
+	q.updateCalls++
+	q.updatedTrans = trans
+	return q.updateErr
+}
+func (q *fakeMysqlQueryRepo) GetNameMapToColumn() (map[string]string, error) {
+	return q.nameMap, q.nameMapErr
+}
 
 func Test_LoadTransactions_SheetReadError(t *testing.T) {
 	fakeErr := errors.New("could not get values")
@@ -885,4 +897,830 @@ func Test_PrepareTransactions(t *testing.T) {
 			t.Fatalf("PrepareTransactions: got %d corrected transactions, want nil", len(gotCors))
 		}
 	})
+}
+
+// ---- 18.7 error-path and bulk coverage additions ----
+
+// Sentinels for the error branches below; production code wraps them with
+// %w, so errors.Is stays ungated.
+var (
+	errFakeSpreadsheet = errors.New("could not get spreadsheet")
+	errFakeBudget      = errors.New("could not get budget values")
+	errFakeRegister    = errors.New("could not get register values")
+	errFakeBatch       = errors.New("could not batch update")
+	errFakeUpdate      = errors.New("could not update value")
+	errFakeColumns     = errors.New("could not get columns")
+	errFakeNameMap     = errors.New("could not get name map")
+	errFakeDB          = errors.New("could not update transaction tables")
+)
+
+// recordedUpdate is one Provider.Update call.
+type recordedUpdate struct {
+	range_ string
+	values [][]any
+}
+
+// recordingSheetsProvider is a sheets provider fake whose reads are routed
+// by caller-supplied functions and whose writes are recorded, so tests can
+// drive RegisterService/BudgetService through UpdateSpreadsheet and friends
+// without touching the real Sheets API. Pointer receiver: the recordings
+// must survive the call.
+type recordingSheetsProvider struct {
+	getSpreadsheetFn  func(tabName string) (*sheets_provider.Spreadsheet, error)
+	getValuesFn       func(range_ string) ([][]any, error)
+	getFormulaFn      func(range_ string) ([][]any, error)
+	batchUpdateErr    error
+	batchUpdateFailOn int // 1-based call number to fail; 0 = never
+	updateErr         error
+	updateFailOn      int // 1-based Update call number to fail; 0 = every call
+
+	batchUpdateCalls int
+	updates          []recordedUpdate
+}
+
+func (p *recordingSheetsProvider) GetValues(range_ string) ([][]any, error) {
+	if p.getValuesFn != nil {
+		return p.getValuesFn(range_)
+	}
+	return nil, nil
+}
+
+func (p *recordingSheetsProvider) GetFormula(range_ string) ([][]any, error) {
+	if p.getFormulaFn != nil {
+		return p.getFormulaFn(range_)
+	}
+	return nil, nil
+}
+
+func (p *recordingSheetsProvider) GetSpreadsheet(tabName string) (*sheets_provider.Spreadsheet, error) {
+	if p.getSpreadsheetFn != nil {
+		return p.getSpreadsheetFn(tabName)
+	}
+	return &sheets_provider.Spreadsheet{SheetID: 7, RowCount: 1000, ColumnCount: 10}, nil
+}
+
+func (p *recordingSheetsProvider) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
+	p.batchUpdateCalls++
+	if p.batchUpdateErr != nil && (p.batchUpdateFailOn == 0 || p.batchUpdateCalls == p.batchUpdateFailOn) {
+		return nil, p.batchUpdateErr
+	}
+	return &sheets.BatchUpdateSpreadsheetResponse{}, nil
+}
+
+func (p *recordingSheetsProvider) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
+	p.updates = append(p.updates, recordedUpdate{range_: writeRange, values: vRange.Values})
+	if p.updateErr != nil && (p.updateFailOn == 0 || len(p.updates) == p.updateFailOn) {
+		return nil, p.updateErr
+	}
+	return &sheets.UpdateValuesResponse{}, nil
+}
+
+func (p *recordingSheetsProvider) ClearValues(range_ string) error {
+	return nil
+}
+
+// spreadsheetFixture wires an UpdateService whose sheet reads come from
+// canned values: one budget row (Groceries) and one register row, under the
+// fixed A-J register headers.
+type spreadsheetFixture struct {
+	provider *recordingSheetsProvider
+	repo     *fakeMysqlQueryRepo
+	svc      *UpdateService
+}
+
+func spreadsheetFixtureValues(t *testing.T) func(string) ([][]any, error) {
+	t.Helper()
+	return func(range_ string) ([][]any, error) {
+		switch {
+		case range_ == "Budget!A1:Z1" || range_ == "Budget!A1:C1":
+			return [][]any{{"Category", "Weekly", "Bi-Weekly", "Monthly"}}, nil
+		case strings.HasPrefix(range_, "Budget!A5:"):
+			return [][]any{{"Groceries", 120.0, 240.0, 520.0}}, nil
+		case range_ == "Register!A4:J4":
+			return [][]any{{"Transaction ID", "Source", "Date", "Description", "Withdrawals", "Deposits", "Credit Purchases", "Register", "Cleared", "Delta"}}, nil
+		case strings.HasPrefix(range_, "Register!A5:"):
+			return [][]any{{"txn-1", "WellsFargo", "10/01/26", "Amazon", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}}, nil
+		default:
+			t.Errorf("unexpected GetValues range %q", range_)
+			return nil, fmt.Errorf("unexpected GetValues range %q", range_)
+		}
+	}
+}
+
+func newSpreadsheetFixture(t *testing.T) *spreadsheetFixture {
+	t.Helper()
+	p := &recordingSheetsProvider{
+		getValuesFn: spreadsheetFixtureValues(t),
+		getFormulaFn: func(range_ string) ([][]any, error) {
+			return [][]any{{"=SUM(H5:H5)", "=SUM(I5:I5)", "=SUM(J5:J5)"}}, nil
+		},
+	}
+	repo := &fakeMysqlQueryRepo{
+		columns: []models.Column{{ID: 1, Name: "Groceries", ColumnIndex: 11, Color: "#ffffff"}},
+		nameMap: map[string]string{"Amazon": "Groceries"},
+	}
+	svc := &UpdateService{
+		RegisterService: &sheets_service.RegisterService{Provider: p},
+		BudgetService:   &sheets_service.BudgetService{Provider: p},
+		QueryRepo:       repo,
+		Progress:        func(_ string) {},
+		Config: &config.Config{
+			RegisterStartRow: 5,
+			RegisterEndRow:   500,
+			BudgetStartRow:   5,
+			BudgetEndRow:     50,
+		},
+		Options: &config.Options{},
+	}
+	return &spreadsheetFixture{provider: p, repo: repo, svc: svc}
+}
+
+// writeCSVFixture writes one CSV fixture file into dir.
+func writeCSVFixture(t *testing.T, dir, name, contents string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(contents), 0644); err != nil {
+		t.Fatalf("failed to write %s: %v", name, err)
+	}
+}
+
+func csvBanks() map[string]config.Bank {
+	return map[string]config.Bank{
+		"fidelity":   {ID: "fidelity", Name: "Fidelity", CSVFileName: "Fidelity.csv"},
+		"chase":      {ID: "chase", Name: "Chase", CSVFileName: "Chase.csv"},
+		"wellsfargo": {ID: "wellsfargo", Name: "Wells Fargo", CSVFileName: "Wells Fargo.csv"},
+	}
+}
+
+const fidelityCSVFixture = `"Date","Transaction","Name","Memo","Amount"
+"2026-01-02","DEBIT","SQ *PLUME HOUSE VAPE C Winchester    VA","24692165365100996015344; 05999; ; ; ; ;","-26.32"`
+
+const chaseCSVHeader = `Transaction Date,Post Date,Description,Category,Type,Amount,Memo`
+
+// newPlaidErrorClient builds a banking Client whose Plaid calls hit a test
+// server that always answers 500 with the given error message in the body.
+// Plaid echoes the body into the returned error, so the message survives
+// into GetTransactions' aggregated error.
+func newPlaidErrorClient(t *testing.T, message string) *banking.Client {
+	t.Helper()
+	c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, http.StatusInternalServerError, map[string]any{
+			"error_type":    "API_ERROR",
+			"error_code":    "INTERNAL_SERVER_ERROR",
+			"error_message": message,
+		})
+	})
+	return c
+}
+
+// newBalanceTestClient builds a banking Client whose Plaid balance calls
+// hit a test server returning the given Wells Fargo checking balance.
+func newBalanceTestClient(t *testing.T, amount float64) *banking.Client {
+	t.Helper()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/accounts/balance/get" {
+			t.Errorf("path = %q, want /accounts/balance/get", r.URL.Path)
+		}
+		writeJSON(t, w, http.StatusOK, map[string]any{
+			"accounts": []map[string]any{
+				{"account_id": "acc1", "balances": map[string]any{"current": amount, "iso_currency_code": "USD"}},
+			},
+		})
+	}))
+	t.Cleanup(ts.Close)
+	cfg := plaid.NewConfiguration()
+	cfg.Servers = plaid.ServerConfigurations{{URL: ts.URL}}
+	return &banking.Client{
+		PlaidClient: plaid.NewAPIClient(cfg),
+		Banks: map[string]config.Bank{
+			"wellsfargo": {ID: "wellsfargo", Name: "Wells Fargo", AccessToken: "token-wf", AccountID: "acc1"},
+		},
+		Progress: func(_ string) {},
+	}
+}
+
+// newNoTokenBankClient builds a banking Client with no Plaid access token,
+// so GetBalances reports the Wells Fargo balance as unavailable.
+func newNoTokenBankClient() *banking.Client {
+	return &banking.Client{
+		Banks: map[string]config.Bank{
+			"wellsfargo": {ID: "wellsfargo", Name: "Wells Fargo"},
+		},
+		Progress: func(_ string) {},
+	}
+}
+
+// 18.7: a Plaid failure in getTransactions must propagate out of
+// FetchTransactions instead of being swallowed.
+func Test_FetchTransactions_PlaidError(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeCSVFixture(t, tmpDir, "Fidelity.csv", fidelityCSVFixture)
+
+	us := &UpdateService{
+		BankClient: newPlaidErrorClient(t, "boom"),
+		Progress:   func(_ string) {},
+		Config: &config.Config{
+			FinanceDir: tmpDir,
+			Banks:      csvBanks(),
+		},
+		Options: &config.Options{UseCSVFiles: false},
+	}
+
+	trans, pending, err := us.FetchTransactions([]string{models.WellsFargoID, models.ChaseID}, "2026-08-01", "2026-11-05")
+	if err == nil {
+		t.Fatalf("FetchTransactions = nil error, want Plaid failure to propagate")
+	}
+	if !strings.Contains(err.Error(), "boom") {
+		t.Errorf("FetchTransactions error = %v, want it to contain the Plaid failure", err)
+	}
+	if trans != nil || pending != nil {
+		t.Errorf("FetchTransactions = (%v, %v), want (nil, nil) on error", trans, pending)
+	}
+}
+
+// 18.7: the same Plaid failure must propagate all the way out of
+// LoadTransactions.
+func Test_LoadTransactions_PlaidError(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeCSVFixture(t, tmpDir, "Fidelity.csv", fidelityCSVFixture)
+
+	spm := &fakeSheetsProvider{
+		getValues: [][]any{{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}},
+	}
+	us := &UpdateService{
+		RegisterService: &sheets_service.RegisterService{Provider: spm},
+		BankClient:      newPlaidErrorClient(t, "boom"),
+		Progress:        func(_ string) {},
+		Config: &config.Config{
+			FinanceDir: tmpDir,
+			Banks:      csvBanks(),
+		},
+		Options: &config.Options{UseCSVFiles: false},
+	}
+
+	trans, pending, err := us.LoadTransactions(&sheets_service.RegisterSheet{})
+	if err == nil {
+		t.Fatalf("LoadTransactions = nil error, want Plaid failure to propagate")
+	}
+	if !strings.Contains(err.Error(), "boom") {
+		t.Errorf("LoadTransactions error = %v, want it to contain the Plaid failure", err)
+	}
+	if trans != nil || pending != nil {
+		t.Errorf("LoadTransactions = (%v, %v), want (nil, nil) on error", trans, pending)
+	}
+}
+
+// The CSV side of FetchTransactions: a missing Fidelity CSV must fail the
+// fetch instead of returning partial results.
+func Test_FetchTransactions_CSVError(t *testing.T) {
+	tmpDir := t.TempDir() // no Fidelity.csv on disk
+
+	us := &UpdateService{
+		Progress: func(_ string) {},
+		Config: &config.Config{
+			FinanceDir: tmpDir,
+			Banks:      csvBanks(),
+		},
+		Options: &config.Options{UseCSVFiles: false},
+	}
+
+	_, _, err := us.FetchTransactions([]string{models.WellsFargoID}, "2026-08-01", "2026-11-05")
+	if err == nil {
+		t.Fatalf("FetchTransactions = nil error, want missing Fidelity CSV to fail")
+	}
+	if !strings.Contains(err.Error(), "could not read CSV file") {
+		t.Errorf("FetchTransactions error = %v, want it to mention the unreadable CSV", err)
+	}
+}
+
+// LoadTransactions must surface a failure writing transactions.csv.
+func Test_LoadTransactions_WriteCSVError(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeCSVFixture(t, tmpDir, "Fidelity.csv", fidelityCSVFixture)
+	writeCSVFixture(t, tmpDir, "Chase.csv", chaseCSVHeader)
+	writeCSVFixture(t, tmpDir, "Wells Fargo.csv", ``)
+	// transactions.csv exists as a directory, so os.Create fails.
+	if err := os.Mkdir(filepath.Join(tmpDir, "transactions.csv"), 0755); err != nil {
+		t.Fatalf("mkdir transactions.csv: %v", err)
+	}
+
+	spm := &fakeSheetsProvider{
+		getValues: [][]any{{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}},
+	}
+	us := &UpdateService{
+		RegisterService: &sheets_service.RegisterService{Provider: spm},
+		Progress:        func(_ string) {},
+		Config: &config.Config{
+			FinanceDir: tmpDir,
+			Banks:      csvBanks(),
+		},
+		Options: &config.Options{UseCSVFiles: true},
+	}
+
+	_, _, err := us.LoadTransactions(&sheets_service.RegisterSheet{})
+	if err == nil {
+		t.Fatalf("LoadTransactions = nil error, want transactions.csv create failure to propagate")
+	}
+	if !strings.Contains(err.Error(), "error creating file") {
+		t.Errorf("LoadTransactions error = %v, want it to mention creating the file", err)
+	}
+}
+
+func Test_PersistTransactions_Error(t *testing.T) {
+	repo := &fakeMysqlQueryRepo{updateErr: errFakeDB}
+	s := NewUpdateService(nil, nil, nil, repo, nil, &config.Options{DryRun: false})
+	trans := []*models.Transaction{{Source: "FooBank", Name: "Amazon", CreditPurchase: 299.99}}
+
+	got, err := s.PersistTransactions(trans)
+	if !errors.Is(err, errFakeDB) {
+		t.Fatalf("PersistTransactions error = %v, want %v", err, errFakeDB)
+	}
+	if got != nil {
+		t.Errorf("PersistTransactions = %v, want nil on error", got)
+	}
+	if repo.updateCalls != 1 {
+		t.Errorf("updateCalls = %d, want 1", repo.updateCalls)
+	}
+}
+
+func Test_NormalizeMerchants_Errors(t *testing.T) {
+	tests := []struct {
+		name        string
+		repo        *fakeMysqlQueryRepo
+		bankClient  *banking.Client
+		wantErr     error
+		wantContain string
+	}{
+		{
+			name:        "bad regex merchant rule",
+			repo:        &fakeMysqlQueryRepo{lookupData: []*models.DataRow{{MatchType: "regex", Pattern: "["}}},
+			bankClient:  &banking.Client{},
+			wantContain: "bad regex",
+		},
+		{
+			name:        "bad regex income source",
+			repo:        &fakeMysqlQueryRepo{},
+			bankClient:  &banking.Client{IncomeSources: []config.IncomeSource{{Name: "Paycheck", MatchPattern: "[", MatchType: "regex"}}},
+			wantContain: "bad regex",
+		},
+		{
+			name:        "columns error",
+			repo:        &fakeMysqlQueryRepo{columnsErr: errFakeColumns},
+			bankClient:  &banking.Client{},
+			wantErr:     errFakeColumns,
+			wantContain: "could not get columns",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			us := &UpdateService{BankClient: tt.bankClient, QueryRepo: tt.repo, Progress: func(_ string) {}}
+			_, err := us.NormalizeMerchants(nil)
+			if err == nil {
+				t.Fatalf("NormalizeMerchants = nil error, want error")
+			}
+			if tt.wantErr != nil && !errors.Is(err, tt.wantErr) {
+				t.Errorf("NormalizeMerchants error = %v, want %v", err, tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantContain) {
+				t.Errorf("NormalizeMerchants error = %v, want it to contain %q", err, tt.wantContain)
+			}
+		})
+	}
+}
+
+func Test_WriteRawTransactionsCSV_Errors(t *testing.T) {
+	one := []*models.Transaction{{
+		Source: "Fidelity", Date: "01/02/26", BankName: "SQ *PLUME",
+		Amount: -26.32, CreditPurchase: 26.32,
+	}}
+
+	t.Run("create error", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		if err := os.Mkdir(filepath.Join(tmpDir, "transactions.csv"), 0755); err != nil {
+			t.Fatalf("mkdir transactions.csv: %v", err)
+		}
+		us := &UpdateService{Config: &config.Config{FinanceDir: tmpDir}}
+		err := us.WriteRawTransactionsCSV(one)
+		if err == nil {
+			t.Fatalf("WriteRawTransactionsCSV = nil, want create error")
+		}
+		if !strings.Contains(err.Error(), "error creating file") {
+			t.Errorf("WriteRawTransactionsCSV error = %v, want create error", err)
+		}
+	})
+
+	// /dev/full accepts the open but fails every write with ENOSPC.
+	t.Run("flush error", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		if err := os.Symlink("/dev/full", filepath.Join(tmpDir, "transactions.csv")); err != nil {
+			t.Fatalf("symlink /dev/full: %v", err)
+		}
+		us := &UpdateService{Config: &config.Config{FinanceDir: tmpDir}}
+		err := us.WriteRawTransactionsCSV(one)
+		if err == nil {
+			t.Fatalf("WriteRawTransactionsCSV = nil, want write error")
+		}
+		if !strings.Contains(err.Error(), "error writing to file") {
+			t.Errorf("WriteRawTransactionsCSV error = %v, want write error", err)
+		}
+	})
+
+	t.Run("write error", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		if err := os.Symlink("/dev/full", filepath.Join(tmpDir, "transactions.csv")); err != nil {
+			t.Fatalf("symlink /dev/full: %v", err)
+		}
+		us := &UpdateService{Config: &config.Config{FinanceDir: tmpDir}}
+		var many []*models.Transaction
+		for i := 0; i < 200; i++ {
+			many = append(many, &models.Transaction{
+				Source: "Fidelity", Date: "01/02/26",
+				BankName:       "SQ *PLUME HOUSE VAPE C Winchester VA with a very long merchant name to fill the buffer",
+				Amount:         -26.32,
+				CreditPurchase: 26.32,
+			})
+		}
+		err := us.WriteRawTransactionsCSV(many)
+		if err == nil {
+			t.Fatalf("WriteRawTransactionsCSV = nil, want write error")
+		}
+		if !strings.Contains(err.Error(), "error writing to file") {
+			t.Errorf("WriteRawTransactionsCSV error = %v, want write error", err)
+		}
+	})
+}
+
+func Test_ApplyDateCorrections(t *testing.T) {
+	corrections := []*DateCorrection{
+		{NewDate: "10/06/26", Entry: &sheets_service.RegisterEntry{RowID: 20}},
+		{NewDate: "10/07/26", Entry: &sheets_service.RegisterEntry{RowID: 42}},
+	}
+
+	t.Run("writes each corrected date", func(t *testing.T) {
+		p := &recordingSheetsProvider{}
+		us := &UpdateService{RegisterService: &sheets_service.RegisterService{Provider: p}}
+		if err := us.ApplyDateCorrections("Register", corrections); err != nil {
+			t.Fatalf("ApplyDateCorrections = %v, want nil", err)
+		}
+		want := []recordedUpdate{
+			{range_: "Register!C20", values: [][]any{{"10/06/26"}}},
+			{range_: "Register!C42", values: [][]any{{"10/07/26"}}},
+		}
+		if !reflect.DeepEqual(p.updates, want) {
+			t.Errorf("updates = %v, want %v", p.updates, want)
+		}
+	})
+
+	t.Run("update error propagates", func(t *testing.T) {
+		spm := &fakeSheetsProvider{}
+		us := &UpdateService{RegisterService: &sheets_service.RegisterService{Provider: spm}}
+		err := us.ApplyDateCorrections("Register", corrections)
+		if err == nil {
+			t.Fatalf("ApplyDateCorrections = nil, want error")
+		}
+		if !strings.Contains(err.Error(), "could not update value") {
+			t.Errorf("ApplyDateCorrections error = %v, want update failure", err)
+		}
+	})
+}
+
+func Test_UpdateBalances(t *testing.T) {
+	t.Run("happy path writes the checking balance", func(t *testing.T) {
+		p := &recordingSheetsProvider{}
+		us := &UpdateService{RegisterService: &sheets_service.RegisterService{Provider: p}}
+		balances := map[string]banking.Balance{
+			models.WellsFargoID: {BankName: "Wells Fargo", Amount: 1234.56},
+		}
+		if err := us.UpdateBalances("Register", balances); err != nil {
+			t.Fatalf("UpdateBalances = %v, want nil", err)
+		}
+		if len(p.updates) != 1 {
+			t.Fatalf("updates = %d, want 1", len(p.updates))
+		}
+		if p.updates[0].range_ != "Register!G1:G1" {
+			t.Errorf("updates[0].range = %q, want %q", p.updates[0].range_, "Register!G1:G1")
+		}
+		if got := p.updates[0].values[0][0]; got != 1234.56 {
+			t.Errorf("updates[0] value = %v, want 1234.56", got)
+		}
+	})
+
+	t.Run("balance error skips the write", func(t *testing.T) {
+		p := &recordingSheetsProvider{}
+		us := &UpdateService{RegisterService: &sheets_service.RegisterService{Provider: p}}
+		balances := map[string]banking.Balance{
+			models.WellsFargoID: {BankName: "Wells Fargo", Error: errors.New("no Plaid access token configured")},
+		}
+		if err := us.UpdateBalances("Register", balances); err != nil {
+			t.Fatalf("UpdateBalances = %v, want nil", err)
+		}
+		if len(p.updates) != 0 {
+			t.Errorf("updates = %d, want 0", len(p.updates))
+		}
+	})
+
+	t.Run("write error propagates", func(t *testing.T) {
+		p := &recordingSheetsProvider{updateErr: errFakeUpdate}
+		us := &UpdateService{RegisterService: &sheets_service.RegisterService{Provider: p}}
+		balances := map[string]banking.Balance{
+			models.WellsFargoID: {BankName: "Wells Fargo", Amount: 1234.56},
+		}
+		err := us.UpdateBalances("Register", balances)
+		if !errors.Is(err, errFakeUpdate) {
+			t.Fatalf("UpdateBalances error = %v, want %v", err, errFakeUpdate)
+		}
+	})
+}
+
+func Test_UpdateSpreadsheet(t *testing.T) {
+	trans := []*models.Transaction{{
+		Source: "WellsFargo", Name: "Amazon", BankName: "Amazon",
+		Date: "10/02/26", Withdrawal: 50.00, Amount: 50.00, Budget: -50.00,
+	}}
+
+	t.Run("happy path", func(t *testing.T) {
+		f := newSpreadsheetFixture(t)
+		if err := f.svc.UpdateSpreadsheet(trans); err != nil {
+			t.Fatalf("UpdateSpreadsheet = %v, want nil", err)
+		}
+		if f.provider.batchUpdateCalls != 2 {
+			t.Errorf("batchUpdateCalls = %d, want 2 (CopyRows + UpdateRows)", f.provider.batchUpdateCalls)
+		}
+		if len(f.provider.updates) != 2 {
+			t.Fatalf("updates = %d, want 2 (LastUpdate + CheckingDelta cells)", len(f.provider.updates))
+		}
+		if f.provider.updates[0].range_ != "Register!F1:F1" {
+			t.Errorf("updates[0].range = %q, want %q", f.provider.updates[0].range_, "Register!F1:F1")
+		}
+		wantDate := time.Now().Format("01/02/2006")
+		if got := f.provider.updates[0].values[0][0]; got != wantDate {
+			t.Errorf("updates[0] value = %v, want %v", got, wantDate)
+		}
+		if f.provider.updates[1].range_ != "Register!G2:G2" {
+			t.Errorf("updates[1].range = %q, want %q", f.provider.updates[1].range_, "Register!G2:G2")
+		}
+		if got := f.provider.updates[1].values[0][0]; got != "=SUM(G1-I9)" {
+			t.Errorf("updates[1] value = %v, want %v", got, "=SUM(G1-I9)")
+		}
+	})
+
+	errTests := []struct {
+		name    string
+		setup   func(t *testing.T, f *spreadsheetFixture)
+		wantErr error
+	}{
+		{
+			name: "NewRegisterSheet error",
+			setup: func(t *testing.T, f *spreadsheetFixture) {
+				f.provider.getSpreadsheetFn = func(tabName string) (*sheets_provider.Spreadsheet, error) {
+					return nil, errFakeSpreadsheet
+				}
+			},
+			wantErr: errFakeSpreadsheet,
+		},
+		{
+			name: "NewBudgetSheet error",
+			setup: func(t *testing.T, f *spreadsheetFixture) {
+				f.provider.getSpreadsheetFn = func(tabName string) (*sheets_provider.Spreadsheet, error) {
+					if tabName == sheets_service.BudgetTabName {
+						return nil, errFakeSpreadsheet
+					}
+					return &sheets_provider.Spreadsheet{SheetID: 7, RowCount: 1000, ColumnCount: 10}, nil
+				}
+			},
+			wantErr: errFakeSpreadsheet,
+		},
+		{
+			name: "ReadBudgetSheet error",
+			setup: func(t *testing.T, f *spreadsheetFixture) {
+				orig := f.provider.getValuesFn
+				f.provider.getValuesFn = func(range_ string) ([][]any, error) {
+					if strings.HasPrefix(range_, "Budget!A5:") {
+						return nil, errFakeBudget
+					}
+					return orig(range_)
+				}
+			},
+			wantErr: errFakeBudget,
+		},
+		{
+			name: "ReadRegisterSheet error",
+			setup: func(t *testing.T, f *spreadsheetFixture) {
+				orig := f.provider.getValuesFn
+				f.provider.getValuesFn = func(range_ string) ([][]any, error) {
+					if strings.HasPrefix(range_, "Register!A5:") {
+						return nil, errFakeRegister
+					}
+					return orig(range_)
+				}
+			},
+			wantErr: errFakeRegister,
+		},
+		{
+			name: "CopyRows error",
+			setup: func(t *testing.T, f *spreadsheetFixture) {
+				f.provider.batchUpdateErr = errFakeBatch
+			},
+			wantErr: errFakeBatch,
+		},
+		{
+			name: "GetColumns error",
+			setup: func(t *testing.T, f *spreadsheetFixture) {
+				f.repo.columnsErr = errFakeColumns
+			},
+			wantErr: errFakeColumns,
+		},
+		{
+			name: "GetNameMapToColumn error",
+			setup: func(t *testing.T, f *spreadsheetFixture) {
+				f.repo.nameMapErr = errFakeNameMap
+			},
+			wantErr: errFakeNameMap,
+		},
+		{
+			name: "UpdateRows error",
+			setup: func(t *testing.T, f *spreadsheetFixture) {
+				f.provider.batchUpdateErr = errFakeBatch
+				f.provider.batchUpdateFailOn = 2
+			},
+			wantErr: errFakeBatch,
+		},
+		{
+			name: "WriteCell error",
+			setup: func(t *testing.T, f *spreadsheetFixture) {
+				f.provider.updateErr = errFakeUpdate
+			},
+			wantErr: errFakeUpdate,
+		},
+		{
+			name: "WriteCell error on delta cell",
+			setup: func(t *testing.T, f *spreadsheetFixture) {
+				f.provider.updateErr = errFakeUpdate
+				f.provider.updateFailOn = 2
+			},
+			wantErr: errFakeUpdate,
+		},
+	}
+
+	for _, tt := range errTests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newSpreadsheetFixture(t)
+			tt.setup(t, f)
+			err := f.svc.UpdateSpreadsheet(trans)
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("UpdateSpreadsheet error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func Test_ApplyTransactions(t *testing.T) {
+	trans := []*models.Transaction{{
+		Source: "WellsFargo", Name: "Amazon", BankName: "Amazon",
+		Date: "10/02/26", Withdrawal: 50.00, Amount: 50.00, Budget: -50.00,
+	}}
+	corrections := []*DateCorrection{{
+		NewDate: "10/06/26",
+		Entry:   &sheets_service.RegisterEntry{RowID: 20},
+	}}
+	balanceClient := func(t *testing.T) *banking.Client { return newBalanceTestClient(t, 1234.56) }
+	noTokenClient := func(t *testing.T) *banking.Client { return newNoTokenBankClient() }
+
+	tests := []struct {
+		name        string
+		dryRun      bool
+		trans       []*models.Transaction
+		corrections []*DateCorrection
+		bankClient  func(t *testing.T) *banking.Client
+		setup       func(f *spreadsheetFixture)
+		wantErr     error
+		wantErrText string
+		check       func(t *testing.T, f *spreadsheetFixture)
+	}{
+		{
+			name:        "dry run skips db and sheet writes",
+			dryRun:      true,
+			trans:       trans,
+			corrections: corrections,
+			bankClient:  balanceClient,
+			check: func(t *testing.T, f *spreadsheetFixture) {
+				if f.repo.updateCalls != 0 {
+					t.Errorf("updateCalls = %d, want 0", f.repo.updateCalls)
+				}
+				if f.provider.batchUpdateCalls != 0 {
+					t.Errorf("batchUpdateCalls = %d, want 0", f.provider.batchUpdateCalls)
+				}
+				if len(f.provider.updates) != 1 {
+					t.Fatalf("updates = %d, want 1 (balance cell only)", len(f.provider.updates))
+				}
+				if f.provider.updates[0].range_ != "Register!G1:G1" {
+					t.Errorf("updates[0].range = %q, want %q", f.provider.updates[0].range_, "Register!G1:G1")
+				}
+			},
+		},
+		{
+			name:       "persist error",
+			trans:      trans,
+			bankClient: balanceClient,
+			setup: func(f *spreadsheetFixture) {
+				f.repo.updateErr = errFakeDB
+			},
+			wantErr: errFakeDB,
+		},
+		{
+			name:        "date corrections applied",
+			trans:       nil,
+			corrections: corrections,
+			bankClient:  balanceClient,
+			check: func(t *testing.T, f *spreadsheetFixture) {
+				if f.provider.batchUpdateCalls != 0 {
+					t.Errorf("batchUpdateCalls = %d, want 0 (no spreadsheet update)", f.provider.batchUpdateCalls)
+				}
+				if len(f.provider.updates) != 2 {
+					t.Fatalf("updates = %d, want 2 (date correction + balance cell)", len(f.provider.updates))
+				}
+				want := recordedUpdate{range_: "Register!C20", values: [][]any{{"10/06/26"}}}
+				if !reflect.DeepEqual(f.provider.updates[0], want) {
+					t.Errorf("updates[0] = %v, want %v", f.provider.updates[0], want)
+				}
+			},
+		},
+		{
+			name:        "date corrections error",
+			trans:       nil,
+			corrections: corrections,
+			bankClient:  balanceClient,
+			setup: func(f *spreadsheetFixture) {
+				f.provider.updateErr = errFakeUpdate
+			},
+			wantErr: errFakeUpdate,
+		},
+		{
+			name:       "spreadsheet update",
+			trans:      trans,
+			bankClient: balanceClient,
+			check: func(t *testing.T, f *spreadsheetFixture) {
+				if f.provider.batchUpdateCalls != 2 {
+					t.Errorf("batchUpdateCalls = %d, want 2 (CopyRows + UpdateRows)", f.provider.batchUpdateCalls)
+				}
+				if len(f.provider.updates) != 3 {
+					t.Errorf("updates = %d, want 3 (LastUpdate + CheckingDelta + balance cells)", len(f.provider.updates))
+				}
+			},
+		},
+		{
+			name:        "balance unavailable",
+			dryRun:      true,
+			bankClient:  noTokenClient,
+			wantErrText: "balance unavailable",
+		},
+		{
+			name:       "update balances error",
+			trans:      nil,
+			bankClient: balanceClient,
+			setup: func(f *spreadsheetFixture) {
+				f.provider.updateErr = errFakeUpdate
+			},
+			wantErr: errFakeUpdate,
+		},
+		{
+			name:       "spreadsheet update error",
+			trans:      trans,
+			bankClient: balanceClient,
+			setup: func(f *spreadsheetFixture) {
+				f.provider.batchUpdateErr = errFakeBatch
+			},
+			wantErr: errFakeBatch,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newSpreadsheetFixture(t)
+			f.svc.BankClient = tt.bankClient(t)
+			f.svc.Options = &config.Options{DryRun: tt.dryRun}
+			if tt.setup != nil {
+				tt.setup(f)
+			}
+			err := f.svc.ApplyTransactions("Register", tt.trans, tt.corrections)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("ApplyTransactions error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if tt.wantErrText != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErrText) {
+					t.Fatalf("ApplyTransactions error = %v, want it to contain %q", err, tt.wantErrText)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ApplyTransactions = %v, want nil", err)
+			}
+			if tt.check != nil {
+				tt.check(t, f)
+			}
+		})
+	}
 }
