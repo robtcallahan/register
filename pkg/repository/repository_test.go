@@ -3,8 +3,25 @@ package repository
 import (
 	"testing"
 
+	"register/pkg/config"
 	"register/pkg/models"
 )
+
+func TestConnectUnreachable(t *testing.T) {
+	// Port 1 on loopback refuses immediately, so no live database is
+	// needed and the test does not wait on a dial timeout. gorm.Open
+	// pings after opening, so an unreachable host surfaces here.
+	_, err := Connect(&config.DBConfig{
+		Username: "register",
+		Password: "register",
+		Host:     "127.0.0.1",
+		Port:     "1",
+		Name:     "register",
+	})
+	if err == nil {
+		t.Fatal("Connect() to unreachable host err = nil; want non-nil")
+	}
+}
 
 func TestColumnNames(t *testing.T) {
 	columns := []models.Column{

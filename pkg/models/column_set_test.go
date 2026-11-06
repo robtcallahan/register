@@ -1,6 +1,9 @@
 package models
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestColumnSet(t *testing.T) {
 	columns := []Column{
@@ -19,6 +22,9 @@ func TestColumnSet(t *testing.T) {
 	}
 	if idx, ok := set.IndexForID(58); !ok || idx != 42 {
 		t.Errorf("IndexForID(58) = %d, %v; want 42, true", idx, ok)
+	}
+	if _, ok := set.IndexForID(999); ok {
+		t.Error("IndexForID(999) ok = true; want false")
 	}
 	if col, ok := set.ByIndex(10); !ok || col.Name != "Delta" {
 		t.Errorf("ByIndex(10) = %v, %v; want Delta, true", col, ok)
@@ -54,6 +60,65 @@ func TestColumnSetValidate(t *testing.T) {
 	}).Validate()
 	if len(problems) != 3 { // duplicate index 1, missing 2, missing 3
 		t.Errorf("Validate() = %v; want 3 problems", problems)
+	}
+}
+
+func TestColumnSetValidateNonPositive(t *testing.T) {
+	tests := []struct {
+		name    string
+		columns []Column
+		wantLen int
+		wantSub string // substring expected in one of the problems ("" = no check)
+	}{
+		{
+			name:    "empty set has no problems",
+			columns: nil,
+			wantLen: 0,
+		},
+		{
+			name:    "zero index",
+			columns: []Column{{ID: 1, Name: "Bad", ColumnIndex: 0}},
+			wantLen: 1,
+			wantSub: `column "Bad" has non-positive index 0`,
+		},
+		{
+			name:    "negative index",
+			columns: []Column{{ID: 1, Name: "Neg", ColumnIndex: -3}},
+			wantLen: 1,
+			wantSub: `column "Neg" has non-positive index -3`,
+		},
+		{
+			// A non-positive column is skipped, so it neither fills a gap
+			// nor extends the range: only its own problem plus the gap at 2.
+			name: "non-positive skipped for gaps",
+			columns: []Column{
+				{ID: 1, Name: "A", ColumnIndex: 1},
+				{ID: 2, Name: "Bad", ColumnIndex: 0},
+				{ID: 3, Name: "C", ColumnIndex: 3},
+			},
+			wantLen: 2,
+			wantSub: "non-positive index 0",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			problems := NewColumnSet(tt.columns).Validate()
+			if len(problems) != tt.wantLen {
+				t.Fatalf("Validate() = %v; want %d problems", problems, tt.wantLen)
+			}
+			if tt.wantSub != "" {
+				found := false
+				for _, p := range problems {
+					if strings.Contains(p, tt.wantSub) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("Validate() = %v; want a problem containing %q", problems, tt.wantSub)
+				}
+			}
+		})
 	}
 }
 

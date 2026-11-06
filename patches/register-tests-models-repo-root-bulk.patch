@@ -1,0 +1,184 @@
+diff --git a/main_test.go b/main_test.go
+new file mode 100644
+index 0000000..458af7d
+--- /dev/null
++++ b/main_test.go
+@@ -0,0 +1,20 @@
++package main
++
++import (
++	"os"
++	"testing"
++)
++
++// TestMainHelpFlag exercises main() through the one argument path that
++// provably returns: cobra returns flag.ErrHelp for --help before it ever
++// calls the root command's Run (which os.Exit(0)s on no args), and
++// Execute converts that into a nil return, so cmd.Execute() never reaches
++// os.Exit(1) either. No other main() path is safe to call from a test:
++// with no args Run calls os.Exit(0), and any execution error makes
++// Execute call os.Exit(1) — either would kill the test binary.
++func TestMainHelpFlag(t *testing.T) {
++	oldArgs := os.Args
++	defer func() { os.Args = oldArgs }()
++	os.Args = []string{"register", "--help"}
++	main()
++}
+diff --git a/pkg/models/column_set_test.go b/pkg/models/column_set_test.go
+index ec10424..8e37980 100644
+--- a/pkg/models/column_set_test.go
++++ b/pkg/models/column_set_test.go
+@@ -1,6 +1,9 @@
+ package models
+ 
+-import "testing"
++import (
++	"strings"
++	"testing"
++)
+ 
+ func TestColumnSet(t *testing.T) {
+ 	columns := []Column{
+@@ -20,6 +23,9 @@ func TestColumnSet(t *testing.T) {
+ 	if idx, ok := set.IndexForID(58); !ok || idx != 42 {
+ 		t.Errorf("IndexForID(58) = %d, %v; want 42, true", idx, ok)
+ 	}
++	if _, ok := set.IndexForID(999); ok {
++		t.Error("IndexForID(999) ok = true; want false")
++	}
+ 	if col, ok := set.ByIndex(10); !ok || col.Name != "Delta" {
+ 		t.Errorf("ByIndex(10) = %v, %v; want Delta, true", col, ok)
+ 	}
+@@ -57,6 +63,65 @@ func TestColumnSetValidate(t *testing.T) {
+ 	}
+ }
+ 
++func TestColumnSetValidateNonPositive(t *testing.T) {
++	tests := []struct {
++		name    string
++		columns []Column
++		wantLen int
++		wantSub string // substring expected in one of the problems ("" = no check)
++	}{
++		{
++			name:    "empty set has no problems",
++			columns: nil,
++			wantLen: 0,
++		},
++		{
++			name:    "zero index",
++			columns: []Column{{ID: 1, Name: "Bad", ColumnIndex: 0}},
++			wantLen: 1,
++			wantSub: `column "Bad" has non-positive index 0`,
++		},
++		{
++			name:    "negative index",
++			columns: []Column{{ID: 1, Name: "Neg", ColumnIndex: -3}},
++			wantLen: 1,
++			wantSub: `column "Neg" has non-positive index -3`,
++		},
++		{
++			// A non-positive column is skipped, so it neither fills a gap
++			// nor extends the range: only its own problem plus the gap at 2.
++			name: "non-positive skipped for gaps",
++			columns: []Column{
++				{ID: 1, Name: "A", ColumnIndex: 1},
++				{ID: 2, Name: "Bad", ColumnIndex: 0},
++				{ID: 3, Name: "C", ColumnIndex: 3},
++			},
++			wantLen: 2,
++			wantSub: "non-positive index 0",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			problems := NewColumnSet(tt.columns).Validate()
++			if len(problems) != tt.wantLen {
++				t.Fatalf("Validate() = %v; want %d problems", problems, tt.wantLen)
++			}
++			if tt.wantSub != "" {
++				found := false
++				for _, p := range problems {
++					if strings.Contains(p, tt.wantSub) {
++						found = true
++						break
++					}
++				}
++				if !found {
++					t.Errorf("Validate() = %v; want a problem containing %q", problems, tt.wantSub)
++				}
++			}
++		})
++	}
++}
++
+ func TestColumnSetColumns(t *testing.T) {
+ 	columns := []Column{
+ 		{ID: 1, Name: "Recon", ColumnIndex: 1},
+diff --git a/pkg/models/normalize_date_test.go b/pkg/models/normalize_date_test.go
+index c006fda..bcf8c48 100644
+--- a/pkg/models/normalize_date_test.go
++++ b/pkg/models/normalize_date_test.go
+@@ -38,6 +38,31 @@ func Test_readDateValue(t *testing.T) {
+ 			args: args{dateStr: "2023-01-02"},
+ 			want: "01/02/23",
+ 		},
++		{
++			name: "Test 2023-1-2",
++			args: args{dateStr: "2023-1-2"},
++			want: "01/02/23",
++		},
++		{
++			name: "Test empty string",
++			args: args{dateStr: ""},
++			want: "",
++		},
++		{
++			name: "Test 'not a date'",
++			args: args{dateStr: "not a date"},
++			want: "",
++		},
++		{
++			name: "Test '2023/01/02' slashes year-first",
++			args: args{dateStr: "2023/01/02"},
++			want: "",
++		},
++		{
++			name: "Test '01-02-2023' dashes year-last",
++			args: args{dateStr: "01-02-2023"},
++			want: "",
++		},
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+diff --git a/pkg/repository/repository_test.go b/pkg/repository/repository_test.go
+index 2f8eb80..1ee666d 100644
+--- a/pkg/repository/repository_test.go
++++ b/pkg/repository/repository_test.go
+@@ -3,9 +3,26 @@ package repository
+ import (
+ 	"testing"
+ 
++	"register/pkg/config"
+ 	"register/pkg/models"
+ )
+ 
++func TestConnectUnreachable(t *testing.T) {
++	// Port 1 on loopback refuses immediately, so no live database is
++	// needed and the test does not wait on a dial timeout. gorm.Open
++	// pings after opening, so an unreachable host surfaces here.
++	_, err := Connect(&config.DBConfig{
++		Username: "register",
++		Password: "register",
++		Host:     "127.0.0.1",
++		Port:     "1",
++		Name:     "register",
++	})
++	if err == nil {
++		t.Fatal("Connect() to unreachable host err = nil; want non-nil")
++	}
++}
++
+ func TestColumnNames(t *testing.T) {
+ 	columns := []models.Column{
+ 		{Name: "Grocery"},
