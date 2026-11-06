@@ -380,42 +380,73 @@ func readInt(reader *bufio.Reader, prompt string) (int, error) {
 	return i, nil
 }
 
-func printTransactions(trans []*models.Transaction, pending []*models.Transaction, dateCorrections []*update_service.DateCorrection) {
+func printTransactions(newTrans []*models.Transaction, pendingTrans []*models.Transaction, dateCorrections []*update_service.DateCorrection) {
 	fmt.Println("")
 	if len(dateCorrections) > 0 {
 		fmt.Printf("Updated Transactions:\n")
-		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-8s %-60s\n", "Transaction ID", "Key", "Source", "Old Date", "New Date", "Amount", "Name")
-		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-8s %-60s\n", dashes(57), dashes(30), dashes(12), dashes(8), dashes(8), dashes(8), dashes(60))
+		fmt.Printf("%-12s  %-8s  %-8s  %-10s  %-40s\n", "Source", "Old Date", "New Date", "Amount", "Name")
+		fmt.Printf("%-12s  %-8s  %-8s  %-8s  %-40s\n", dashes(12), dashes(8), dashes(8), dashes(10), dashes(40))
 		for _, c := range dateCorrections {
 			e := c.Entry
-			amt := getAmount(e.Source, e.Deposit, e.Withdrawal, e.CreditPurchase)
-			fmt.Printf("%-57s %-30s %-12s %-8s %-8s %8.2f %-60s\n", e.TransactionID, e.Key, e.Source, e.Date, c.NewDate, amt, e.Name)
+			amount := getAmount(e.Source, e.Deposit, e.Withdrawal, e.CreditPurchase)
+			sAmount := formatAccounting(amount)
+			fmt.Printf("%-12s  %-8s  %-8s  $%9s  %-40s\n", e.Source, e.Date, c.NewDate, sAmount, e.Name)
 		}
 		fmt.Println("")
 
 	}
 
-	if len(pending) > 0 {
-		fmt.Printf("Pending Transactions:\n")
-		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", "Transaction ID", "Key", "Source", "Old Date", "Amount", "Name")
-		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", dashes(57), dashes(30), dashes(12), dashes(8), dashes(8), dashes(60))
-		for _, p := range pending {
-			amt := getAmount(p.Source, p.Deposit, p.Withdrawal, p.CreditPurchase)
-			fmt.Printf("%-57s %-30s %-12s %-8s %8.2f %-60s\n", p.TransactionID, p.Key, p.Source, p.Date, amt, p.Name)
-		}
-		fmt.Println("")
+	if len(pendingTrans) > 0 {
+		formatTransactionGroup("Pending Transactions", pendingTrans)
 	}
 
-	if len(trans) > 0 {
-		fmt.Printf("New Transactions:\n")
-		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", "Transaction ID", "Key", "Source", "Date", "Amount", "Name")
-		fmt.Printf("%-57s %-30s %-12s %-8s %-8s %-60s\n", dashes(57), dashes(30), dashes(12), dashes(8), dashes(8), dashes(60))
-		for _, t := range trans {
-			amt := getAmount(t.Source, t.Deposit, t.Withdrawal, t.CreditPurchase)
-			fmt.Printf("%-57s %-30s %-12s %-8s %8.2f %-60s\n", t.TransactionID, t.Key, t.Source, t.Date, amt, t.Name)
-		}
-		fmt.Println("")
+	if len(newTrans) > 0 {
+		formatTransactionGroup("New Transactions", newTrans)
 	}
+}
+
+func formatTransactionGroup(title string, trans []*models.Transaction) {
+	fmt.Printf("%s:\n", title)
+	fmt.Printf("%-12s  %-8s  %-10s  %-40s\n", "Source", "Date", "Amount", "Name")
+	fmt.Printf("%-12s  %-8s  %-10s  %-40s\n", dashes(12), dashes(8), dashes(10), dashes(40))
+	for _, t := range trans {
+		amount := getAmount(t.Source, t.Deposit, t.Withdrawal, t.CreditPurchase)
+		sAmount := formatAccounting(amount)
+		fmt.Printf("%-12s  %-8s  $%9s  %-40s\n", t.Source, t.Date, sAmount, t.Name)
+	}
+	fmt.Println("")
+	return
+}
+
+func formatAccounting(amount float64) string {
+	// 1. Handle negative sign flag and get absolute value
+	isNegative := amount < 0
+	absAmount := math.Abs(amount)
+
+	// 2. Format to 2 decimal places
+	str := fmt.Sprintf("%.2f", absAmount)
+	parts := strings.Split(str, ".")
+	intPart := parts[0]
+	decPart := parts[1]
+
+	// 3. Insert commas into the integer part
+	var sb strings.Builder
+	l := len(intPart)
+	for i, r := range intPart {
+		if i > 0 && (l-i)%3 == 0 {
+			sb.WriteRune(',')
+		}
+		sb.WriteRune(r)
+	}
+
+	// 4. Combine integer and decimal parts
+	formatted := sb.String() + "." + decPart
+
+	// 5. Wrap with parentheses if negative, or add spaces/symbols if needed
+	if isNegative {
+		return "(" + formatted + ")"
+	}
+	return formatted
 }
 
 func getAmount(source string, deposit, withdrawal, creditPurchase float64) float64 {
