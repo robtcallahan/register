@@ -1,6 +1,7 @@
 package csv
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -120,10 +121,13 @@ func Test_readFileContents(t *testing.T) {
 	if string(got) != "hello" {
 		t.Errorf("readFileContents = %q, want %q", got, "hello")
 	}
-	// NOTE: the missing-file error case is deliberately untested here.
-	// readFileContents shadows its err (:= inside the if), so a failed
-	// read returns (nil, nil) instead of the error. That is a production
-	// bug to fix first; asserting today's behavior would enshrine it.
+	if got, err := readFileContents(filepath.Join(dir, "nope.csv")); err == nil {
+		t.Error("readFileContents(missing file) = nil, want error")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("readFileContents(missing file) = %v, want not-exist error", err)
+	} else if got != nil {
+		t.Errorf("readFileContents(missing file) = %q, want nil bytes", got)
+	}
 }
 
 func Test_doWellsFargoHeadsExist(t *testing.T) {
@@ -311,11 +315,156 @@ func Test_readWellsFargoCSV(t *testing.T) {
 		t.Errorf("headerless file after read = %q, want legacy header prepended", contents)
 	}
 
-	// NOTE: the missing-file case is deliberately untested here. It runs
-	// through readFileContents, which swallows read errors (see
-	// Test_readFileContents), so a missing Wells Fargo file currently
-	// yields an empty list and a created header-only file instead of an
-	// error. That needs the readFileContents fix first.
+	// Missing file: the read error propagates instead of producing an
+	// empty list or a header-only file.
+	missing := New(t.TempDir(), banks, []string{models.WellsFargoID}, func(_ string) {})
+	if _, err := missing.readWellsFargoCSV(); err == nil {
+		t.Error("readWellsFargoCSV(missing file) = nil, want error")
+	} else if !strings.Contains(err.Error(), "could not read CSV file") {
+		t.Errorf("readWellsFargoCSV(missing file) = %v, want wrapped read error", err)
+	}
+}
+
+func Test_readWellsFargoCSV_MissingHeaders(t *testing.T) {
+	dir := t.TempDir()
+	banks := map[string]config.Bank{
+		models.WellsFargoID: {ID: models.WellsFargoID, CSVFileName: "wf.csv"},
+	}
+	c := New(dir, banks, []string{models.WellsFargoID}, func(_ string) {})
+	// Has the "DATE" prefix so no header is prepended, but is missing
+	// the CHECK # and STATUS headers the WellsFargo struct expects.
+	writeCSVFile(t, dir, "wf.csv", `"DATE","DESCRIPTION","AMOUNT"`+"\n"+`"12/07/2020","TARGET","-46.80"`+"\n")
+	if _, err := c.readWellsFargoCSV(); err == nil {
+		t.Error("readWellsFargoCSV(missing headers) = nil, want error")
+	} else if !strings.Contains(err.Error(), "CHECK #") || !strings.Contains(err.Error(), "STATUS") {
+		t.Errorf("readWellsFargoCSV(missing headers) = %v, want error naming CHECK # and STATUS", err)
+	}
+}
+
+func Test_readWellsFargoCSV_WriteHeadsError(t *testing.T) {
+	dir := t.TempDir()
+	banks := map[string]config.Bank{
+		models.WellsFargoID: {ID: models.WellsFargoID, CSVFileName: "missing-dir/wf.csv"},
+	}
+	c := New(dir, banks, []string{models.WellsFargoID}, func(_ string) {})
+	// The read succeeds (stubbed headerless bytes) but the prepended
+	// header cannot be written: the file lives in a directory that
+	// does not exist.
+	old := myReadFile
+	myReadFile = func(_ string) ([]byte, error) {
+		return []byte("12/07/2020,-46.80,foo,bar,baz\n"), nil
+	}
+	defer func() { myReadFile = old }()
+	if _, err := c.readWellsFargoCSV(); err == nil {
+		t.Error("readWellsFargoCSV(unwritable file) = nil, want error")
+	} else if !strings.Contains(err.Error(), "could not write csv file") {
+		t.Errorf("readWellsFargoCSV(unwritable file) = %v, want write error", err)
+	}
+}
+
+func Test_readCSVRows_UnmarshalError(t *testing.T) {
+	tests := []struct {
+		name   string
+		file   string
+		bankID string
+		read   func(string, string) ([]*models.Transaction, error)
+	}{
+		{
+			name:   "wells fargo bad amount",
+			file:   `"DATE","DESCRIPTION","AMOUNT","CHECK #","STATUS"` + "\n" + `"12/07/2020","TARGET","not-a-number","","posted"` + "\n",
+			bankID: models.WellsFargoID,
+			read:   readWellsFargoCSVRows,
+		},
+		{
+			name:   "fidelity bad amount",
+			file:   `"Date","Transaction","Name","Memo","Amount"` + "\n" + `"2026-09-28","DEBIT","Netflix","memo123","not-a-number"` + "\n",
+			bankID: models.FidelityID,
+			read:   readFidelityCSVRows,
+		},
+		{
+			name:   "chase bad amount",
+			file:   `"Transaction Date","Post Date","Description","Category","Type","Amount"` + "\n" + `"09/28/2026","09/29/2026","AMAZON","Shopping","Sale","not-a-number"` + "\n",
+			bankID: models.ChaseID,
+			read:   readChaseCSVRows,
+		},
+		{
+			name:   "bank of america bad amount",
+			file:   `"Posted Date","Reference Number","Payee","Address","Amount"` + "\n" + `"09/28/2026","REF1","AMAZON","Seattle","not-a-number"` + "\n",
+			bankID: models.BoAID,
+			read:   readBankOfAmericaCSVRows,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := writeCSVFile(t, dir, "bad.csv", tt.file)
+			if _, err := tt.read(path, tt.bankID); err == nil {
+				t.Error("read rows(bad amount) = nil, want error")
+			} else if !strings.Contains(err.Error(), "could not unmarshal CSV file") {
+				t.Errorf("read rows(bad amount) = %v, want unmarshal error", err)
+			}
+		})
+	}
+}
+
+func TestClient_GetTransactions_BankErrors(t *testing.T) {
+	tests := []struct {
+		name   string
+		bankID string
+		file   string
+	}{
+		{"wells fargo missing file", models.WellsFargoID, "wf.csv"},
+		{"chase missing file", models.ChaseID, "chase.csv"},
+		{"bank of america missing file", models.BoAID, "boa.csv"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			banks := map[string]config.Bank{
+				tt.bankID: {ID: tt.bankID, CSVFileName: tt.file},
+			}
+			c := New(dir, banks, []string{tt.bankID}, func(_ string) {})
+			if _, err := c.GetTransactions(); err == nil {
+				t.Error("GetTransactions(missing file) = nil, want error")
+			} else if !strings.Contains(err.Error(), "could not read CSV file") {
+				t.Errorf("GetTransactions(missing file) = %v, want wrapped read error", err)
+			}
+		})
+	}
+}
+
+func TestClient_GetTransactions_AllBanks(t *testing.T) {
+	dir := t.TempDir()
+	writeCSVFile(t, dir, "fid.csv", fidelityFixture)
+	writeCSVFile(t, dir, "chase.csv", chaseFixture)
+	writeCSVFile(t, dir, "wf.csv", wellsFargoFixture)
+	writeCSVFile(t, dir, "boa.csv", bankOfAmericaFixture)
+	banks := map[string]config.Bank{
+		models.FidelityID:   {ID: models.FidelityID, CSVFileName: "fid.csv"},
+		models.ChaseID:      {ID: models.ChaseID, CSVFileName: "chase.csv"},
+		models.WellsFargoID: {ID: models.WellsFargoID, CSVFileName: "wf.csv"},
+		models.BoAID:        {ID: models.BoAID, CSVFileName: "boa.csv"},
+	}
+	var progress []string
+	c := New(dir, banks, []string{models.FidelityID, models.ChaseID, models.WellsFargoID, models.BoAID}, func(s string) {
+		progress = append(progress, s)
+	})
+	got, err := c.GetTransactions()
+	if err != nil {
+		t.Fatalf("GetTransactions = %v, want nil", err)
+	}
+	if len(got) != 6 {
+		t.Fatalf("got %d transactions, want 6 (1 fidelity + 1 chase + 3 wells fargo + 1 bank of america)", len(got))
+	}
+	found := false
+	for _, p := range progress {
+		if strings.Contains(p, "Bank of America") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("progress %v missing %q", progress, "Bank of America")
+	}
 }
 
 func Test_readBankCSVClients(t *testing.T) {
