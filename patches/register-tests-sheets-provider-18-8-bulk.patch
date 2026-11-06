@@ -1,0 +1,229 @@
+diff --git a/api/providers/sheets_provider/sheets_provider_test.go b/api/providers/sheets_provider/sheets_provider_test.go
+index cac4366..27aeba4 100644
+--- a/api/providers/sheets_provider/sheets_provider_test.go
++++ b/api/providers/sheets_provider/sheets_provider_test.go
+@@ -7,6 +7,7 @@ import (
+ 	"net/http"
+ 	"net/http/httptest"
+ 	"reflect"
++	"strings"
+ 	"testing"
+ 
+ 	"google.golang.org/api/option"
+@@ -151,3 +152,216 @@ func TestSheetsProvider_GetSpreadsheet(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func TestSheetsProvider_GetFormula(t *testing.T) {
++	tests := []struct {
++		name     string
++		response *sheets.BatchGetValuesResponse
++		respErr  error
++		want     [][]any
++		wantErr  string
++	}{
++		{
++			name: "returns the formulas from the first value range",
++			response: &sheets.BatchGetValuesResponse{
++				ValueRanges: []*sheets.ValueRange{
++					{Range: "Register!A1:A2", Values: [][]any{{"=SUM(A1:A3)"}, {"=B1*2"}}},
++				},
++			},
++			want: [][]any{{"=SUM(A1:A3)"}, {"=B1*2"}},
++		},
++		{
++			name:    "client error propagates",
++			respErr: errors.New("boom"),
++			wantErr: "boom",
++		},
++		{
++			name:     "empty response is an error",
++			response: &sheets.BatchGetValuesResponse{},
++			wantErr:  "empty response",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++				if tt.respErr != nil {
++					w.WriteHeader(http.StatusInternalServerError)
++					w.Write([]byte(tt.respErr.Error()))
++					return
++				}
++				w.Header().Set("Content-Type", "application/json")
++				json.NewEncoder(w).Encode(tt.response)
++			})
++			p := newTestProvider(t, handler)
++			got, err := p.GetFormula("Register!A1:A2")
++			if tt.wantErr != "" {
++				if err == nil {
++					t.Fatalf("GetFormula() error = nil, want error containing %q", tt.wantErr)
++				}
++				if !strings.Contains(err.Error(), tt.wantErr) {
++					t.Errorf("GetFormula() error = %v, want error containing %q", err, tt.wantErr)
++				}
++				return
++			}
++			if err != nil {
++				t.Fatalf("GetFormula() error = %v, want nil", err)
++			}
++			if !reflect.DeepEqual(got, tt.want) {
++				t.Errorf("GetFormula() = %v, want %v", got, tt.want)
++			}
++		})
++	}
++}
++
++func TestSheetsProvider_GetSpreadsheet_ClientError(t *testing.T) {
++	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		w.WriteHeader(http.StatusInternalServerError)
++	})
++	p := newTestProvider(t, handler)
++	got, err := p.GetSpreadsheet("Register")
++	if err == nil {
++		t.Fatalf("GetSpreadsheet() error = nil, want error")
++	}
++	if got != nil {
++		t.Errorf("GetSpreadsheet() = %+v, want nil", got)
++	}
++}
++
++func TestSheetsProvider_BatchUpdate(t *testing.T) {
++	tests := []struct {
++		name    string
++		respErr bool
++		want    *sheets.BatchUpdateSpreadsheetResponse
++		wantErr bool
++	}{
++		{
++			name: "returns the batch update response",
++			want: &sheets.BatchUpdateSpreadsheetResponse{
++				SpreadsheetId: "ssID",
++				UpdatedSpreadsheet: &sheets.Spreadsheet{
++					SpreadsheetId: "ssID",
++				},
++			},
++		},
++		{
++			name:    "client error propagates",
++			respErr: true,
++			wantErr: true,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++				if tt.respErr {
++					w.WriteHeader(http.StatusInternalServerError)
++					return
++				}
++				w.Header().Set("Content-Type", "application/json")
++				json.NewEncoder(w).Encode(tt.want)
++			})
++			p := newTestProvider(t, handler)
++			got, err := p.BatchUpdate(&sheets.BatchUpdateSpreadsheetRequest{})
++			if (err != nil) != tt.wantErr {
++				t.Fatalf("BatchUpdate() error = %v, wantErr %v", err, tt.wantErr)
++			}
++			if tt.wantErr {
++				return
++			}
++			if got.SpreadsheetId != tt.want.SpreadsheetId {
++				t.Errorf("BatchUpdate() SpreadsheetId = %q, want %q", got.SpreadsheetId, tt.want.SpreadsheetId)
++			}
++			if got.UpdatedSpreadsheet == nil || got.UpdatedSpreadsheet.SpreadsheetId != tt.want.UpdatedSpreadsheet.SpreadsheetId {
++				t.Errorf("BatchUpdate() UpdatedSpreadsheet = %+v, want %+v", got.UpdatedSpreadsheet, tt.want.UpdatedSpreadsheet)
++			}
++		})
++	}
++}
++
++func TestSheetsProvider_Update(t *testing.T) {
++	tests := []struct {
++		name    string
++		respErr bool
++		want    *sheets.UpdateValuesResponse
++		wantErr string
++	}{
++		{
++			name: "returns the update response",
++			want: &sheets.UpdateValuesResponse{
++				SpreadsheetId: "ssID",
++				UpdatedRange:  "Register!A1",
++				UpdatedCells:  2,
++			},
++		},
++		{
++			name:    "client error is wrapped",
++			respErr: true,
++			wantErr: "unable to write cell data",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++				if tt.respErr {
++					w.WriteHeader(http.StatusInternalServerError)
++					return
++				}
++				w.Header().Set("Content-Type", "application/json")
++				json.NewEncoder(w).Encode(tt.want)
++			})
++			p := newTestProvider(t, handler)
++			got, err := p.Update("Register!A1", &sheets.ValueRange{
++				Range:  "Register!A1",
++				Values: [][]any{{"a"}, {"b"}},
++			})
++			if tt.wantErr != "" {
++				if err == nil {
++					t.Fatalf("Update() error = nil, want error containing %q", tt.wantErr)
++				}
++				if !strings.Contains(err.Error(), tt.wantErr) {
++					t.Errorf("Update() error = %v, want error containing %q", err, tt.wantErr)
++				}
++				return
++			}
++			if err != nil {
++				t.Fatalf("Update() error = %v, want nil", err)
++			}
++			if got.SpreadsheetId != tt.want.SpreadsheetId || got.UpdatedRange != tt.want.UpdatedRange || got.UpdatedCells != tt.want.UpdatedCells {
++				t.Errorf("Update() = %+v, want %+v", got, tt.want)
++			}
++		})
++	}
++}
++
++func TestSheetsProvider_ClearValues(t *testing.T) {
++	tests := []struct {
++		name    string
++		respErr bool
++		wantErr bool
++	}{
++		{
++			name: "clears without error",
++		},
++		{
++			name:    "client error propagates",
++			respErr: true,
++			wantErr: true,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++				if tt.respErr {
++					w.WriteHeader(http.StatusInternalServerError)
++					return
++				}
++				w.Header().Set("Content-Type", "application/json")
++				json.NewEncoder(w).Encode(&sheets.ClearValuesResponse{ClearedRange: "Register!A1:A2"})
++			})
++			p := newTestProvider(t, handler)
++			err := p.ClearValues("Register!A1:A2")
++			if (err != nil) != tt.wantErr {
++				t.Errorf("ClearValues() error = %v, wantErr %v", err, tt.wantErr)
++			}
++		})
++	}
++}
