@@ -388,6 +388,7 @@ func Test_budgetService_InsertBudgetCategory(t *testing.T) {
 type fakeSheetsProvider struct {
 	getFormulaErr error
 	getFormula    [][]any
+	updateErr     error
 	writeRange    string
 	vRange        *sheets.ValueRange
 }
@@ -402,7 +403,10 @@ func (f fakeSheetsProvider) GetSpreadsheet(tabName string) (*sheets_provider.Spr
 func (f fakeSheetsProvider) BatchUpdate(updateReq *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
 	return nil, nil
 }
-func (f fakeSheetsProvider) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
+func (f *fakeSheetsProvider) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
+	if f.updateErr != nil {
+		return nil, f.updateErr
+	}
 	f.writeRange = writeRange
 	f.vRange = vRange
 	return nil, nil
@@ -414,40 +418,73 @@ func (f fakeSheetsProvider) ClearValues(range_ string) error {
 func Test_ExtendBudgetTotalsFormulas(t *testing.T) {
 	fakeErr := errors.New("could not get formulas")
 	tests := []struct {
-		name        string
-		totalsRow   int
-		totalsRange string
-		err         error
-		wantErr     error
-		writeRange  [][]any
-		mock        *fakeSheetsProvider
+		name       string
+		totalsRow  int
+		wantErr    error
+		writeRange string
+		vRange     [][]any
+		mock       *fakeSheetsProvider
 	}{
 		{
 			name:    "GetFormula error",
 			wantErr: fakeErr,
 			mock:    &fakeSheetsProvider{getFormulaErr: fakeErr},
-		}, {
-			name:       "GetFormula success",
-			wantErr:    nil,
+		},
+		{
+			name:       "success",
 			totalsRow:  12,
-			writeRange: [][]any{{"A12:A12"}},
-			mock:       &fakeSheetsProvider{getFormula: [][]any{{"=SUM(A5:A11)"}}},
+			writeRange: "Budget!A12",
+			vRange:     [][]any{{"=SUM(A5:A11)"}},
+			mock:       &fakeSheetsProvider{getFormula: [][]any{{"=SUM(A5:A10)"}}},
+		},
+		{
+			name:      "non-formula cell skipped",
+			totalsRow: 12,
+			mock:      &fakeSheetsProvider{getFormula: [][]any{{"Total"}}},
+		},
+		{
+			name:      "already-extended formula untouched",
+			totalsRow: 12,
+			mock:      &fakeSheetsProvider{getFormula: [][]any{{"=SUM(A5:A11)"}}},
+		},
+		{
+			name:      "GetFormula is empty",
+			totalsRow: 12,
+			mock:      &fakeSheetsProvider{getFormula: [][]any{}},
+		},
+		{
+			name:      "Update error",
+			totalsRow: 12,
+			wantErr:   fakeErr,
+			mock: &fakeSheetsProvider{
+				getFormula: [][]any{{"=SUM(A5:A10)"}},
+				updateErr:  fakeErr,
+			},
 		},
 	}
 
 	for _, tt := range tests {
-		bs := BudgetService{Provider: tt.mock}
-		sheet := BudgetSheet{TabName: BudgetTabName}
-		err := bs.ExtendBudgetTotalsFormulas(sheet, tt.totalsRow)
-		if tt.wantErr != nil && err == nil {
-			t.Errorf("ExtendBudgetTotalsFormulas() error = nil, want error")
-		}
-		if tt.wantErr != nil && err != nil && !errors.Is(err, tt.wantErr) {
-			t.Errorf("ExtendBudgetTotalsFormulas() error = %v, want %v", err, tt.err)
-		}
-		if tt.wantErr == nil && !reflect.DeepEqual(&tt.mock.writeRange, tt.writeRange) {
-			t.Errorf("ExtendBudgetTotalsFormulas() = %v, want %v", tt.mock.writeRange, tt.writeRange)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			bs := BudgetService{Provider: tt.mock}
+			sheet := BudgetSheet{TabName: BudgetTabName}
+			err := bs.ExtendBudgetTotalsFormulas(sheet, tt.totalsRow)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("ExtendBudgetTotalsFormulas() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr != nil {
+				return
+			}
+			if tt.mock.writeRange != tt.writeRange {
+				t.Errorf("writeRange = %q, want %q", tt.mock.writeRange, tt.writeRange)
+			}
+			var gotValues [][]any
+			if tt.mock.vRange != nil {
+				gotValues = tt.mock.vRange.Values
+			}
+			if !reflect.DeepEqual(gotValues, tt.vRange) {
+				t.Errorf("vRange.Values = %v, want %v", gotValues, tt.vRange)
+			}
+		})
 	}
 }
 
