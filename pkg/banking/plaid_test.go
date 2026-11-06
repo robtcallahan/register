@@ -84,6 +84,14 @@ func TestClient_GetAccounts(t *testing.T) {
 			t.Error("GetAccounts(error response) = nil, want error")
 		}
 	})
+
+	t.Run("unreachable server", func(t *testing.T) {
+		c, ts := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {})
+		ts.Close() // t.Cleanup will close again; Close on a closed server is a no-op.
+		if _, err := c.GetAccounts(context.Background(), "token-wf"); err == nil {
+			t.Error("GetAccounts(closed server) = nil, want error")
+		}
+	})
 }
 
 func TestClient_GetBalance(t *testing.T) {
@@ -133,6 +141,14 @@ func TestClient_GetBalance(t *testing.T) {
 			t.Error("GetBalance(error response) = nil, want error")
 		}
 	})
+
+	t.Run("unreachable server", func(t *testing.T) {
+		c, ts := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {})
+		ts.Close() // t.Cleanup will close again; Close on a closed server is a no-op.
+		if _, err := c.GetBalance(context.Background(), "token-wf", "wellsfargo"); err == nil {
+			t.Error("GetBalance(closed server) = nil, want error")
+		}
+	})
 }
 
 func TestClient_GetBankStatus(t *testing.T) {
@@ -168,6 +184,59 @@ func TestClient_GetBankStatus(t *testing.T) {
 			t.Error("GetBankStatus(error response) = nil, want error")
 		}
 	})
+
+	t.Run("unreachable server", func(t *testing.T) {
+		c, ts := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {})
+		ts.Close() // t.Cleanup will close again; Close on a closed server is a no-op.
+		if _, err := c.GetBankStatus("wellsfargo"); err == nil {
+			t.Error("GetBankStatus(closed server) = nil, want error")
+		}
+	})
+}
+
+// GetBalances fans out to GetBalance per bank: one bank's success and
+// another's Plaid error both land in the returned map.
+func TestClient_GetBalances_WithFakeServer(t *testing.T) {
+	c, _ := newPlaidTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			AccessToken string `json:"access_token"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode balance request: %v", err)
+		}
+		if req.AccessToken == "token-wf" {
+			writeJSON(t, w, http.StatusOK, map[string]any{
+				"accounts": []map[string]any{
+					{"account_id": "acc1", "balances": map[string]any{"current": 1234.56, "iso_currency_code": "USD"}},
+				},
+			})
+			return
+		}
+		writeJSON(t, w, http.StatusBadRequest, map[string]any{
+			"error_type": "INVALID_REQUEST", "error_code": "NOPE",
+			"error_message": "boom", "request_id": "req1",
+		})
+	})
+	got := c.GetBalances([]string{"wellsfargo", "chase"})
+	wf, ok := got["wellsfargo"]
+	if !ok {
+		t.Fatalf("GetBalances() missing wellsfargo entry")
+	}
+	if wf.Error != nil {
+		t.Errorf("wellsfargo Error = %v, want nil", wf.Error)
+	}
+	if wf.Amount != 1234.56 {
+		t.Errorf("wellsfargo Amount = %v, want 1234.56", wf.Amount)
+	}
+	ch, ok := got["chase"]
+	if !ok {
+		t.Fatalf("GetBalances() missing chase entry")
+	}
+	if ch.Error == nil {
+		t.Error("chase Error = nil, want the Plaid error")
+	} else if !strings.Contains(ch.Error.Error(), "chase") {
+		t.Errorf("chase Error = %v, want it to name the bank", ch.Error)
+	}
 }
 
 func plaidTx(id string, amount float64, pending bool, checkNumber string) map[string]any {
