@@ -1,0 +1,1418 @@
+diff --git a/api/services/sheets_service/aggregate_test.go b/api/services/sheets_service/aggregate_test.go
+new file mode 100644
+index 0000000..1573d5c
+--- /dev/null
++++ b/api/services/sheets_service/aggregate_test.go
+@@ -0,0 +1,176 @@
++package sheets_service
++
++import (
++	"errors"
++	"reflect"
++	"strconv"
++	"testing"
++
++	"register/pkg/config"
++	"register/pkg/models"
++)
++
++func Test_monthlyService_Aggregate(t *testing.T) {
++	// Category columns for the aggregate: Grocery and Rent accumulate,
++	// the grey payoff column and the fixed Source column are skipped.
++	cols := []models.Column{
++		{Name: "Source", ColumnIndex: 2},
++		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
++		{Name: "Credit Cards", ColumnIndex: 13, Color: models.ColorGrey},
++	}
++
++	// row builds one sheet row with category dollars at the columns'
++	// 0-based positions (Grocery 10, Rent 11, Credit Cards 12).
++	row := func(grocery, rent, card string) []any {
++		values := make([]any, 13)
++		values[10] = grocery
++		values[11] = rent
++		values[12] = card
++		return values
++	}
++
++	// rangeValues places each entry's row at the even index Aggregate
++	// reads (entry i reads RangeValues[i*2]); odd slots are the blank
++	// second row of each entry and are never read.
++	rangeValues := func(rows ...[]any) [][]any {
++		out := make([][]any, 2*len(rows))
++		for i, r := range rows {
++			out[i*2] = r
++		}
++		return out
++	}
++
++	ms := NewMonthlyService(&providerMock{}, []config.IncomeSource{
++		{Name: "Taylor House Paycheck", Frequency: "biweekly"},
++	})
++
++	tests := []struct {
++		name      string
++		entries   []*RegisterEntry
++		rangeVals [][]any
++		wantCat   map[string]map[string]float64
++		wantPayee map[string]map[string]float64
++		wantErr   error
++	}{
++		{
++			name: "spending row accumulates payee and categories",
++			entries: []*RegisterEntry{
++				{Name: "TARGET", Date: "12/07/20", Withdrawal: 46.80},
++			},
++			rangeVals: rangeValues(row("46.80", "20.00", "99.00")),
++			wantCat: map[string]map[string]float64{
++				"12/20": {"Grocery": 46.80, "Rent": 20},
++			},
++			wantPayee: map[string]map[string]float64{
++				"12/20": {"TARGET": -46.80},
++			},
++		},
++		{
++			name: "same payee accumulates within a month, months stay separate",
++			entries: []*RegisterEntry{
++				{Name: "TARGET", Date: "12/07/20", Withdrawal: 46.80},
++				{Name: "TARGET", Date: "12/09/20", Withdrawal: 10},
++				{Name: "AMAZON", Date: "01/03/21", CreditPurchase: 30},
++			},
++			rangeVals: rangeValues(
++				row("46.80", "20.00", ""),
++				row("10.00", "", ""),
++				row("", "5.00", ""),
++			),
++			wantCat: map[string]map[string]float64{
++				"12/20": {"Grocery": 56.80, "Rent": 20},
++				"01/21": {"Grocery": 0, "Rent": 5},
++			},
++			wantPayee: map[string]map[string]float64{
++				"12/20": {"TARGET": -56.80},
++				"01/21": {"AMAZON": -30},
++			},
++		},
++		{
++			name: "reallocation and deposit rows are skipped",
++			entries: []*RegisterEntry{
++				{Name: "Reallocation", Date: "12/07/20", Withdrawal: 100},
++				{Name: "Taylor House Paycheck", Date: "12/08/20", Deposit: 1000},
++				{Name: "TARGET", Date: "12/07/20", Withdrawal: 10},
++			},
++			rangeVals: rangeValues(
++				row("999.00", "", ""),
++				row("888.00", "", ""),
++				row("10.00", "", ""),
++			),
++			wantCat: map[string]map[string]float64{
++				"12/20": {"Grocery": 10, "Rent": 0},
++			},
++			wantPayee: map[string]map[string]float64{
++				"12/20": {"TARGET": -10},
++			},
++		},
++		{
++			name: "income row with zero deposit adds zero and skips the column loop",
++			entries: []*RegisterEntry{
++				{Name: "Taylor House Paycheck", Date: "12/08/20", Withdrawal: 5},
++			},
++			rangeVals: rangeValues(row("99.00", "88.00", "77.00")),
++			wantCat: map[string]map[string]float64{
++				"12/20": {"Taylor House Paycheck": 0},
++			},
++			wantPayee: map[string]map[string]float64{
++				"12/20": {"Taylor House Paycheck": -5},
++			},
++		},
++		{
++			name: "date without a match is skipped",
++			entries: []*RegisterEntry{
++				{Name: "TARGET", Date: "not-a-date", Withdrawal: 10},
++			},
++			rangeVals: rangeValues(row("10.00", "", "")),
++			wantCat:   map[string]map[string]float64{},
++			wantPayee: map[string]map[string]float64{},
++		},
++		{
++			name: "missing range row yields zero categories",
++			entries: []*RegisterEntry{
++				{Name: "TARGET", Date: "12/07/20", Withdrawal: 10},
++			},
++			rangeVals: nil,
++			wantCat: map[string]map[string]float64{
++				"12/20": {"Grocery": 0, "Rent": 0},
++			},
++			wantPayee: map[string]map[string]float64{
++				"12/20": {"TARGET": -10},
++			},
++		},
++		{
++			name: "bad category cell returns error and no maps",
++			entries: []*RegisterEntry{
++				{Name: "TARGET", Date: "12/07/20", Withdrawal: 10},
++			},
++			rangeVals: rangeValues(row("xx", "", "")),
++			wantErr:   strconv.ErrSyntax,
++		},
++		{
++			name:      "empty sheet aggregates to empty maps",
++			wantCat:   map[string]map[string]float64{},
++			wantPayee: map[string]map[string]float64{},
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			sheet := RegisterSheet{Entries: tt.entries, RangeValues: tt.rangeVals}
++			gotCat, gotPayee, err := ms.Aggregate(sheet, cols)
++			if !errors.Is(err, tt.wantErr) {
++				t.Fatalf("Aggregate() error = %v, wantErr %v", err, tt.wantErr)
++			}
++			if tt.wantErr != nil {
++				return
++			}
++			if !reflect.DeepEqual(gotCat, tt.wantCat) {
++				t.Errorf("Aggregate() catAgg = %v, want %v", gotCat, tt.wantCat)
++			}
++			if !reflect.DeepEqual(gotPayee, tt.wantPayee) {
++				t.Errorf("Aggregate() payeeAgg = %v, want %v", gotPayee, tt.wantPayee)
++			}
++		})
++	}
++}
+diff --git a/api/services/sheets_service/budget_bulk_test.go b/api/services/sheets_service/budget_bulk_test.go
+new file mode 100644
+index 0000000..b841415
+--- /dev/null
++++ b/api/services/sheets_service/budget_bulk_test.go
+@@ -0,0 +1,362 @@
++package sheets_service
++
++import (
++	"errors"
++	"strconv"
++	"strings"
++	"testing"
++
++	"register/pkg/config"
++	"register/pkg/models"
++)
++
++func budgetBulkSheet() BudgetSheet {
++	return BudgetSheet{
++		TabName:     BudgetTabName,
++		SheetCoords: SheetCoords{StartRow: 3, EndRow: 63, EndColumnName: "J"},
++	}
++}
++
++func Test_budgetService_NewBudgetSheet_Errors(t *testing.T) {
++	cfg := config.Config{BudgetStartRow: 3, BudgetEndRow: 63}
++
++	t.Run("spreadsheet error", func(t *testing.T) {
++		svc := NewBudgetService(&stubSheetsProvider{spreadsheetErr: errTestProvider})
++		if _, err := svc.NewBudgetSheet(cfg); !errors.Is(err, errTestProvider) {
++			t.Errorf("NewBudgetSheet() error = %v, wantErr %v", err, errTestProvider)
++		}
++	})
++	t.Run("header read error", func(t *testing.T) {
++		stashProviderFuncs(t)
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return nil, errTestProvider
++		}
++		if _, err := bs.NewBudgetSheet(cfg); err == nil || !strings.Contains(err.Error(), "could not read budget header row") {
++			t.Errorf("NewBudgetSheet() error = %v, want header read error", err)
++		}
++	})
++}
++
++func Test_budgetService_ReadBudgetSheet_Errors(t *testing.T) {
++	sheet := budgetBulkSheet()
++	header := []any{"", "Weekly", "Bi-Weekly", "Monthly"}
++	data := [][]any{
++		{"", "Weekly", "Bi-Weekly", "Monthly"},
++		{"Grocery", "120", "240", "520"},
++	}
++	tests := []struct {
++		name    string
++		stub    func(string) ([][]any, error)
++		wantSub string
++		wantErr error
++	}{
++		{
++			name:    "values error",
++			stub:    func(string) ([][]any, error) { return nil, errTestProvider },
++			wantSub: "could not get sheet values",
++		},
++		{
++			name:    "no values",
++			stub:    func(string) ([][]any, error) { return [][]any{}, nil },
++			wantSub: "no values found",
++		},
++		{
++			name: "header read error",
++			stub: func(range_ string) ([][]any, error) {
++				if range_ == "Budget!A1:J1" {
++					return nil, errTestProvider
++				}
++				return data, nil
++			},
++			wantSub: "could not read budget header row",
++		},
++		{
++			name: "weekly header missing",
++			stub: func(range_ string) ([][]any, error) {
++				if range_ == "Budget!A1:J1" {
++					return [][]any{{"", "Bi-Weekly", "Monthly"}}, nil
++				}
++				return data, nil
++			},
++			wantSub: `expected header "Weekly" not found`,
++		},
++		{
++			name: "bi-weekly header missing",
++			stub: func(range_ string) ([][]any, error) {
++				if range_ == "Budget!A1:J1" {
++					return [][]any{{"", "Weekly", "Monthly"}}, nil
++				}
++				return data, nil
++			},
++			wantSub: `expected header "Bi-Weekly" not found`,
++		},
++		{
++			name: "monthly header missing",
++			stub: func(range_ string) ([][]any, error) {
++				if range_ == "Budget!A1:J1" {
++					return [][]any{{"", "Weekly", "Bi-Weekly"}}, nil
++				}
++				return data, nil
++			},
++			wantSub: `expected header "Monthly" not found`,
++		},
++		{
++			name: "bad weekly amount in a data row",
++			stub: func(range_ string) ([][]any, error) {
++				if range_ == "Budget!A1:J1" {
++					return [][]any{header}, nil
++				}
++				return [][]any{
++					{"", "Weekly", "Bi-Weekly", "Monthly"},
++					{"Grocery", "xx", "240", "520"},
++				}, nil
++			},
++			wantErr: strconv.ErrSyntax,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			stashProviderFuncs(t)
++			getValuesProviderFunc = tt.stub
++			_, err := bs.ReadBudgetSheet(&sheet)
++			if tt.wantErr != nil {
++				if !errors.Is(err, tt.wantErr) {
++					t.Errorf("ReadBudgetSheet() error = %v, wantErr %v", err, tt.wantErr)
++				}
++				return
++			}
++			if err == nil || !strings.Contains(err.Error(), tt.wantSub) {
++				t.Errorf("ReadBudgetSheet() error = %v, want %q", err, tt.wantSub)
++			}
++		})
++	}
++}
++
++func Test_budgetService_PopulateBudgetEntry_Errors(t *testing.T) {
++	decoder, err := newRowDecoder([]any{"", "Weekly", "Bi-Weekly", "Monthly"})
++	if err != nil {
++		t.Fatalf("newRowDecoder() error = %v", err)
++	}
++	tests := []struct {
++		name    string
++		row     []any
++		wantErr error
++	}{
++		{"bad weekly", []any{"Grocery", "xx", "240", "520"}, strconv.ErrSyntax},
++		{"bad bi-weekly", []any{"Grocery", "120", "xx", "520"}, strconv.ErrSyntax},
++		{"bad monthly", []any{"Grocery", "120", "240", "xx"}, strconv.ErrSyntax},
++		{"good row", []any{"Grocery", "120", "240", "520"}, nil},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got, err := bs.populateBudgetEntry(decoder, tt.row)
++			if !errors.Is(err, tt.wantErr) {
++				t.Fatalf("populateBudgetEntry() error = %v, wantErr %v", err, tt.wantErr)
++			}
++			if tt.wantErr != nil {
++				return
++			}
++			if got.Category != "Grocery" || got.Weekly != 120 || got.BiWeekly != 240 || got.Monthly != 520 {
++				t.Errorf("populateBudgetEntry() = %+v, want Grocery 120/240/520", got)
++			}
++		})
++	}
++}
++
++func Test_budgetService_BudgetHeaderDecoder_NoHeader(t *testing.T) {
++	stashProviderFuncs(t)
++	getValuesProviderFunc = func(range_ string) ([][]any, error) {
++		return [][]any{}, nil
++	}
++	if _, err := bs.budgetHeaderDecoder(budgetBulkSheet()); err == nil || !strings.Contains(err.Error(), "no header row found on Budget tab") {
++		t.Errorf("budgetHeaderDecoder() error = %v, want no-header error", err)
++	}
++}
++
++func Test_budgetService_BudgetRows_ProviderError(t *testing.T) {
++	stashProviderFuncs(t)
++	getValuesProviderFunc = func(range_ string) ([][]any, error) {
++		return nil, errTestProvider
++	}
++	if _, err := bs.BudgetRows(budgetBulkSheet()); err == nil || !strings.Contains(err.Error(), "could not read budget categories") {
++		t.Errorf("BudgetRows() error = %v, want categories read error", err)
++	}
++}
++
++func Test_budgetService_BudgetEntryFor_Errors(t *testing.T) {
++	sheet := budgetBulkSheet()
++	columnA := [][]any{{"Grocery"}, {"Rent"}}
++	header := []any{"", "Weekly", "Bi-Weekly", "Monthly"}
++	row := [][]any{{"Grocery", "120", "240", "520"}}
++	tests := []struct {
++		name    string
++		stub    func(string) ([][]any, error)
++		wantSub string
++	}{
++		{
++			name: "row read error",
++			stub: func(range_ string) ([][]any, error) {
++				if range_ == "Budget!A3:J3" {
++					return nil, errTestProvider
++				}
++				return columnA, nil
++			},
++			wantSub: "could not read budget row 3",
++		},
++		{
++			name: "header read error",
++			stub: func(range_ string) ([][]any, error) {
++				switch range_ {
++				case "Budget!A3:A63":
++					return columnA, nil
++				case "Budget!A3:J3":
++					return row, nil
++				}
++				return nil, errTestProvider
++			},
++			wantSub: "could not read budget header row",
++		},
++		{
++			name: "bad row amount",
++			stub: func(range_ string) ([][]any, error) {
++				switch range_ {
++				case "Budget!A3:A63":
++					return columnA, nil
++				case "Budget!A3:J3":
++					return [][]any{{"Grocery", "xx", "240", "520"}}, nil
++				case "Budget!A1:J1":
++					return [][]any{header}, nil
++				}
++				return nil, nil
++			},
++			wantSub: "parseFloat error",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			stashProviderFuncs(t)
++			getValuesProviderFunc = tt.stub
++			if _, _, err := bs.BudgetEntryFor(sheet, "Grocery"); err == nil || !strings.Contains(err.Error(), tt.wantSub) {
++				t.Errorf("BudgetEntryFor() error = %v, want %q", err, tt.wantSub)
++			}
++		})
++	}
++}
++
++func Test_budgetService_RenameBudgetCategory_UpdateError(t *testing.T) {
++	stub := &stubSheetsProvider{
++		getValuesFunc: func(string) ([][]any, error) {
++			return [][]any{{"Grocery"}, {"Rent"}}, nil
++		},
++		updateErr: errTestProvider,
++	}
++	svc := NewBudgetService(stub)
++	ok, err := svc.RenameBudgetCategory(budgetBulkSheet(), "Grocery", "Food")
++	if err == nil || !strings.Contains(err.Error(), "could not rename budget row 3") {
++		t.Errorf("RenameBudgetCategory() error = %v, want rename error", err)
++	}
++	if ok {
++		t.Errorf("RenameBudgetCategory() = true, want false")
++	}
++}
++
++func Test_budgetService_InsertBudgetCategory_Errors(t *testing.T) {
++	sheet := BudgetSheet{
++		ID:          987654321,
++		TabName:     BudgetTabName,
++		SheetCoords: SheetCoords{StartRow: 3, EndRow: 63},
++	}
++	columnA := func(string) ([][]any, error) {
++		return [][]any{{"Discretionary"}, {"Grocery"}}, nil
++	}
++
++	t.Run("totals row lookup error", func(t *testing.T) {
++		stashProviderFuncs(t)
++		getValuesProviderFunc = func(range_ string) ([][]any, error) {
++			return nil, errTestProvider
++		}
++		if err := bs.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); !errors.Is(err, errTestProvider) {
++			t.Errorf("InsertBudgetCategory() error = %v, wantErr %v", err, errTestProvider)
++		}
++	})
++	t.Run("batch update error", func(t *testing.T) {
++		svc := NewBudgetService(&stubSheetsProvider{getValuesFunc: columnA, batchUpdateErr: errTestProvider})
++		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); err == nil || !strings.Contains(err.Error(), "could not insert budget row") {
++			t.Errorf("InsertBudgetCategory() error = %v, want insert error", err)
++		}
++	})
++	t.Run("label update error", func(t *testing.T) {
++		svc := NewBudgetService(&stubSheetsProvider{getValuesFunc: columnA, updateErr: errTestProvider})
++		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); err == nil || !strings.Contains(err.Error(), "could not label budget row 3") {
++			t.Errorf("InsertBudgetCategory() error = %v, want label error", err)
++		}
++	})
++	t.Run("extend formulas error", func(t *testing.T) {
++		svc := NewBudgetService(&stubSheetsProvider{getValuesFunc: columnA, getFormulaErr: errTestProvider})
++		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); err == nil || !strings.Contains(err.Error(), "budget totals formulas extended failed") {
++			t.Errorf("InsertBudgetCategory() error = %v, want extend error", err)
++		}
++	})
++}
++
++func Test_budgetService_DeleteBudgetCategory_BatchUpdateError(t *testing.T) {
++	stub := &stubSheetsProvider{
++		getValuesFunc: func(string) ([][]any, error) {
++			return [][]any{{"Grocery"}, {"Rent"}}, nil
++		},
++		batchUpdateErr: errTestProvider,
++	}
++	svc := NewBudgetService(stub)
++	if _, err := svc.DeleteBudgetCategory(budgetBulkSheet(), "Rent"); err == nil || !strings.Contains(err.Error(), "could not delete budget row 4") {
++		t.Errorf("DeleteBudgetCategory() error = %v, want delete error", err)
++	}
++}
++
++func Test_budgetService_MoveBudgetCategory_LookupErrors(t *testing.T) {
++	sheet := budgetBulkSheet()
++	columnA := [][]any{{"Discretionary"}, {"Grocery"}, {"Rent"}}
++	// BudgetRowFor reads the same range twice (once per name), so the
++	// stub fails on the Nth GetValues call to pick which lookup errors.
++	// NOTE: BudgetRowFor reports a lookup failure as (0, false, err),
++	// and the move functions check !found first, so a provider error
++	// surfaces as "no budget row for ..." — the bare `return err`
++	// after that check is unreachable.
++	stub := func(failOn int) func(string) ([][]any, error) {
++		calls := 0
++		return func(string) ([][]any, error) {
++			calls++
++			if calls == failOn {
++				return nil, errTestProvider
++			}
++			return columnA, nil
++		}
++	}
++	tests := []struct {
++		name    string
++		failOn  int
++		call    func() error
++		wantSub string
++	}{
++		{"after: name lookup error", 1, func() error { return bs.MoveBudgetCategoryAfter(sheet, "Grocery", "Rent") }, `no budget row for "Grocery"`},
++		{"after: after-name lookup error", 2, func() error { return bs.MoveBudgetCategoryAfter(sheet, "Grocery", "Rent") }, `no budget row for "Rent"`},
++		{"before: name lookup error", 1, func() error { return bs.MoveBudgetCategoryBefore(sheet, "Rent", "Grocery") }, `no budget row for "Rent"`},
++		{"before: before-name lookup error", 2, func() error { return bs.MoveBudgetCategoryBefore(sheet, "Rent", "Grocery") }, `no budget row for "Grocery"`},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			stashProviderFuncs(t)
++			getValuesProviderFunc = stub(tt.failOn)
++			if err := tt.call(); err == nil || !strings.Contains(err.Error(), tt.wantSub) {
++				t.Errorf("move error = %v, want %q", err, tt.wantSub)
++			}
++		})
++	}
++}
++
++func Test_budgetService_MoveBudgetRow_BatchUpdateError(t *testing.T) {
++	svc := NewBudgetService(&stubSheetsProvider{batchUpdateErr: errTestProvider})
++	sheet := BudgetSheet{ID: 987654321, TabName: BudgetTabName}
++	if err := svc.moveBudgetRow(sheet, 4, 2); err == nil || !strings.Contains(err.Error(), "could not move budget row 4") {
++		t.Errorf("moveBudgetRow() error = %v, want move error", err)
++	}
++}
+diff --git a/api/services/sheets_service/columns_bulk_test.go b/api/services/sheets_service/columns_bulk_test.go
+new file mode 100644
+index 0000000..e117c5b
+--- /dev/null
++++ b/api/services/sheets_service/columns_bulk_test.go
+@@ -0,0 +1,61 @@
++package sheets_service
++
++import (
++	"strings"
++	"testing"
++
++	"register/pkg/models"
++)
++
++func Test_registerService_InsertRegisterColumn_Errors(t *testing.T) {
++	sheet := RegisterSheet{
++		ID:          617336355,
++		TabName:     RegisterTabName,
++		SheetCoords: SheetCoords{RowCount: 5},
++	}
++	t.Run("batch update error", func(t *testing.T) {
++		svc := NewRegisterService(&stubSheetsProvider{batchUpdateErr: errTestProvider})
++		if err := svc.InsertRegisterColumn(sheet, 3, "NewCol"); err == nil || !strings.Contains(err.Error(), "could not insert column") {
++			t.Errorf("InsertRegisterColumn() error = %v, want insert error", err)
++		}
++	})
++	t.Run("write error", func(t *testing.T) {
++		svc := NewRegisterService(&stubSheetsProvider{updateErr: errTestProvider})
++		// Index 3 reads the neighbor column's formulas first; the stub
++		// returns no formulas, so the write is what fails.
++		if err := svc.InsertRegisterColumn(sheet, 3, "NewCol"); err == nil || !strings.Contains(err.Error(), "could not write column C") {
++			t.Errorf("InsertRegisterColumn() error = %v, want write error", err)
++		}
++	})
++}
++
++func Test_registerService_DeleteRegisterColumn_BatchUpdateError(t *testing.T) {
++	sheet := RegisterSheet{ID: 617336355, TabName: RegisterTabName}
++	svc := NewRegisterService(&stubSheetsProvider{batchUpdateErr: errTestProvider})
++	if err := svc.DeleteRegisterColumn(sheet, 12); err == nil || !strings.Contains(err.Error(), "could not delete column L") {
++		t.Errorf("DeleteRegisterColumn() error = %v, want delete error", err)
++	}
++}
++
++func Test_registerService_MoveRegisterColumn_BatchUpdateError(t *testing.T) {
++	sheet := RegisterSheet{ID: 617336355, TabName: RegisterTabName}
++	svc := NewRegisterService(&stubSheetsProvider{batchUpdateErr: errTestProvider})
++	if err := svc.MoveRegisterColumn(sheet, 11, 12); err == nil || !strings.Contains(err.Error(), "could not move column K") {
++		t.Errorf("MoveRegisterColumn() error = %v, want move error", err)
++	}
++}
++
++func TestPlanColumnMove_UnknownAfter(t *testing.T) {
++	if _, _, err := PlanColumnMove(moveTestColumns(), 13, 99); err == nil || !strings.Contains(err.Error(), "no column at index 99") {
++		t.Errorf("PlanColumnMove(13, 99) error = %v, want unknown-after error", err)
++	}
++}
++
++func Test_colorOrNone(t *testing.T) {
++	if got := colorOrNone(""); got != "uncolored" {
++		t.Errorf("colorOrNone(%q) = %q, want uncolored", "", got)
++	}
++	if got := colorOrNone(models.ColorGreen); got != models.ColorGreen {
++		t.Errorf("colorOrNone(%q) = %q, want %q", models.ColorGreen, got, models.ColorGreen)
++	}
++}
+diff --git a/api/services/sheets_service/monthly_bulk_test.go b/api/services/sheets_service/monthly_bulk_test.go
+new file mode 100644
+index 0000000..6b8cc38
+--- /dev/null
++++ b/api/services/sheets_service/monthly_bulk_test.go
+@@ -0,0 +1,61 @@
++package sheets_service
++
++import (
++	"strings"
++	"testing"
++
++	"register/api/providers/sheets_provider"
++	"register/pkg/config"
++	"register/pkg/models"
++
++	"google.golang.org/api/sheets/v4"
++)
++
++func Test_monthlyService_UpdateMonthly_Errors(t *testing.T) {
++	rows := []*sheets.RowData{
++		{Values: []*sheets.CellData{mkCellDataString("x", "left", "", false)}},
++	}
++	t.Run("clear values error", func(t *testing.T) {
++		ms := NewMonthlyService(&stubSheetsProvider{clearValuesErr: errTestProvider}, nil)
++		if err := ms.updateMonthly("Budget", 987654321, rows); err == nil || !strings.Contains(err.Error(), "error:") {
++			t.Errorf("updateMonthly() error = %v, want clear error", err)
++		}
++	})
++	t.Run("batch update error", func(t *testing.T) {
++		ms := NewMonthlyService(&stubSheetsProvider{batchUpdateErr: errTestProvider}, nil)
++		if err := ms.updateMonthly("Budget", 987654321, rows); err == nil || !strings.Contains(err.Error(), "error:") {
++			t.Errorf("updateMonthly() error = %v, want batch error", err)
++		}
++	})
++}
++
++func Test_monthlyService_UpdateYearlySummary_Errors(t *testing.T) {
++	columns := []models.Column{
++		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
++	}
++	catAgg := map[string]map[string]float64{
++		"01/26": {"Grocery": 10},
++	}
++
++	t.Run("income names are listed", func(t *testing.T) {
++		ms := NewMonthlyService(&providerMock{}, []config.IncomeSource{
++			{Name: "CrowdStrike Salary", Frequency: "monthly"},
++		})
++		if err := ms.UpdateYearlySummary("Budget", catAgg, columns); err != nil {
++			t.Errorf("UpdateYearlySummary() error = %v, want nil", err)
++		}
++	})
++	t.Run("ensure column count error", func(t *testing.T) {
++		// The yearly table is 4 columns wide; a 2-column tab must widen,
++		// and the widening batch update fails here.
++		stub := &stubSheetsProvider{
++			spreadsheet:    &sheets_provider.Spreadsheet{Title: "Budget", SheetID: 1, ColumnCount: 2},
++			batchUpdateErr: errTestProvider,
++		}
++		ms := NewMonthlyService(stub, nil)
++		if err := ms.UpdateYearlySummary("Budget", catAgg, columns); err == nil || !strings.Contains(err.Error(), "error:") {
++			t.Errorf("UpdateYearlySummary() error = %v, want widen error", err)
++		}
++	})
++}
+diff --git a/api/services/sheets_service/provider_stub_test.go b/api/services/sheets_service/provider_stub_test.go
+new file mode 100644
+index 0000000..eeda0df
+--- /dev/null
++++ b/api/services/sheets_service/provider_stub_test.go
+@@ -0,0 +1,89 @@
++package sheets_service
++
++import (
++	"testing"
++
++	"register/api/providers/sheets_provider"
++
++	"google.golang.org/api/sheets/v4"
++)
++
++// stubSheetsProvider is a configurable fake for error-path tests: each
++// provider method can fail on demand, and BatchUpdate/Update/ClearValues
++// calls are recorded for inspection. Pointer receivers throughout, so
++// recordings survive the call.
++type stubSheetsProvider struct {
++	getValuesFunc      func(string) ([][]any, error)
++	getValuesErr       error
++	getValuesErrOnCall int
++	getValuesCalls     int
++	getFormula         [][]any
++	getFormulaErr      error
++	spreadsheet        *sheets_provider.Spreadsheet
++	spreadsheetErr     error
++	batchUpdateErr     error
++	batchUpdates       []*sheets.BatchUpdateSpreadsheetRequest
++	updateErr          error
++	updateRanges       []string
++	updateValues       []*sheets.ValueRange
++	clearValuesErr     error
++	clearValuesCalls   []string
++}
++
++func (s *stubSheetsProvider) GetValues(range_ string) ([][]any, error) {
++	s.getValuesCalls++
++	if s.getValuesFunc != nil {
++		return s.getValuesFunc(range_)
++	}
++	if s.getValuesErrOnCall > 0 && s.getValuesCalls == s.getValuesErrOnCall {
++		return nil, errTestProvider
++	}
++	if s.getValuesErr != nil {
++		return nil, s.getValuesErr
++	}
++	return nil, nil
++}
++
++func (s *stubSheetsProvider) GetFormula(range_ string) ([][]any, error) {
++	return s.getFormula, s.getFormulaErr
++}
++
++func (s *stubSheetsProvider) GetSpreadsheet(tabName string) (*sheets_provider.Spreadsheet, error) {
++	if s.spreadsheetErr != nil {
++		return nil, s.spreadsheetErr
++	}
++	return s.spreadsheet, nil
++}
++
++func (s *stubSheetsProvider) BatchUpdate(req *sheets.BatchUpdateSpreadsheetRequest) (*sheets.BatchUpdateSpreadsheetResponse, error) {
++	s.batchUpdates = append(s.batchUpdates, req)
++	if s.batchUpdateErr != nil {
++		return nil, s.batchUpdateErr
++	}
++	return &sheets.BatchUpdateSpreadsheetResponse{}, nil
++}
++
++func (s *stubSheetsProvider) Update(writeRange string, vRange *sheets.ValueRange) (*sheets.UpdateValuesResponse, error) {
++	s.updateRanges = append(s.updateRanges, writeRange)
++	s.updateValues = append(s.updateValues, vRange)
++	if s.updateErr != nil {
++		return nil, s.updateErr
++	}
++	return &sheets.UpdateValuesResponse{}, nil
++}
++
++func (s *stubSheetsProvider) ClearValues(range_ string) error {
++	s.clearValuesCalls = append(s.clearValuesCalls, range_)
++	return s.clearValuesErr
++}
++
++// stashProviderFuncs restores the package-level provider seams when the
++// calling test ends, so a test that stubs GetValues/GetFormula cannot leak
++// its stub into the next test.
++func stashProviderFuncs(t *testing.T) {
++	t.Helper()
++	oldValues, oldFormula := getValuesProviderFunc, getFormulaProviderFunc
++	t.Cleanup(func() {
++		getValuesProviderFunc, getFormulaProviderFunc = oldValues, oldFormula
++	})
++}
+diff --git a/api/services/sheets_service/register_bulk_test.go b/api/services/sheets_service/register_bulk_test.go
+new file mode 100644
+index 0000000..5f6bf59
+--- /dev/null
++++ b/api/services/sheets_service/register_bulk_test.go
+@@ -0,0 +1,346 @@
++package sheets_service
++
++import (
++	"errors"
++	"reflect"
++	"strconv"
++	"strings"
++	"testing"
++
++	"register/pkg/config"
++)
++
++func registerBulkSheet() RegisterSheet {
++	return RegisterSheet{
++		TabName: RegisterTabName,
++		SheetCoords: SheetCoords{
++			StartRow:       5,
++			EndRow:         100,
++			EndColumnName:  "AU",
++			EndColumnIndex: 46,
++		},
++	}
++}
++
++func registerBulkHeader() []any {
++	return []any{"Transaction ID", "Source", "Date", "Description", " Withdrawals ", " Deposits ", " Credit Purchases ", " Register ", " Cleared ", " Delta "}
++}
++
++func registerBulkDataRows() [][]any {
++	// Two rows per entry (data row + note row), as the sheet lays them
++	// out: TARGET at values[0], AMAZON at values[2].
++	return [][]any{
++		{"", "WellsFargo", "12/07/20", "TARGET", "46.80", "", "", "8761.12", "", ""},
++		{"", "", "", "", "", "", "", "", "", ""},
++		{"", "WellsFargo", "12/08/20", "AMAZON", "10.00", "", "", "", "", ""},
++		{"", "", "", "", "", "", "", "", "", ""},
++	}
++}
++
++func Test_registerService_NewRegisterSheet_SpreadsheetError(t *testing.T) {
++	cfg := &config.Config{RegisterStartRow: 5, RegisterEndRow: 100}
++	svc := NewRegisterService(&stubSheetsProvider{spreadsheetErr: errTestProvider})
++	if _, err := svc.NewRegisterSheet(cfg, nil); !errors.Is(err, errTestProvider) {
++		t.Errorf("NewRegisterSheet() error = %v, wantErr %v", err, errTestProvider)
++	}
++}
++
++func Test_registerService_ReadRegisterSheet_Errors(t *testing.T) {
++	tests := []struct {
++		name    string
++		stub    func(string) ([][]any, error)
++		wantSub string
++		wantErr error
++	}{
++		{
++			name:    "values error",
++			stub:    func(string) ([][]any, error) { return nil, errTestProvider },
++			wantSub: "could not get sheet values",
++		},
++		{
++			name:    "no values",
++			stub:    func(string) ([][]any, error) { return [][]any{}, nil },
++			wantSub: "no data found for read range",
++		},
++		{
++			name: "header error",
++			stub: func(range_ string) ([][]any, error) {
++				if range_ == "Register!A4:J4" {
++					header := registerBulkHeader()
++					header[9] = "Total" // Delta renamed: the require fails
++					return [][]any{header}, nil
++				}
++				return registerBulkDataRows(), nil
++			},
++			wantSub: `register header "Delta" not found`,
++		},
++		{
++			name: "bad row amount",
++			stub: func(range_ string) ([][]any, error) {
++				if range_ == "Register!A4:J4" {
++					return [][]any{registerBulkHeader()}, nil
++				}
++				rows := registerBulkDataRows()
++				rows[0][Withdrawals] = "xx"
++				return rows, nil
++			},
++			wantErr: strconv.ErrSyntax,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			stashProviderFuncs(t)
++			getValuesProviderFunc = tt.stub
++			s := registerBulkSheet()
++			_, err := ss.ReadRegisterSheet(&s)
++			if tt.wantErr != nil {
++				if !errors.Is(err, tt.wantErr) {
++					t.Errorf("ReadRegisterSheet() error = %v, wantErr %v", err, tt.wantErr)
++				}
++				return
++			}
++			if err == nil || !strings.Contains(err.Error(), tt.wantSub) {
++				t.Errorf("ReadRegisterSheet() error = %v, want %q", err, tt.wantSub)
++			}
++		})
++	}
++}
++
++func Test_registerService_ReadRegisterSheet_Loop(t *testing.T) {
++	stashProviderFuncs(t)
++	getValuesProviderFunc = func(range_ string) ([][]any, error) {
++		if range_ == "Register!A4:J4" {
++			return [][]any{registerBulkHeader()}, nil
++		}
++		return registerBulkDataRows(), nil
++	}
++	sheet := registerBulkSheet()
++	got, err := ss.ReadRegisterSheet(&sheet)
++	if err != nil {
++		t.Fatalf("ReadRegisterSheet() error = %v", err)
++	}
++	// 4 value rows: LastRow = 4 + 5 - 2 = 7; the loop reads i = 0, 2, 4
++	// and breaks on the out-of-range row at i = 4.
++	if got.SheetCoords.LastRow != 7 {
++		t.Errorf("LastRow = %d, want 7", got.SheetCoords.LastRow)
++	}
++	if got.SheetCoords.FirstRowToUpdate != 8 {
++		t.Errorf("FirstRowToUpdate = %d, want 8", got.SheetCoords.FirstRowToUpdate)
++	}
++	if len(got.Entries) != 2 {
++		t.Fatalf("len(Entries) = %d, want 2", len(got.Entries))
++	}
++	first := got.Entries[0]
++	if first.RowID != 5 || first.Name != "TARGET" || first.Withdrawal != 46.80 || first.BankRegister != 8761.12 {
++		t.Errorf("Entries[0] = %+v, want RowID 5 TARGET 46.80/8761.12", first)
++	}
++	if first.Key != "wellsfargo:12/07/20:46.80" {
++		t.Errorf("Entries[0].Key = %q, want wellsfargo:12/07/20:46.80", first.Key)
++	}
++	second := got.Entries[1]
++	if second.RowID != 7 || second.Name != "AMAZON" || second.Withdrawal != 10 {
++		t.Errorf("Entries[1] = %+v, want RowID 7 AMAZON 10", second)
++	}
++	if !reflect.DeepEqual(got.RangeValues, registerBulkDataRows()) {
++		t.Errorf("RangeValues = %v, want the data rows", got.RangeValues)
++	}
++}
++
++func Test_registerService_ReadCell_Errors(t *testing.T) {
++	sheet := registerBulkSheet()
++	t.Run("values error", func(t *testing.T) {
++		stashProviderFuncs(t)
++		getValuesProviderFunc = func(string) ([][]any, error) { return nil, errTestProvider }
++		if _, err := ss.ReadCell(sheet, "A1", CellDataString); !errors.Is(err, errTestProvider) {
++			t.Errorf("ReadCell() error = %v, wantErr %v", err, errTestProvider)
++		}
++	})
++	t.Run("formula error", func(t *testing.T) {
++		stashProviderFuncs(t)
++		getFormulaProviderFunc = func(string) ([][]any, error) { return nil, errTestProvider }
++		if _, err := ss.ReadCell(sheet, "A1", CellDataFormula); !errors.Is(err, errTestProvider) {
++			t.Errorf("ReadCell() error = %v, wantErr %v", err, errTestProvider)
++		}
++	})
++	t.Run("no data", func(t *testing.T) {
++		stashProviderFuncs(t)
++		getValuesProviderFunc = func(string) ([][]any, error) { return [][]any{}, nil }
++		if _, err := ss.ReadCell(sheet, "A1", CellDataString); err == nil || !strings.Contains(err.Error(), "no data found for cell: A1") {
++			t.Errorf("ReadCell() error = %v, want no-data error", err)
++		}
++	})
++}
++
++func Test_registerService_ReadCells_Errors(t *testing.T) {
++	sheet := registerBulkSheet()
++	t.Run("string cell error", func(t *testing.T) {
++		stashProviderFuncs(t)
++		getValuesProviderFunc = func(string) ([][]any, error) { return nil, errTestProvider }
++		if _, err := ss.ReadStringCell(sheet, "A1"); err == nil || !strings.Contains(err.Error(), "could not read string cell A1") {
++			t.Errorf("ReadStringCell() error = %v, want string-cell error", err)
++		}
++	})
++	t.Run("dollars cell error", func(t *testing.T) {
++		stashProviderFuncs(t)
++		getValuesProviderFunc = func(string) ([][]any, error) { return nil, errTestProvider }
++		if _, err := ss.ReadDollarsCell(sheet, "A1"); !errors.Is(err, errTestProvider) {
++			t.Errorf("ReadDollarsCell() error = %v, wantErr %v", err, errTestProvider)
++		}
++	})
++	t.Run("formula cell error", func(t *testing.T) {
++		stashProviderFuncs(t)
++		getFormulaProviderFunc = func(string) ([][]any, error) { return nil, errTestProvider }
++		if _, err := ss.ReadFormulaCell(sheet, "A1"); !errors.Is(err, errTestProvider) {
++			t.Errorf("ReadFormulaCell() error = %v, wantErr %v", err, errTestProvider)
++		}
++	})
++	t.Run("date cell error", func(t *testing.T) {
++		stashProviderFuncs(t)
++		getValuesProviderFunc = func(string) ([][]any, error) { return nil, errTestProvider }
++		if _, err := ss.ReadDateCell(sheet, "A1"); !errors.Is(err, errTestProvider) {
++			t.Errorf("ReadDateCell() error = %v, wantErr %v", err, errTestProvider)
++		}
++	})
++}
++
++func Test_registerService_WriteCell_UpdateError(t *testing.T) {
++	svc := NewRegisterService(&stubSheetsProvider{updateErr: errTestProvider})
++	if _, err := svc.WriteCell(RegisterTabName, "G1", 10.00); err == nil || !strings.Contains(err.Error(), "unable to write cell data") {
++		t.Errorf("WriteCell() error = %v, want write error", err)
++	}
++}
++
++func Test_registerService_CopyRows_BatchUpdateErrors(t *testing.T) {
++	sheet := RegisterSheet{
++		TabName: RegisterTabName,
++		SheetCoords: SheetCoords{
++			LastRow:        100,
++			RowCount:       1000,
++			EndColumnIndex: 45,
++		},
++	}
++	t.Run("grid limits error maps to errSheetFull", func(t *testing.T) {
++		svc := NewRegisterService(&stubSheetsProvider{batchUpdateErr: errors.New("request exceeds grid limits")})
++		if err := svc.CopyRows(sheet, 1); !errors.Is(err, errSheetFull) {
++			t.Errorf("CopyRows() error = %v, want errSheetFull", err)
++		}
++	})
++	t.Run("other batch error", func(t *testing.T) {
++		svc := NewRegisterService(&stubSheetsProvider{batchUpdateErr: errTestProvider})
++		if err := svc.CopyRows(sheet, 1); err == nil || !strings.Contains(err.Error(), "could not perform copy") {
++			t.Errorf("CopyRows() error = %v, want copy error", err)
++		}
++	})
++	t.Run("unknown grid size lets the API decide", func(t *testing.T) {
++		if err := ss.checkRowsFit(RegisterSheet{SheetCoords: SheetCoords{RowCount: 0, LastRow: 100}}, 1); err != nil {
++			t.Errorf("checkRowsFit(RowCount 0) error = %v, want nil", err)
++		}
++	})
++}
++
++func Test_registerService_PopulateRegisterEntry_BadAmounts(t *testing.T) {
++	base := []any{"", "WellsFargo", "12/07/20", "TARGET", "46.80", "", "", "8761.12", "", ""}
++	fields := []struct {
++		name string
++		idx  int
++	}{
++		{"deposits", Deposits},
++		{"credit purchases", CreditPurchase},
++		{"bank register", BankRegister},
++		{"cleared", Cleared},
++		{"delta", Delta},
++	}
++	for _, f := range fields {
++		t.Run(f.name, func(t *testing.T) {
++			row := make([]any, len(base))
++			copy(row, base)
++			row[f.idx] = "xx"
++			if _, err := ss.populateRegisterEntry(row); !errors.Is(err, strconv.ErrSyntax) {
++				t.Errorf("populateRegisterEntry() error = %v, wantErr %v", err, strconv.ErrSyntax)
++			}
++		})
++	}
++}
++
++func Test_registerService_ReadRangeFormulas_Errors(t *testing.T) {
++	t.Run("provider error", func(t *testing.T) {
++		stashProviderFuncs(t)
++		getFormulaProviderFunc = func(string) ([][]any, error) { return nil, errTestProvider }
++		if _, err := ss.readRangeFormulas("A1:A2"); err == nil || !strings.Contains(err.Error(), "unable to retrieve data from sheet") {
++			t.Errorf("readRangeFormulas() error = %v, want retrieve error", err)
++		}
++	})
++	t.Run("no data", func(t *testing.T) {
++		stashProviderFuncs(t)
++		getFormulaProviderFunc = func(string) ([][]any, error) { return [][]any{}, nil }
++		if _, err := ss.readRangeFormulas("A1:A2"); err == nil || !strings.Contains(err.Error(), "no data found for read range: A1:A2") {
++			t.Errorf("readRangeFormulas() error = %v, want no-data error", err)
++		}
++	})
++}
++
++func Test_registerService_CheckRegisterHeaders_Errors(t *testing.T) {
++	sheet := RegisterSheet{TabName: RegisterTabName}
++	tests := []struct {
++		name    string
++		stub    func(string) ([][]any, error)
++		wantSub string
++	}{
++		{
++			name:    "values error",
++			stub:    func(string) ([][]any, error) { return nil, errTestProvider },
++			wantSub: "could not read register header row",
++		},
++		{
++			name:    "no header row",
++			stub:    func(string) ([][]any, error) { return [][]any{}, nil },
++			wantSub: "no header row found on Register tab",
++		},
++		{
++			name: "duplicate header",
++			stub: func(string) ([][]any, error) {
++				header := registerBulkHeader()
++				header[3] = "Date" // Description renamed to a duplicate Date
++				return [][]any{header}, nil
++			},
++			wantSub: "duplicate header",
++		},
++		{
++			name: "missing header",
++			stub: func(string) ([][]any, error) {
++				return [][]any{registerBulkHeader()[:9]}, nil
++			},
++			wantSub: `register header "Delta" not found`,
++		},
++		{
++			name: "moved header",
++			stub: func(string) ([][]any, error) {
++				header := registerBulkHeader()
++				header[8], header[9] = header[9], header[8] // Cleared and Delta swapped
++				return [][]any{header}, nil
++			},
++			wantSub: `register header "Cleared" moved`,
++		},
++		{
++			name:    "headers ok",
++			stub:    func(string) ([][]any, error) { return [][]any{registerBulkHeader()}, nil },
++			wantSub: "",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			stashProviderFuncs(t)
++			getValuesProviderFunc = tt.stub
++			err := ss.checkRegisterHeaders(sheet)
++			if tt.wantSub == "" {
++				if err != nil {
++					t.Errorf("checkRegisterHeaders() error = %v, want nil", err)
++				}
++				return
++			}
++			if err == nil || !strings.Contains(err.Error(), tt.wantSub) {
++				t.Errorf("checkRegisterHeaders() error = %v, want %q", err, tt.wantSub)
++			}
++		})
++	}
++}
+diff --git a/api/services/sheets_service/values_bulk_test.go b/api/services/sheets_service/values_bulk_test.go
+new file mode 100644
+index 0000000..3035a22
+--- /dev/null
++++ b/api/services/sheets_service/values_bulk_test.go
+@@ -0,0 +1,115 @@
++package sheets_service
++
++import (
++	"reflect"
++	"testing"
++
++	"register/pkg/models"
++)
++
++func Test_getRowValues_OutOfRange(t *testing.T) {
++	values := [][]any{{"a"}, {"b"}}
++	if got := getRowValues(values, 2); got != nil {
++		t.Errorf("getRowValues(values, 2) = %v, want nil", got)
++	}
++	if got := getRowValues(values, -1); got != nil {
++		t.Errorf("getRowValues(values, -1) = %v, want nil", got)
++	}
++	if got := getRowValues(values, 1); !reflect.DeepEqual(got, []any{"b"}) {
++		t.Errorf("getRowValues(values, 1) = %v, want [b]", got)
++	}
++	if got := getRowValues(nil, 0); got != nil {
++		t.Errorf("getRowValues(nil, 0) = %v, want nil", got)
++	}
++}
++
++func Test_getSourceField_EmptySource(t *testing.T) {
++	values := []any{"", "", "01/02/2023", "Rent"}
++	if got := getSourceField(values); got != "wellsfargo" {
++		t.Errorf("getSourceField() = %q, want wellsfargo", got)
++	}
++}
++
++func Test_getAmountString_Branches(t *testing.T) {
++	mk := func(withdrawal, deposit, credit string) []any {
++		values := make([]any, CreditPurchase+1)
++		for i := range values {
++			values[i] = ""
++		}
++		values[Withdrawals] = withdrawal
++		values[Deposits] = deposit
++		values[CreditPurchase] = credit
++		return values
++	}
++	tests := []struct {
++		name   string
++		values []any
++		want   string
++	}{
++		{"bare dash", mk("-", "", ""), "0.00"},
++		{"empty everywhere", mk("", "", ""), "0.00"},
++		{"unparseable", mk("abc", "", ""), "0.00"},
++		{"parenthesized negative", mk("(10.00)", "", ""), "-10.00"},
++		{"parenthesized negative with dollar sign", mk("$(10.00)", "", ""), "-10.00"},
++		{"zero", mk("0", "", ""), "0.00"},
++		{"negative zero normalizes", mk("-0.00", "", ""), "0.00"},
++		{"deposit parenthesized negative", mk("", "(5.50)", ""), "-5.50"},
++		{"credit purchase", mk("", "", "30.00"), "30.00"},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			if got := getAmountString(tt.values); got != tt.want {
++				t.Errorf("getAmountString() = %q, want %q", got, tt.want)
++			}
++		})
++	}
++}
++
++func Test_getDollarsCellByIndex_OutOfRange(t *testing.T) {
++	values := []any{"$ 10.20 "}
++	if got, err := getDollarsCellByIndex(values, 1); err != nil || got != 0 {
++		t.Errorf("getDollarsCellByIndex(values, 1) = (%v, %v), want (0, nil)", got, err)
++	}
++	if got, err := getDollarsCellByIndex(values, -1); err != nil || got != 0 {
++		t.Errorf("getDollarsCellByIndex(values, -1) = (%v, %v), want (0, nil)", got, err)
++	}
++}
++
++func Test_newRowDecoder_DuplicateHeader(t *testing.T) {
++	if _, err := newRowDecoder([]any{"Weekly", " weekly "}); err == nil {
++		t.Errorf("newRowDecoder() error = nil, want duplicate header error")
++	}
++	decoder, err := newRowDecoder([]any{"", "Weekly", ""})
++	if err != nil {
++		t.Fatalf("newRowDecoder() error = %v", err)
++	}
++	if got, err := decoder.require("Weekly"); err != nil || got != 1 {
++		t.Errorf("require(Weekly) = (%d, %v), want (1, nil)", got, err)
++	}
++}
++
++func Test_rowDecoder_CellShortRow(t *testing.T) {
++	decoder, err := newRowDecoder([]any{"A", "B", "C"})
++	if err != nil {
++		t.Fatalf("newRowDecoder() error = %v", err)
++	}
++	if got := decoder.cell([]any{"x"}, "C"); got != "" {
++		t.Errorf("cell(short row, C) = %v, want empty", got)
++	}
++	if got := decoder.cell([]any{"x", "y", "z"}, "B"); got != "y" {
++		t.Errorf("cell(row, B) = %v, want y", got)
++	}
++	if got := decoder.cell([]any{"x", "y", "z"}, "Missing"); got != "" {
++		t.Errorf("cell(row, Missing) = %v, want empty", got)
++	}
++}
++
++func Test_getBackgroundColor_TaxDeductible(t *testing.T) {
++	if got := getBackgroundColor(&models.Transaction{TaxDeductible: true}, false); got != models.ColorYellow {
++		t.Errorf("getBackgroundColor(tax deductible) = %q, want %q", got, models.ColorYellow)
++	}
++	// Income wins over the tax-deductible color.
++	if got := getBackgroundColor(&models.Transaction{TaxDeductible: true}, true); got != models.ColorGreen {
++		t.Errorf("getBackgroundColor(income, tax deductible) = %q, want %q", got, models.ColorGreen)
++	}
++}
+diff --git a/api/services/sheets_service/write_bulk_test.go b/api/services/sheets_service/write_bulk_test.go
+new file mode 100644
+index 0000000..3b970d7
+--- /dev/null
++++ b/api/services/sheets_service/write_bulk_test.go
+@@ -0,0 +1,160 @@
++package sheets_service
++
++import (
++	"errors"
++	"reflect"
++	"strings"
++	"testing"
++
++	"register/pkg/models"
++)
++
++func Test_registerService_UpdateRows_BatchUpdateError(t *testing.T) {
++	stub := &stubSheetsProvider{
++		getFormula:     [][]any{{"=F1", "=F2", "=F3"}},
++		batchUpdateErr: errTestProvider,
++	}
++	svc := NewRegisterService(stub)
++	sheet := RegisterSheet{
++		ID:          1,
++		TabName:     RegisterTabName,
++		SheetCoords: SheetCoords{FirstRowToUpdate: 5, EndColumnIndex: 11},
++	}
++	columns := []models.Column{
++		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
++	}
++	trans := []*models.Transaction{
++		{Source: "WellsFargo", Date: "12/07/20", Name: "TARGET", Withdrawal: 46.80, Budget: 46.80},
++	}
++	if err := svc.UpdateRows(sheet, BudgetSheet{}, columns, map[string]string{"TARGET": "Grocery"}, trans); !errors.Is(err, errTestProvider) {
++		t.Errorf("UpdateRows() error = %v, wantErr %v", err, errTestProvider)
++	}
++}
++
++func Test_addCategoryCells_FixedBlockAndCreditCard(t *testing.T) {
++	formulas := []string{"=F1", "=F2", "=F3"}
++	t.Run("fixed block column is skipped", func(t *testing.T) {
++		columns := []models.Column{
++			{Name: "Deposits", ColumnIndex: 5},
++			{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++			{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
++		}
++		trans := &models.Transaction{Name: "TARGET", Budget: 46.80}
++		got := addCategoryCells(nil, trans, columns, map[string]string{"TARGET": "Grocery"}, formulas)
++		// 3 gap fillers (8, 9, 10) + Grocery + Rent = 5 cells.
++		if len(got) != 5 {
++			t.Fatalf("addCategoryCells() produced %d cells, want 5", len(got))
++		}
++		if got := *got[3].UserEnteredValue.NumberValue; got != 46.80 {
++			t.Errorf("Grocery cell = %v, want 46.80", got)
++		}
++	})
++	t.Run("credit card column takes the purchase", func(t *testing.T) {
++		columns := []models.Column{
++			{Name: "Credit Cards", ColumnIndex: 11, Color: models.ColorGrey},
++			{Name: "Grocery", ColumnIndex: 12, Color: models.ColorBlue},
++		}
++		trans := &models.Transaction{Source: "Fidelity", Name: "AMAZON", CreditPurchase: 25.00}
++		got := addCategoryCells(nil, trans, columns, map[string]string{}, formulas)
++		if len(got) != 5 {
++			t.Fatalf("addCategoryCells() produced %d cells, want 5", len(got))
++		}
++		if got := *got[3].UserEnteredValue.NumberValue; got != 25.00 {
++			t.Errorf("Credit Cards cell = %v, want 25.00", got)
++		}
++		if !reflect.DeepEqual(got[3].UserEnteredFormat.BackgroundColor, mkColor(models.ColorGrey)) {
++			t.Errorf("Credit Cards cell color = %v, want grey", got[3].UserEnteredFormat.BackgroundColor)
++		}
++	})
++}
++
++func Test_registerService_PlanCategoryMoves_UnparseableCell(t *testing.T) {
++	columns := []models.Column{
++		{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++		{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue},
++		{Name: "Credit Cards", ColumnIndex: 13, Color: models.ColorGrey},
++	}
++	target := models.Column{Name: "Rent", ColumnIndex: 12, Color: models.ColorBlue}
++	row := make([]any, 13)
++	row[10] = "xx" // unparseable Grocery cell: the read errors, the row is skipped
++	sheet := RegisterSheet{
++		TabName:     RegisterTabName,
++		SheetCoords: SheetCoords{StartRow: 5},
++		Entries:     []*RegisterEntry{{RowID: 5, Name: "TARGET", Date: "12/07/20", Key: "k1"}},
++		RangeValues: [][]any{row},
++	}
++	moves, notes := ss.PlanCategoryMoves(sheet, []string{"target"}, target, columns)
++	if len(moves) != 0 {
++		t.Errorf("moves = %v, want none", moves)
++	}
++	if len(notes) != 1 || !strings.Contains(notes[0], "no category amount") {
++		t.Errorf("notes = %v, want no-amount note", notes)
++	}
++}
++
++func Test_registerService_MoveCategoryCells_BatchUpdateError(t *testing.T) {
++	svc := NewRegisterService(&stubSheetsProvider{batchUpdateErr: errTestProvider})
++	sheet := RegisterSheet{ID: 1, TabName: RegisterTabName}
++	moves := []CategoryMove{
++		{Key: "k1", RowID: 5, FromIndex: 11, ToIndex: 12, Value: 46.80, Color: models.ColorBlue},
++	}
++	if err := svc.MoveCategoryCells(sheet, moves); err == nil || !strings.Contains(err.Error(), "clear register rows") {
++		t.Errorf("MoveCategoryCells() error = %v, want clear-rows error", err)
++	}
++}
++
++func Test_addSalaryCells_UnbudgetedAndFixedBlock(t *testing.T) {
++	t.Run("fixed block column is skipped", func(t *testing.T) {
++		rb := &RowBuilder{
++			Columns: []models.Column{
++				{Name: "Deposits", ColumnIndex: 5},
++				{Name: "Grocery", ColumnIndex: 11, Color: models.ColorBlue},
++			},
++			CategoriesMap: map[string]*BudgetEntry{
++				"Grocery": {Category: "Grocery", Weekly: 120.00, Monthly: 520.00},
++			},
++		}
++		got := rb.addSalaryCells(nil, []string{"", "", ""}, "weekly")
++		// 3 gap fillers (8, 9, 10) + Grocery = 4 cells.
++		if len(got) != 4 {
++			t.Fatalf("addSalaryCells() produced %d cells, want 4", len(got))
++		}
++		if got := *got[3].UserEnteredValue.NumberValue; got != 120 {
++			t.Errorf("Grocery salary cell = %v, want 120", got)
++		}
++	})
++	t.Run("category with no budget entry gets a zero cell", func(t *testing.T) {
++		rb := &RowBuilder{
++			Columns: []models.Column{
++				{Name: "Phone", ColumnIndex: 11, Color: models.ColorBlue},
++			},
++			CategoriesMap: map[string]*BudgetEntry{},
++		}
++		got := rb.addSalaryCells(nil, []string{"", "", ""}, "weekly")
++		if len(got) != 4 {
++			t.Fatalf("addSalaryCells() produced %d cells, want 4", len(got))
++		}
++		if got := *got[3].UserEnteredValue.NumberValue; got != 0 {
++			t.Errorf("Phone salary cell = %v, want 0", got)
++		}
++		if !reflect.DeepEqual(got[3].UserEnteredFormat.BackgroundColor, mkColor(models.ColorBlue)) {
++			t.Errorf("Phone salary cell color = %v, want blue", got[3].UserEnteredFormat.BackgroundColor)
++		}
++	})
++	t.Run("credit card column is not a budget column", func(t *testing.T) {
++		rb := &RowBuilder{
++			Columns: []models.Column{
++				{Name: "Credit Cards", ColumnIndex: 11, Color: models.ColorGrey},
++			},
++			CategoriesMap: map[string]*BudgetEntry{},
++		}
++		got := rb.addSalaryCells(nil, []string{"", "", ""}, "weekly")
++		if len(got) != 4 {
++			t.Fatalf("addSalaryCells() produced %d cells, want 4", len(got))
++		}
++		if got := *got[3].UserEnteredValue.NumberValue; got != 0 {
++			t.Errorf("Credit Cards salary cell = %v, want 0", got)
++		}
++	})
++}
