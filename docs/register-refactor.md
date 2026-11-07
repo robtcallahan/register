@@ -220,7 +220,8 @@ Everything else, by package (zero-coverage counts after removing the 7 distinct 
 - [X] banking: 15
 - [X] sheets_provider: 6
 - [X] models: 10 (mostly column_set)
-- [X] sheets_auth: 5, mysql: 13, repository: 2, config: 1, root: 1, plaid_auth: 2
+- [X] repository: 2, config: 1, root: 1
+- [ ] sheets_auth: 5, mysql: 13, , plaid_auth: 2
   
 ## Sequencing
 
