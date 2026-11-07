@@ -92,6 +92,10 @@ func (bs *BudgetService) newBudgetSheet(cfg config.Config, tabName string, endRo
 // tab) and returns one HousingCategory per category row: the category name
 // and its Monthly amount. Group-totals rows are skipped — they SUM the
 // categories above them, so counting one would double-count the group.
+// Income rows are skipped too: the tab mirrors the Budget tab, so it still
+// carries the Social Security and Taylor House rows, but income comes from
+// real transactions (TrailingActuals), not from this tab — counting an
+// income row here would inflate the housing total by thousands.
 // Rows are read generically, so a category added to the tab later shows
 // up with no code change.
 func (bs *BudgetService) ReadHousingSheet(tabName string, cfg config.Config) ([]HousingCategory, error) {
@@ -107,6 +111,9 @@ func (bs *BudgetService) ReadHousingSheet(tabName string, cfg config.Config) ([]
 	var housing []HousingCategory
 	for _, entry := range sheet.BudgetEntries {
 		if totals[strings.ToLower(strings.TrimSpace(entry.Category))] {
+			continue
+		}
+		if isIncomeName(entry.Category, cfg.IncomeSources) {
 			continue
 		}
 		housing = append(housing, HousingCategory{Name: entry.Category, Monthly: entry.Monthly})

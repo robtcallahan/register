@@ -20,7 +20,7 @@ func houseBudgetRow(name, monthly string) []any {
 }
 
 func Test_budgetService_ReadHousingSheet(t *testing.T) {
-	cfg := config.Config{BudgetStartRow: 3, BudgetEndRow: 63}
+	cfg := config.Config{BudgetStartRow: 3, BudgetEndRow: 63, IncomeSources: []config.IncomeSource{{Name: "Social Security"}, {Name: "Taylor House"}}}
 	sheet := &sheets_provider.Spreadsheet{Title: "House Budget", SheetID: 123, RowCount: 100, ColumnCount: 10}
 
 	newStub := func(t *testing.T, valuesFn func(string) ([][]any, error)) *stubSheetsProvider {
@@ -43,6 +43,10 @@ func Test_budgetService_ReadHousingSheet(t *testing.T) {
 				houseBudgetRow("home-expenses savings", "50"),
 				// A category added after the build: read, not hardcoded.
 				houseBudgetRow("HOA dues", "75"),
+				// Income rows: the tab mirrors Budget, so it still
+				// carries them — they must not count as housing costs.
+				houseBudgetRow("Social Security", "2981"),
+				houseBudgetRow("Taylor House", "1800"),
 				// Group-totals rows: SUMs of the categories above them.
 				// Counting one would double-count the group.
 				houseBudgetRow("Non-Discretionary", "2050"),
