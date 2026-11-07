@@ -68,12 +68,12 @@ func TestColumnLetter(t *testing.T) {
 		{26, "Z"},
 		{27, "AA"},
 		{28, "AB"},
-		{39, "AM"},  // Rob's register has 39 columns (A-AM)
-		{46, "AT"},  // was 46 before AR-AT deletion
+		{39, "AM"}, // Rob's register has 39 columns (A-AM)
+		{46, "AT"}, // was 46 before AR-AT deletion
 		{52, "AZ"},
 		{53, "BA"},
-		{0, ""},     // edge: zero returns empty
-		{-1, ""},    // edge: negative returns empty
+		{0, ""},  // edge: zero returns empty
+		{-1, ""}, // edge: negative returns empty
 	}
 
 	for _, tt := range tests {

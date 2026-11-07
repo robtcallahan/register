@@ -4,9 +4,10 @@ import (
 	"os"
 	"testing"
 
+	"register/pkg/models"
+
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"register/pkg/models"
 )
 
 // TestUpdateTransactionTables_Idempotent verifies that running
@@ -14,7 +15,8 @@ import (
 // create duplicates. Requires MySQL; skips if not available.
 //
 // To run: set REGISTER_TEST_MYSQL_DSN, e.g.
-//   REGISTER_TEST_MYSQL_DSN="user:pass@tcp(localhost:3306)/register_test?parseTime=true" go test -run TestUpdateTransactionTables_Idempotent ./pkg/repository/mysql/
+//
+//	REGISTER_TEST_MYSQL_DSN="user:pass@tcp(localhost:3306)/register_test?parseTime=true" go test -run TestUpdateTransactionTables_Idempotent ./pkg/repository/mysql/
 func TestUpdateTransactionTables_Idempotent(t *testing.T) {
 	dsn := os.Getenv("REGISTER_TEST_MYSQL_DSN")
 	if dsn == "" {

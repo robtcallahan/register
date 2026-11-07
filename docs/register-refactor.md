@@ -214,13 +214,13 @@ Everything else, by package (zero-coverage counts after removing the 7 distinct 
 
 - [X] sheets_service — 39 zero + 32 partial (budget/register/monthly/columns/write/row_builder)
 - [X] sheets_service: ~90 (cells, monthly, register_write, register_service, helpers, columns, budget, values, row_builder, row_decoder)
-- [ ] cmd: ~40 (update, columns, root, recategorize, monthly, migrate, copy, budget, clients)
-- [ ] csv: 20
-- [ ] update_service: 17
-- [ ] banking: 15
-- [ ] sheets_provider: 6
-- [ ] models: 10 (mostly column_set)
-- [ ] sheets_auth: 5, mysql: 13, repository: 2, config: 1, root: 1, plaid_auth: 2
+- [X] cmd: ~40 (update, columns, root, recategorize, monthly, migrate, copy, budget, clients)
+- [X] csv: 20
+- [X] update_service: 17
+- [X] banking: 15
+- [X] sheets_provider: 6
+- [X] models: 10 (mostly column_set)
+- [X] sheets_auth: 5, mysql: 13, repository: 2, config: 1, root: 1, plaid_auth: 2
   
 ## Sequencing
 

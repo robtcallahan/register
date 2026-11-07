@@ -11,8 +11,8 @@ func TestTokenExpiryGuard(t *testing.T) {
 	sevenDays := time.Hour * 24 * 7
 
 	tests := []struct {
-		name       string
-		expiry     time.Time
+		name        string
+		expiry      time.Time
 		wantRefresh bool
 	}{
 		{
