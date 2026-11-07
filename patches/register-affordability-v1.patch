@@ -1,0 +1,1250 @@
+diff --git a/api/services/sheets_service/affordability.go b/api/services/sheets_service/affordability.go
+new file mode 100644
+index 0000000..b884471
+--- /dev/null
++++ b/api/services/sheets_service/affordability.go
+@@ -0,0 +1,212 @@
++package sheets_service
++
++import (
++	"math"
++	"regexp"
++	"time"
++
++	"register/pkg/config"
++)
++
++// House affordability (register affordability): one read-only view of
++// whether the house on the House Budget tab fits on Rob's current income.
++// The tab is read generically — every row on it is a housing category — so
++// a category added later (HOA fees, say) shows up with no code change.
++
++// HousingCategory is one row of the House Budget tab: the category name
++// and its monthly amount (the Monthly column, whether raw or derived from
++// another cadence).
++type HousingCategory struct {
++	Name    string
++	Monthly float64
++}
++
++// AffordabilityOptions are the command's flags.
++type AffordabilityOptions struct {
++	Months    int     // trailing window, in complete months before this one
++	Floor     float64 // minimum monthly surplus to keep after the move
++	IRA       float64 // IRA balance, for the down-payment picture
++	Stocks    float64 // stocks balance, for the down-payment picture
++	HomePrice float64 // 0 = skip the down-payment picture
++}
++
++// DownPayment is one down-payment size (10% or 20% of the home price)
++// shown both ways: spend the IRA first, or spend the stocks first.
++// Each side reports what would be left in each account afterwards; a
++// negative remainder is the shortfall — the price is bigger than both
++// accounts put together.
++type DownPayment struct {
++	Percent           float64
++	Amount            float64
++	IRAFirstIRA       float64
++	IRAFirstStocks    float64
++	StocksFirstIRA    float64
++	StocksFirstStocks float64
++}
++
++// AffordabilityResult is everything the command prints.
++type AffordabilityResult struct {
++	Housing           []HousingCategory
++	HousingTotal      float64
++	Rent              float64 // average monthly rent over the window
++	HousingDelta      float64 // HousingTotal - Rent
++	AvgIncome         float64
++	AvgSpending       float64
++	Surplus           float64 // AvgIncome - AvgSpending
++	SurplusAfterMove  float64 // Surplus - HousingDelta
++	MaxHousing        float64 // Surplus + Rent: housing total that leaves zero surplus
++	MaxHousingAtFloor float64 // Surplus + Rent - Floor: housing total that keeps the floor
++	WindowMonths      []string
++	DownPayments      []DownPayment
++}
++
++// MonthlyActuals is one month of real numbers from the Register tab.
++type MonthlyActuals struct {
++	Month    string // "MM/YY", the Aggregate key
++	Income   float64
++	Spending float64
++	Rent     float64
++}
++
++// RentCategoryName is the register column that holds rent. Rent comes from
++// the aggregate's category columns, not from entry names.
++const RentCategoryName = "Rent"
++
++// registerDateMonth matches a register date (MM/DD/YY) and yields the
++// Aggregate month key (MM/YY). Same shape as Aggregate's own regex.
++var registerDateMonth = regexp.MustCompile(`(\d\d)/\d\d/(\d\d)`)
++
++func monthKeyFromRegisterDate(date string) (string, bool) {
++	m := registerDateMonth.FindStringSubmatch(date)
++	if len(m) == 0 {
++		return "", false
++	}
++	return m[1] + "/" + m[2], true
++}
++
++// trailingMonthKeys returns the keys of the `months` complete months
++// before the month `now` falls in, oldest first. The current month is
++// partial, so it never counts: on 2026-11-06 with months=6 the window is
++// May..Oct 2026.
++func trailingMonthKeys(months int, now time.Time) []string {
++	if months <= 0 {
++		return nil
++	}
++	keys := make([]string, 0, months)
++	for i := months; i >= 1; i-- {
++		m := now.AddDate(0, -i, 0)
++		keys = append(keys, m.Format("01/06"))
++	}
++	return keys
++}
++
++// TrailingActuals builds one MonthlyActuals per month in the trailing
++// window, from the register aggregate and the raw entries. Income comes
++// from the entries themselves — Aggregate skips deposit rows, so income
++// never lands in the aggregate — while spending and rent come from the
++// aggregate's category columns. Months with no transactions still appear,
++// as zeros: the average divides by the window, not by the months that
++// happen to have data.
++func TrailingActuals(catAgg map[string]map[string]float64, entries []*RegisterEntry, incomeSources []config.IncomeSource, months int, now time.Time) []MonthlyActuals {
++	keys := trailingMonthKeys(months, now)
++	inWindow := make(map[string]bool, len(keys))
++	for _, k := range keys {
++		inWindow[k] = true
++	}
++
++	// Pre-sized so the pointers below never move: appends can't
++	// reallocate a slice built with capacity len(keys).
++	actuals := make([]MonthlyActuals, 0, len(keys))
++	byMonth := make(map[string]*MonthlyActuals, len(keys))
++	for _, k := range keys {
++		actuals = append(actuals, MonthlyActuals{Month: k})
++		byMonth[k] = &actuals[len(actuals)-1]
++	}
++
++	// Spending and rent, from the aggregate's category columns. Income
++	// names only reach the aggregate in the zero-deposit edge case, but
++	// exclude them anyway so a stray income entry can't inflate spending.
++	for _, a := range byMonth {
++		for name, amount := range catAgg[a.Month] {
++			if isIncomeName(name, incomeSources) {
++				continue
++			}
++			a.Spending += amount
++			if name == RentCategoryName {
++				a.Rent += amount
++			}
++		}
++	}
++
++	// Income, from the entries: deposits whose display name is a
++	// configured income source. Anything else deposited (a refund, a
++	// transfer) is not income.
++	for _, e := range entries {
++		if e == nil || e.Deposit == 0 || !isIncomeName(e.Name, incomeSources) {
++			continue
++		}
++		key, ok := monthKeyFromRegisterDate(e.Date)
++		if !ok || !inWindow[key] {
++			continue
++		}
++		byMonth[key].Income += e.Deposit
++	}
++
++	return actuals
++}
++
++// ComputeAffordability turns housing categories and trailing actuals into
++// the numbers the command prints. It is pure: inputs in, numbers out.
++func ComputeAffordability(housing []HousingCategory, actuals []MonthlyActuals, opts AffordabilityOptions) AffordabilityResult {
++	var result AffordabilityResult
++	result.Housing = housing
++
++	for _, h := range housing {
++		result.HousingTotal += h.Monthly
++	}
++
++	var totalIncome, totalSpending, totalRent float64
++	for _, a := range actuals {
++		result.WindowMonths = append(result.WindowMonths, a.Month)
++		totalIncome += a.Income
++		totalSpending += a.Spending
++		totalRent += a.Rent
++	}
++	n := float64(len(actuals))
++	if n > 0 {
++		result.AvgIncome = totalIncome / n
++		result.AvgSpending = totalSpending / n
++		result.Rent = totalRent / n
++	}
++	result.Surplus = result.AvgIncome - result.AvgSpending
++	result.HousingDelta = result.HousingTotal - result.Rent
++	result.SurplusAfterMove = result.Surplus - result.HousingDelta
++	result.MaxHousing = result.Surplus + result.Rent
++	result.MaxHousingAtFloor = result.Surplus + result.Rent - opts.Floor
++
++	if opts.HomePrice > 0 {
++		// 20% first, then 10%: the bigger commitment first.
++		for _, pct := range []float64{20, 10} {
++			amount := opts.HomePrice * pct / 100
++			iraFirstIRA, iraFirstStocks := drawDown(amount, opts.IRA, opts.Stocks)
++			stocksFirstStocks, stocksFirstIRA := drawDown(amount, opts.Stocks, opts.IRA)
++			result.DownPayments = append(result.DownPayments, DownPayment{
++				Percent:           pct,
++				Amount:            amount,
++				IRAFirstIRA:       iraFirstIRA,
++				IRAFirstStocks:    iraFirstStocks,
++				StocksFirstIRA:    stocksFirstIRA,
++				StocksFirstStocks: stocksFirstStocks,
++			})
++		}
++	}
++	return result
++}
++
++// drawDown spends amount from first, then second, and returns what is
++// left in each. A negative remainder means amount was bigger than both
++// put together.
++func drawDown(amount, first, second float64) (firstLeft, secondLeft float64) {
++	fromFirst := math.Min(amount, first)
++	return first - fromFirst, second - (amount - fromFirst)
++}
+diff --git a/api/services/sheets_service/affordability_test.go b/api/services/sheets_service/affordability_test.go
+new file mode 100644
+index 0000000..660aa84
+--- /dev/null
++++ b/api/services/sheets_service/affordability_test.go
+@@ -0,0 +1,266 @@
++package sheets_service
++
++import (
++	"reflect"
++	"testing"
++	"time"
++
++	"register/pkg/config"
++)
++
++func Test_ComputeAffordability(t *testing.T) {
++	// Six trailing months at the brief's example numbers: $5,200 income,
++	// $4,700 spending (rent $1,400 inside it) every month.
++	actuals := make([]MonthlyActuals, 6)
++	months := []string{"05/26", "06/26", "07/26", "08/26", "09/26", "10/26"}
++	for i := range actuals {
++		actuals[i] = MonthlyActuals{Month: months[i], Income: 5200, Spending: 4700, Rent: 1400}
++	}
++
++	briefHousing := []HousingCategory{
++		{Name: "mortgage", Monthly: 1450},
++		{Name: "mortgage insurance", Monthly: 95},
++		{Name: "home insurance", Monthly: 180},
++		{Name: "property tax", Monthly: 325},
++		{Name: "home-expenses savings", Monthly: 50},
++	} // total $2,100
++
++	tests := []struct {
++		name    string
++		housing []HousingCategory
++		actuals []MonthlyActuals
++		opts    AffordabilityOptions
++		want    AffordabilityResult
++	}{
++		{
++			name:    "house costs more than rent and doesn't fit",
++			housing: briefHousing,
++			actuals: actuals,
++			opts:    AffordabilityOptions{Months: 6, Floor: 200},
++			want: AffordabilityResult{
++				Housing:           briefHousing,
++				HousingTotal:      2100,
++				Rent:              1400,
++				HousingDelta:      700,
++				AvgIncome:         5200,
++				AvgSpending:       4700,
++				Surplus:           500,
++				SurplusAfterMove:  -200,
++				MaxHousing:        1900,
++				MaxHousingAtFloor: 1700,
++				WindowMonths:      []string{"05/26", "06/26", "07/26", "08/26", "09/26", "10/26"},
++			},
++		},
++		{
++			name: "house cheaper than rent fits with room to spare",
++			housing: []HousingCategory{
++				{Name: "mortgage", Monthly: 900},
++				{Name: "home insurance", Monthly: 150},
++				{Name: "property tax", Monthly: 150},
++			},
++			actuals: actuals,
++			opts:    AffordabilityOptions{Months: 6, Floor: 200},
++			want: AffordabilityResult{
++				Housing: []HousingCategory{
++					{Name: "mortgage", Monthly: 900},
++					{Name: "home insurance", Monthly: 150},
++					{Name: "property tax", Monthly: 150},
++				},
++				HousingTotal:      1200,
++				Rent:              1400,
++				HousingDelta:      -200,
++				AvgIncome:         5200,
++				AvgSpending:       4700,
++				Surplus:           500,
++				SurplusAfterMove:  700,
++				MaxHousing:        1900,
++				MaxHousingAtFloor: 1700,
++				WindowMonths:      []string{"05/26", "06/26", "07/26", "08/26", "09/26", "10/26"},
++			},
++		},
++		{
++			name:    "a category added later is summed with no code change",
++			housing: append(append([]HousingCategory{}, briefHousing...), HousingCategory{Name: "HOA dues", Monthly: 75}),
++			actuals: actuals,
++			opts:    AffordabilityOptions{Months: 6, Floor: 200},
++			want: AffordabilityResult{
++				Housing:           append(append([]HousingCategory{}, briefHousing...), HousingCategory{Name: "HOA dues", Monthly: 75}),
++				HousingTotal:      2175,
++				Rent:              1400,
++				HousingDelta:      775,
++				AvgIncome:         5200,
++				AvgSpending:       4700,
++				Surplus:           500,
++				SurplusAfterMove:  -275,
++				MaxHousing:        1900,
++				MaxHousingAtFloor: 1700,
++				WindowMonths:      []string{"05/26", "06/26", "07/26", "08/26", "09/26", "10/26"},
++			},
++		},
++		{
++			name:    "no home price skips the down-payment picture",
++			housing: briefHousing,
++			actuals: actuals,
++			opts:    AffordabilityOptions{Months: 6, Floor: 200, IRA: 130000, Stocks: 50000, HomePrice: 0},
++			want: AffordabilityResult{
++				Housing:           briefHousing,
++				HousingTotal:      2100,
++				Rent:              1400,
++				HousingDelta:      700,
++				AvgIncome:         5200,
++				AvgSpending:       4700,
++				Surplus:           500,
++				SurplusAfterMove:  -200,
++				MaxHousing:        1900,
++				MaxHousingAtFloor: 1700,
++				WindowMonths:      []string{"05/26", "06/26", "07/26", "08/26", "09/26", "10/26"},
++			},
++		},
++		{
++			name:    "down payments show both waterfalls",
++			housing: briefHousing,
++			actuals: actuals,
++			opts:    AffordabilityOptions{Months: 6, Floor: 200, IRA: 130000, Stocks: 50000, HomePrice: 250000},
++			want: AffordabilityResult{
++				Housing:           briefHousing,
++				HousingTotal:      2100,
++				Rent:              1400,
++				HousingDelta:      700,
++				AvgIncome:         5200,
++				AvgSpending:       4700,
++				Surplus:           500,
++				SurplusAfterMove:  -200,
++				MaxHousing:        1900,
++				MaxHousingAtFloor: 1700,
++				WindowMonths:      []string{"05/26", "06/26", "07/26", "08/26", "09/26", "10/26"},
++				DownPayments: []DownPayment{
++					{Percent: 20, Amount: 50000, IRAFirstIRA: 80000, IRAFirstStocks: 50000, StocksFirstIRA: 130000, StocksFirstStocks: 0},
++					{Percent: 10, Amount: 25000, IRAFirstIRA: 105000, IRAFirstStocks: 50000, StocksFirstIRA: 130000, StocksFirstStocks: 25000},
++				},
++			},
++		},
++		{
++			name:    "down payment bigger than both accounts leaves a negative remainder",
++			housing: briefHousing,
++			actuals: actuals,
++			opts:    AffordabilityOptions{Months: 6, Floor: 200, IRA: 130000, Stocks: 50000, HomePrice: 1000000},
++			want: AffordabilityResult{
++				Housing:           briefHousing,
++				HousingTotal:      2100,
++				Rent:              1400,
++				HousingDelta:      700,
++				AvgIncome:         5200,
++				AvgSpending:       4700,
++				Surplus:           500,
++				SurplusAfterMove:  -200,
++				MaxHousing:        1900,
++				MaxHousingAtFloor: 1700,
++				WindowMonths:      []string{"05/26", "06/26", "07/26", "08/26", "09/26", "10/26"},
++				DownPayments: []DownPayment{
++					{Percent: 20, Amount: 200000, IRAFirstIRA: 0, IRAFirstStocks: -20000, StocksFirstIRA: -20000, StocksFirstStocks: 0},
++					{Percent: 10, Amount: 100000, IRAFirstIRA: 30000, IRAFirstStocks: 50000, StocksFirstIRA: 80000, StocksFirstStocks: 0},
++				},
++			},
++		},
++		{
++			name:    "empty inputs don't divide by zero",
++			housing: nil,
++			actuals: nil,
++			opts:    AffordabilityOptions{Months: 6, Floor: 200},
++			want: AffordabilityResult{
++				HousingTotal:      0,
++				Rent:              0,
++				HousingDelta:      0,
++				AvgIncome:         0,
++				AvgSpending:       0,
++				Surplus:           0,
++				SurplusAfterMove:  0,
++				MaxHousing:        0,
++				MaxHousingAtFloor: -200,
++			},
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got := ComputeAffordability(tt.housing, tt.actuals, tt.opts)
++			if !reflect.DeepEqual(got, tt.want) {
++				t.Errorf("ComputeAffordability() = %+v, want %+v", got, tt.want)
++			}
++		})
++	}
++}
++
++func Test_TrailingActuals(t *testing.T) {
++	incomeSources := []config.IncomeSource{
++		{Name: "Taylor House Paycheck"},
++		{Name: "Social Security"},
++	}
++	// "now" is 2026-11-06, so the 3-month window is Aug..Oct 2026 and
++	// the 6-month window adds empty May..Jul.
++	now := time.Date(2026, time.November, 6, 12, 0, 0, 0, time.UTC)
++
++	catAgg := map[string]map[string]float64{
++		"08/26": {"Grocery": 400, "Rent": 1400},
++		"09/26": {"Grocery": 500, "Rent": 1400},
++		"10/26": {"Grocery": 450, "Rent": 1400, "Taylor House Paycheck": 0},
++	}
++	entries := []*RegisterEntry{
++		{Name: "Taylor House Paycheck", Date: "08/07/26", Deposit: 1100},
++		{Name: "Taylor House Paycheck", Date: "08/21/26", Deposit: 1100},
++		{Name: "Social Security", Date: "08/27/26", Deposit: 2981},
++		{Name: "Taylor House Paycheck", Date: "09/04/26", Deposit: 1100},
++		{Name: "Social Security", Date: "09/28/26", Deposit: 2981},
++		{Name: "Taylor House Paycheck", Date: "10/02/26", Deposit: 1100},
++		{Name: "Taylor House Paycheck", Date: "10/16/26", Deposit: 1100},
++		{Name: "Social Security", Date: "10/27/26", Deposit: 2981},
++		// Outside the window: the current (partial) month, and April.
++		{Name: "Taylor House Paycheck", Date: "11/03/26", Deposit: 1100},
++		{Name: "Taylor House Paycheck", Date: "04/30/26", Deposit: 1100},
++		// A deposit that isn't income (a refund): not income, and
++		// Aggregate skips deposit rows, so not spending either.
++		{Name: "TARGET", Date: "08/07/26", Deposit: 50},
++		// An income deposit with an unreadable date: skipped.
++		{Name: "Social Security", Date: "garbage", Deposit: 2981},
++	}
++
++	tests := []struct {
++		name   string
++		months int
++		want   []MonthlyActuals
++	}{
++		{
++			name:   "three months of income, spending and rent",
++			months: 3,
++			want: []MonthlyActuals{
++				{Month: "08/26", Income: 5181, Spending: 1800, Rent: 1400},
++				{Month: "09/26", Income: 4081, Spending: 1900, Rent: 1400},
++				{Month: "10/26", Income: 5181, Spending: 1850, Rent: 1400},
++			},
++		},
++		{
++			name:   "months with no transactions still appear, as zeros",
++			months: 6,
++			want: []MonthlyActuals{
++				{Month: "05/26"},
++				{Month: "06/26"},
++				{Month: "07/26"},
++				{Month: "08/26", Income: 5181, Spending: 1800, Rent: 1400},
++				{Month: "09/26", Income: 4081, Spending: 1900, Rent: 1400},
++				{Month: "10/26", Income: 5181, Spending: 1850, Rent: 1400},
++			},
++		},
++		{
++			name:   "zero months is empty",
++			months: 0,
++			want:   []MonthlyActuals{},
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got := TrailingActuals(catAgg, entries, incomeSources, tt.months, now)
++			if !reflect.DeepEqual(got, tt.want) {
++				t.Errorf("TrailingActuals() = %+v, want %+v", got, tt.want)
++			}
++		})
++	}
++}
+diff --git a/api/services/sheets_service/budget_service.go b/api/services/sheets_service/budget_service.go
+index 677bc54..b1082d2 100644
+--- a/api/services/sheets_service/budget_service.go
++++ b/api/services/sheets_service/budget_service.go
+@@ -32,24 +32,43 @@ type BudgetSheet struct {
+ }
+ 
+ func (bs *BudgetService) NewBudgetSheet(cfg config.Config) (*BudgetSheet, error) {
++	return bs.newBudgetSheet(cfg, BudgetTabName, cfg.BudgetEndRow)
++}
++
++// NewBudgetSheetForTab builds a BudgetSheet for a tab that shares the
++// Budget layout but isn't the Budget tab itself — the House Budget tab.
++// The read runs to the end of the tab's grid, not cfg.BudgetEndRow: the
++// tab has more rows than Budget, and the grid is the honest end.
++func (bs *BudgetService) NewBudgetSheetForTab(cfg config.Config, tabName string) (*BudgetSheet, error) {
++	return bs.newBudgetSheet(cfg, tabName, 0)
++}
++
++func (bs *BudgetService) newBudgetSheet(cfg config.Config, tabName string, endRow int64) (*BudgetSheet, error) {
+ 	budgetSheet := &BudgetSheet{
+-		TabName: BudgetTabName,
++		TabName: tabName,
+ 		SheetCoords: SheetCoords{
+ 			StartRow: cfg.BudgetStartRow,
+-			EndRow:   cfg.BudgetEndRow,
++			EndRow:   endRow,
+ 			// EndColumnName/Index are detected from the header row below.
+ 		},
+ 	}
+-	spreadsheet, err := bs.Provider.GetSpreadsheet(BudgetTabName)
++	spreadsheet, err := bs.Provider.GetSpreadsheet(tabName)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("unable to retrieve spreadsheet: %w", err)
+ 	}
++	if spreadsheet == nil {
++		return nil, fmt.Errorf("unable to retrieve spreadsheet: no sheet named %q", tabName)
++	}
+ 	budgetSheet.ID = spreadsheet.SheetID
++	if budgetSheet.SheetCoords.EndRow == 0 {
++		// No fixed end row: read to the end of the tab's grid.
++		budgetSheet.SheetCoords.EndRow = spreadsheet.RowCount
++	}
+ 
+ 	// Detect the rightmost column from the header row so adding columns
+-	// to the Budget tab doesn't require a code change. We read a generous
++	// to the tab doesn't require a code change. We read a generous
+ 	// range (A1:Z1) and find the last non-empty header.
+-	headerRange := fmt.Sprintf("%s!A1:Z1", BudgetTabName)
++	headerRange := fmt.Sprintf("%s!A1:Z1", tabName)
+ 	values, err := bs.Provider.GetValues(headerRange)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("could not read budget header row for width detection: %w", err)
+@@ -69,6 +88,46 @@ func (bs *BudgetService) NewBudgetSheet(cfg config.Config) (*BudgetSheet, error)
+ 	return budgetSheet, nil
+ }
+ 
++// ReadHousingSheet reads the named Budget-format tab (the House Budget
++// tab) and returns one HousingCategory per category row: the category name
++// and its Monthly amount. Group-totals rows are skipped — they SUM the
++// categories above them, so counting one would double-count the group.
++// Rows are read generically, so a category added to the tab later shows
++// up with no code change.
++func (bs *BudgetService) ReadHousingSheet(tabName string, cfg config.Config) ([]HousingCategory, error) {
++	sheet, err := bs.NewBudgetSheetForTab(cfg, tabName)
++	if err != nil {
++		return nil, err
++	}
++	sheet, err = bs.ReadBudgetSheet(sheet)
++	if err != nil {
++		return nil, err
++	}
++	totals := budgetTotalsNames()
++	var housing []HousingCategory
++	for _, entry := range sheet.BudgetEntries {
++		if totals[strings.ToLower(strings.TrimSpace(entry.Category))] {
++			continue
++		}
++		housing = append(housing, HousingCategory{Name: entry.Category, Monthly: entry.Monthly})
++	}
++	return housing, nil
++}
++
++// budgetTotalsNames are the Budget tab's group-totals row labels, plus the
++// plain "Total" label a hand-built tab might use. They are SUM rows, not
++// categories. The labels come from the same group names the Budget code
++// already uses (budgetGroupName), so a renamed group stays in step.
++func budgetTotalsNames() map[string]bool {
++	names := map[string]bool{"total": true}
++	for _, color := range []string{models.ColorGreen, models.ColorYellow, models.ColorBlue} {
++		if name, ok := budgetGroupName(color); ok {
++			names[strings.ToLower(name)] = true
++		}
++	}
++	return names
++}
++
+ func (bs *BudgetService) ReadBudgetSheet(budgetSheet *BudgetSheet) (*BudgetSheet, error) {
+ 	range_ := fmt.Sprintf("%s!A%d:%s%d", budgetSheet.TabName, budgetSheet.SheetCoords.StartRow, budgetSheet.SheetCoords.EndColumnName, budgetSheet.SheetCoords.EndRow)
+ 	values, err := bs.Provider.GetValues(range_)
+diff --git a/api/services/sheets_service/housing_test.go b/api/services/sheets_service/housing_test.go
+new file mode 100644
+index 0000000..bae7b6c
+--- /dev/null
++++ b/api/services/sheets_service/housing_test.go
+@@ -0,0 +1,204 @@
++package sheets_service
++
++import (
++	"errors"
++	"reflect"
++	"testing"
++
++	"register/api/providers/sheets_provider"
++	"register/pkg/config"
++)
++
++// houseBudgetHeaders are the Budget tab's real headers (row 1): the first
++// cell is empty, the category name sits in column A.
++var houseBudgetHeaders = []any{"", "Weekly", "Weekly (view only)", "Bi-Weekly", "Monthly", "Monthly (view only)", "Yearly", "Current Total", "Needed - Monthly"}
++
++// houseBudgetRow builds one House Budget data row: name in column A, the
++// Monthly amount in the Monthly column (index 4).
++func houseBudgetRow(name, monthly string) []any {
++	return []any{name, "0", "0", "0", monthly, "0", "0", "0"}
++}
++
++func Test_budgetService_ReadHousingSheet(t *testing.T) {
++	cfg := config.Config{BudgetStartRow: 3, BudgetEndRow: 63}
++	sheet := &sheets_provider.Spreadsheet{Title: "House Budget", SheetID: 123, RowCount: 100, ColumnCount: 10}
++
++	newStub := func(t *testing.T, valuesFn func(string) ([][]any, error)) *stubSheetsProvider {
++		t.Helper()
++		return &stubSheetsProvider{
++			spreadsheet:   sheet,
++			getValuesFunc: valuesFn,
++		}
++	}
++	happyValues := func(range_ string) ([][]any, error) {
++		switch range_ {
++		case "House Budget!A1:Z1", "House Budget!A1:H1":
++			return [][]any{houseBudgetHeaders}, nil
++		case "House Budget!A3:H100":
++			return [][]any{
++				houseBudgetRow("mortgage", "1450"),
++				houseBudgetRow("mortgage insurance", "95"),
++				houseBudgetRow("home insurance", "180"),
++				houseBudgetRow("property tax", "325"),
++				houseBudgetRow("home-expenses savings", "50"),
++				// A category added after the build: read, not hardcoded.
++				houseBudgetRow("HOA dues", "75"),
++				// Group-totals rows: SUMs of the categories above them.
++				// Counting one would double-count the group.
++				houseBudgetRow("Non-Discretionary", "2050"),
++				houseBudgetRow("Savings Categories", "125"),
++				houseBudgetRow("Total", "2175"),
++				{""},
++			}, nil
++		}
++		t.Fatalf("unexpected range %q", range_)
++		return nil, nil
++	}
++
++	tests := []struct {
++		name    string
++		stub    *stubSheetsProvider
++		want    []HousingCategory
++		wantErr bool
++	}{
++		{
++			name: "reads every category row and skips the totals rows",
++			stub: newStub(t, happyValues),
++			want: []HousingCategory{
++				{Name: "mortgage", Monthly: 1450},
++				{Name: "mortgage insurance", Monthly: 95},
++				{Name: "home insurance", Monthly: 180},
++				{Name: "property tax", Monthly: 325},
++				{Name: "home-expenses savings", Monthly: 50},
++				{Name: "HOA dues", Monthly: 75},
++			},
++		},
++		{
++			name: "missing tab is an error",
++			stub: &stubSheetsProvider{
++				spreadsheetErr: errors.New("could not find sheet: House Budget"),
++				getValuesFunc:  happyValues,
++			},
++			wantErr: true,
++		},
++		{
++			name: "tab without a Monthly header is an error",
++			stub: newStub(t, func(range_ string) ([][]any, error) {
++				switch range_ {
++				case "House Budget!A1:Z1", "House Budget!A1:B1":
++					return [][]any{{"", "Weekly", "Bi-Weekly"}}, nil
++				case "House Budget!A3:B100":
++					return [][]any{houseBudgetRow("mortgage", "1450")}, nil
++				}
++				t.Fatalf("unexpected range %q", range_)
++				return nil, nil
++			}),
++			wantErr: true,
++		},
++		{
++			name: "empty tab is an error",
++			stub: newStub(t, func(range_ string) ([][]any, error) {
++				switch range_ {
++				case "House Budget!A1:Z1", "House Budget!A1:H1":
++					return [][]any{houseBudgetHeaders}, nil
++				case "House Budget!A3:H100":
++					return [][]any{}, nil
++				}
++				t.Fatalf("unexpected range %q", range_)
++				return nil, nil
++			}),
++			wantErr: true,
++		},
++		{
++			name: "provider error on the data range is an error",
++			stub: newStub(t, func(range_ string) ([][]any, error) {
++				switch range_ {
++				case "House Budget!A1:Z1", "House Budget!A1:H1":
++					return [][]any{houseBudgetHeaders}, nil
++				case "House Budget!A3:H100":
++					return nil, errTestProvider
++				}
++				t.Fatalf("unexpected range %q", range_)
++				return nil, nil
++			}),
++			wantErr: true,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			bs := NewBudgetService(tt.stub)
++			got, err := bs.ReadHousingSheet("House Budget", cfg)
++			if tt.wantErr {
++				if err == nil {
++					t.Errorf("ReadHousingSheet() error = nil, want an error")
++				}
++				return
++			}
++			if err != nil {
++				t.Fatalf("ReadHousingSheet() error = %v", err)
++			}
++			if !reflect.DeepEqual(got, tt.want) {
++				t.Errorf("ReadHousingSheet() = %+v, want %+v", got, tt.want)
++			}
++		})
++	}
++}
++
++func Test_budgetService_NewBudgetSheetForTab(t *testing.T) {
++	cfg := config.Config{BudgetStartRow: 3, BudgetEndRow: 63}
++	sheet := &sheets_provider.Spreadsheet{Title: "House Budget", SheetID: 123, RowCount: 100, ColumnCount: 10}
++
++	tests := []struct {
++		name       string
++		headers    [][]any
++		wantEndRow int64
++		wantEndCol string
++		wantErr    bool
++	}{
++		{
++			name:       "reads to the end of the tab's grid, not BudgetEndRow",
++			headers:    [][]any{houseBudgetHeaders},
++			wantEndRow: 100,
++			wantEndCol: "H",
++		},
++		{
++			name:    "no header row is an error",
++			headers: [][]any{},
++			wantErr: true,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			stub := &stubSheetsProvider{
++				spreadsheet: sheet,
++				getValuesFunc: func(range_ string) ([][]any, error) {
++					if range_ == "House Budget!A1:Z1" {
++						return tt.headers, nil
++					}
++					t.Fatalf("unexpected range %q", range_)
++					return nil, nil
++				},
++			}
++			bs := NewBudgetService(stub)
++			got, err := bs.NewBudgetSheetForTab(cfg, "House Budget")
++			if tt.wantErr {
++				if err == nil {
++					t.Errorf("NewBudgetSheetForTab() error = nil, want an error")
++				}
++				return
++			}
++			if err != nil {
++				t.Fatalf("NewBudgetSheetForTab() error = %v", err)
++			}
++			if got.TabName != "House Budget" {
++				t.Errorf("TabName = %q, want %q", got.TabName, "House Budget")
++			}
++			if got.SheetCoords.EndRow != tt.wantEndRow {
++				t.Errorf("EndRow = %d, want %d", got.SheetCoords.EndRow, tt.wantEndRow)
++			}
++			if got.SheetCoords.EndColumnName != tt.wantEndCol {
++				t.Errorf("EndColumnName = %q, want %q", got.SheetCoords.EndColumnName, tt.wantEndCol)
++			}
++		})
++	}
++}
+diff --git a/cmd/affordability.go b/cmd/affordability.go
+new file mode 100644
+index 0000000..f6a43da
+--- /dev/null
++++ b/cmd/affordability.go
+@@ -0,0 +1,221 @@
++/*
++Copyright © 2020 NAME HERE <EMAIL ADDRESS>
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/
++
++package cmd
++
++import (
++	"fmt"
++	"strings"
++	"time"
++
++	"register/api/providers/sheets_provider"
++	"register/api/services/sheets_service"
++	"register/pkg/repository"
++	"register/pkg/repository/mysql"
++
++	"github.com/spf13/cobra"
++)
++
++// Flags for the affordability command. The trailing window and the floor
++// are Rob's calls (a parameter, and $200/mo); the tab defaults to the
++// House Budget tab; balances and price are only needed for the
++// down-payment picture.
++var (
++	affordMonths    int
++	affordFloor     float64
++	affordTab       string
++	affordIRA       float64
++	affordStocks    float64
++	affordHomePrice float64
++)
++
++// affordabilityCmd represents the affordability command
++var affordabilityCmd = &cobra.Command{
++	Use:   "affordability",
++	Short: "Show whether the house on the House Budget tab fits on current income",
++	Long: `Affordability reads the House Budget tab and the Register tab and answers
++one question from real numbers: can I afford this house, and what does it
++leave me? Read-only: it writes nothing to the sheet or the database.`,
++	RunE: func(cmd *cobra.Command, args []string) error {
++		return affordability()
++	},
++}
++
++func init() {
++	rootCmd.AddCommand(affordabilityCmd)
++	affordabilityCmd.Flags().IntVar(&affordMonths, "months", 6, "trailing complete months to average")
++	affordabilityCmd.Flags().Float64Var(&affordFloor, "floor", 200, "minimum monthly surplus to keep after the move")
++	affordabilityCmd.Flags().StringVar(&affordTab, "tab", "House Budget", "housing budget tab to read")
++	affordabilityCmd.Flags().Float64Var(&affordIRA, "ira", 0, "IRA balance for the down-payment picture")
++	affordabilityCmd.Flags().Float64Var(&affordStocks, "stocks", 0, "stocks balance for the down-payment picture")
++	affordabilityCmd.Flags().Float64Var(&affordHomePrice, "price", 0, "home price for the down-payment picture (0 skips it)")
++}
++
++func affordability() error {
++	opts := sheets_service.AffordabilityOptions{
++		Months:    affordMonths,
++		Floor:     affordFloor,
++		IRA:       affordIRA,
++		Stocks:    affordStocks,
++		HomePrice: affordHomePrice,
++	}
++	if err := validateAffordabilityOptions(opts); err != nil {
++		return err
++	}
++
++	conn, err := repository.Connect(&config.DB)
++	if err != nil {
++		return err
++	}
++	qHandler := mysql.NewMySQLQueryRepo(conn)
++	cols, err := qHandler.GetColumns()
++	if err != nil {
++		return err
++	}
++
++	sheetsProvider, err := sheets_provider.New(options.SpreadsheetID, config)
++	if err != nil {
++		return err
++	}
++	registerService := sheets_service.NewRegisterService(sheetsProvider)
++	registerSheet, err := registerService.NewRegisterSheet(config, cols)
++	if err != nil {
++		return err
++	}
++
++	fmt.Println("Reading Register...")
++	_, err = registerService.ReadRegisterSheet(registerSheet)
++	if err != nil {
++		return err
++	}
++
++	monthlyService := sheets_service.NewMonthlyService(sheetsProvider, config.IncomeSources)
++	catAgg, _, err := monthlyService.Aggregate(*registerSheet, cols)
++	if err != nil {
++		return err
++	}
++
++	budgetService := sheets_service.NewBudgetService(sheetsProvider)
++	fmt.Printf("Reading %s...\n", affordTab)
++	housing, err := budgetService.ReadHousingSheet(affordTab, *config)
++	if err != nil {
++		return err
++	}
++
++	actuals := sheets_service.TrailingActuals(catAgg, registerSheet.Entries, config.IncomeSources, opts.Months, time.Now())
++	result := sheets_service.ComputeAffordability(housing, actuals, opts)
++	printAffordability(affordTab, result, opts)
++	return nil
++}
++
++// validateAffordabilityOptions rejects flag values the computation can't
++// use. The tab name is free-form: a missing tab fails later, at the read,
++// with the provider's own error.
++func validateAffordabilityOptions(opts sheets_service.AffordabilityOptions) error {
++	if opts.Months < 1 {
++		return fmt.Errorf("--months must be at least 1, got %d", opts.Months)
++	}
++	if opts.Floor < 0 {
++		return fmt.Errorf("--floor must not be negative, got %v", opts.Floor)
++	}
++	if opts.IRA < 0 {
++		return fmt.Errorf("--ira must not be negative, got %v", opts.IRA)
++	}
++	if opts.Stocks < 0 {
++		return fmt.Errorf("--stocks must not be negative, got %v", opts.Stocks)
++	}
++	if opts.HomePrice < 0 {
++		return fmt.Errorf("--price must not be negative, got %v", opts.HomePrice)
++	}
++	return nil
++}
++
++func printAffordability(tab string, result sheets_service.AffordabilityResult, opts sheets_service.AffordabilityOptions) {
++	fmt.Println("")
++	fmt.Printf("%-44s $%s/mo\n", fmt.Sprintf("Housing (from the %s tab)", tab), formatAccounting(result.HousingTotal))
++	if len(result.Housing) > 0 {
++		parts := make([]string, 0, len(result.Housing))
++		for _, h := range result.Housing {
++			parts = append(parts, fmt.Sprintf("%s $%s", h.Name, formatAccounting(h.Monthly)))
++		}
++		fmt.Printf("  %s\n", strings.Join(parts, " · "))
++	}
++	fmt.Printf("%-44s $%s/mo\n", "Current rent", formatAccounting(result.Rent))
++	switch {
++	case result.HousingDelta > 0:
++		fmt.Printf("Housing costs $%s/mo more than rent\n", formatAccounting(result.HousingDelta))
++	case result.HousingDelta < 0:
++		fmt.Printf("Housing costs $%s/mo less than rent\n", formatAccounting(-result.HousingDelta))
++	default:
++		fmt.Printf("Housing costs the same as rent\n")
++	}
++	fmt.Println("")
++	fmt.Printf("Trailing %d complete months: %s\n", len(result.WindowMonths), formatWindowLabel(result.WindowMonths))
++	fmt.Printf("%-44s $%s/mo\n", fmt.Sprintf("Trailing %d-mo income", len(result.WindowMonths)), formatAccounting(result.AvgIncome))
++	fmt.Printf("%-44s $%s/mo\n", fmt.Sprintf("Trailing %d-mo spending (incl. rent)", len(result.WindowMonths)), formatAccounting(result.AvgSpending))
++	fmt.Printf("%-44s $%s/mo\n", "Surplus today", formatAccounting(result.Surplus))
++	fits := "  <- fits"
++	if result.SurplusAfterMove < 0 {
++		fits = "  <- doesn't fit as priced"
++	}
++	fmt.Printf("%-44s $%s/mo%s\n", "Surplus after the move", formatAccounting(result.SurplusAfterMove), fits)
++	fmt.Println("")
++	fmt.Printf("%-44s $%s/mo\n", "Max housing cost at zero surplus", formatAccounting(result.MaxHousing))
++	fmt.Printf("%-44s $%s/mo\n", fmt.Sprintf("Max housing cost keeping a $%s/mo floor", formatAccounting(opts.Floor)), formatAccounting(result.MaxHousingAtFloor))
++
++	if len(result.DownPayments) > 0 {
++		fmt.Println("")
++		fmt.Printf("Down payment on a $%s home:\n", formatAccounting(opts.HomePrice))
++		for _, dp := range result.DownPayments {
++			pct := fmt.Sprintf("%.0f%%", dp.Percent)
++			fmt.Printf("  %s ($%s) from IRA first — IRA $%s left, stocks $%s left%s\n",
++				pct, formatAccounting(dp.Amount), formatAccounting(dp.IRAFirstIRA), formatAccounting(dp.IRAFirstStocks), downPaymentShortfall(dp.Amount, opts))
++			fmt.Printf("  %s ($%s) from stocks first — IRA $%s left, stocks $%s left%s\n",
++				pct, formatAccounting(dp.Amount), formatAccounting(dp.StocksFirstIRA), formatAccounting(dp.StocksFirstStocks), downPaymentShortfall(dp.Amount, opts))
++		}
++		fmt.Println("Note: IRA withdrawals are taxable income. These are the numbers, not tax advice.")
++	}
++	fmt.Println("")
++}
++
++// downPaymentShortfall names the gap when the down payment is bigger than
++// the IRA and stocks put together; empty when it fits.
++func downPaymentShortfall(amount float64, opts sheets_service.AffordabilityOptions) string {
++	if shortfall := amount - opts.IRA - opts.Stocks; shortfall > 0 {
++		return fmt.Sprintf(" (shortfall $%s — not enough in IRA + stocks)", formatAccounting(shortfall))
++	}
++	return ""
++}
++
++// formatWindowLabel renders the trailing window's month keys ("MM/YY") as
++// a readable range, e.g. "May 2026 – Oct 2026".
++func formatWindowLabel(months []string) string {
++	parse := func(key string) string {
++		t, err := time.Parse("01/06", key)
++		if err != nil {
++			return key
++		}
++		return t.Format("Jan 2006")
++	}
++	switch len(months) {
++	case 0:
++		return "no months"
++	case 1:
++		return parse(months[0])
++	default:
++		return parse(months[0]) + " – " + parse(months[len(months)-1])
++	}
++}
+diff --git a/cmd/affordability_test.go b/cmd/affordability_test.go
+new file mode 100644
+index 0000000..e558590
+--- /dev/null
++++ b/cmd/affordability_test.go
+@@ -0,0 +1,205 @@
++package cmd
++
++import (
++	"strings"
++	"testing"
++
++	"register/api/services/sheets_service"
++)
++
++func TestPrintAffordability(t *testing.T) {
++	result := sheets_service.AffordabilityResult{
++		Housing: []sheets_service.HousingCategory{
++			{Name: "mortgage", Monthly: 1450},
++			{Name: "mortgage insurance", Monthly: 95},
++			{Name: "home insurance", Monthly: 180},
++			{Name: "property tax", Monthly: 325},
++			{Name: "home-expenses savings", Monthly: 50},
++		},
++		HousingTotal:      2100,
++		Rent:              1400,
++		HousingDelta:      700,
++		AvgIncome:         5200,
++		AvgSpending:       4700,
++		Surplus:           500,
++		SurplusAfterMove:  -200,
++		MaxHousing:        1900,
++		MaxHousingAtFloor: 1700,
++		WindowMonths:      []string{"05/26", "06/26", "07/26", "08/26", "09/26", "10/26"},
++		DownPayments: []sheets_service.DownPayment{
++			{Percent: 20, Amount: 50000, IRAFirstIRA: 80000, IRAFirstStocks: 50000, StocksFirstIRA: 130000, StocksFirstStocks: 0},
++			{Percent: 10, Amount: 25000, IRAFirstIRA: 105000, IRAFirstStocks: 50000, StocksFirstIRA: 130000, StocksFirstStocks: 25000},
++		},
++	}
++	opts := sheets_service.AffordabilityOptions{Months: 6, Floor: 200, IRA: 130000, Stocks: 50000, HomePrice: 250000}
++
++	out := captureStdout(t, func() { printAffordability("House Budget", result, opts) })
++
++	for _, want := range []string{
++		"Housing (from the House Budget tab)",
++		"$2,100.00/mo",
++		"mortgage $1,450.00",
++		"Housing costs $700.00/mo more than rent",
++		"Trailing 6 complete months: May 2026 – Oct 2026",
++		"Surplus after the move",
++		"(200.00)",
++		"doesn't fit as priced",
++		"Max housing cost at zero surplus",
++		"$1,900.00/mo",
++		"Max housing cost keeping a $200.00/mo floor",
++		"$1,700.00/mo",
++		"Down payment on a $250,000.00 home:",
++		"20% ($50,000.00) from IRA first — IRA $80,000.00 left, stocks $50,000.00 left",
++		"20% ($50,000.00) from stocks first — IRA $130,000.00 left, stocks $0.00 left",
++		"10% ($25,000.00) from IRA first — IRA $105,000.00 left, stocks $50,000.00 left",
++		"Note: IRA withdrawals are taxable income.",
++	} {
++		if !strings.Contains(out, want) {
++			t.Errorf("printAffordability() output missing %q\noutput:\n%s", want, out)
++		}
++	}
++}
++
++func TestPrintAffordabilityFits(t *testing.T) {
++	// A cheaper house and no home price: the fits marker, and no
++	// down-payment section at all.
++	result := sheets_service.AffordabilityResult{
++		Housing: []sheets_service.HousingCategory{
++			{Name: "mortgage", Monthly: 900},
++			{Name: "home insurance", Monthly: 150},
++			{Name: "property tax", Monthly: 150},
++		},
++		HousingTotal:      1200,
++		Rent:              1400,
++		HousingDelta:      -200,
++		AvgIncome:         5200,
++		AvgSpending:       4700,
++		Surplus:           500,
++		SurplusAfterMove:  700,
++		MaxHousing:        1900,
++		MaxHousingAtFloor: 1700,
++		WindowMonths:      []string{"05/26", "06/26", "07/26", "08/26", "09/26", "10/26"},
++	}
++	opts := sheets_service.AffordabilityOptions{Months: 6, Floor: 200}
++
++	out := captureStdout(t, func() { printAffordability("House Budget", result, opts) })
++
++	for _, want := range []string{
++		"Housing costs $200.00/mo less than rent",
++		"<- fits",
++	} {
++		if !strings.Contains(out, want) {
++			t.Errorf("printAffordability() output missing %q\noutput:\n%s", want, out)
++		}
++	}
++	if strings.Contains(out, "Down payment") {
++		t.Errorf("printAffordability() printed a down-payment section with no home price\noutput:\n%s", out)
++	}
++	if strings.Contains(out, "doesn't fit") {
++		t.Errorf("printAffordability() printed the doesn't-fit marker for a surplus that fits\noutput:\n%s", out)
++	}
++}
++
++func TestPrintAffordabilitySameAsRent(t *testing.T) {
++	// Housing exactly equal to rent: the delta line says so.
++	result := sheets_service.AffordabilityResult{
++		Housing: []sheets_service.HousingCategory{
++			{Name: "mortgage", Monthly: 1400},
++		},
++		HousingTotal:      1400,
++		Rent:              1400,
++		HousingDelta:      0,
++		AvgIncome:         5200,
++		AvgSpending:       4700,
++		Surplus:           500,
++		SurplusAfterMove:  500,
++		MaxHousing:        1900,
++		MaxHousingAtFloor: 1700,
++		WindowMonths:      []string{"10/26"},
++	}
++	opts := sheets_service.AffordabilityOptions{Months: 1, Floor: 200}
++
++	out := captureStdout(t, func() { printAffordability("House Budget", result, opts) })
++
++	if !strings.Contains(out, "Housing costs the same as rent") {
++		t.Errorf("printAffordability() output missing the same-as-rent line\noutput:\n%s", out)
++	}
++}
++
++func TestPrintAffordabilityShortfall(t *testing.T) {
++	// A $100,000 home against $1,000 IRA + $500 stocks: the 20% down
++	// payment ($20,000) is bigger than both accounts put together.
++	result := sheets_service.AffordabilityResult{
++		HousingTotal:      2100,
++		Rent:              1400,
++		HousingDelta:      700,
++		AvgIncome:         5200,
++		AvgSpending:       4700,
++		Surplus:           500,
++		SurplusAfterMove:  -200,
++		MaxHousing:        1900,
++		MaxHousingAtFloor: 1700,
++		WindowMonths:      []string{"10/26"},
++		DownPayments: []sheets_service.DownPayment{
++			{Percent: 20, Amount: 20000, IRAFirstIRA: 0, IRAFirstStocks: -18500, StocksFirstIRA: -18500, StocksFirstStocks: 0},
++		},
++	}
++	opts := sheets_service.AffordabilityOptions{Months: 1, Floor: 200, IRA: 1000, Stocks: 500, HomePrice: 100000}
++
++	out := captureStdout(t, func() { printAffordability("House Budget", result, opts) })
++
++	if !strings.Contains(out, "shortfall $18,500.00") {
++		t.Errorf("printAffordability() output missing the shortfall\noutput:\n%s", out)
++	}
++}
++
++func TestValidateAffordabilityOptions(t *testing.T) {
++	valid := sheets_service.AffordabilityOptions{Months: 6, Floor: 200, IRA: 130000, Stocks: 50000, HomePrice: 250000}
++	tests := []struct {
++		name string
++		opts sheets_service.AffordabilityOptions
++		want string
++	}{
++		{name: "valid", opts: valid},
++		{name: "zero months", opts: func() sheets_service.AffordabilityOptions { o := valid; o.Months = 0; return o }(), want: "--months"},
++		{name: "negative floor", opts: func() sheets_service.AffordabilityOptions { o := valid; o.Floor = -1; return o }(), want: "--floor"},
++		{name: "negative IRA", opts: func() sheets_service.AffordabilityOptions { o := valid; o.IRA = -1; return o }(), want: "--ira"},
++		{name: "negative stocks", opts: func() sheets_service.AffordabilityOptions { o := valid; o.Stocks = -1; return o }(), want: "--stocks"},
++		{name: "negative price", opts: func() sheets_service.AffordabilityOptions { o := valid; o.HomePrice = -1; return o }(), want: "--price"},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			err := validateAffordabilityOptions(tt.opts)
++			if tt.want == "" {
++				if err != nil {
++					t.Errorf("validateAffordabilityOptions() error = %v, want nil", err)
++				}
++				return
++			}
++			if err == nil || !strings.Contains(err.Error(), tt.want) {
++				t.Errorf("validateAffordabilityOptions() error = %v, want it to mention %q", err, tt.want)
++			}
++		})
++	}
++}
++
++func TestFormatWindowLabel(t *testing.T) {
++	tests := []struct {
++		name   string
++		months []string
++		want   string
++	}{
++		{name: "no months", months: nil, want: "no months"},
++		{name: "one month", months: []string{"10/26"}, want: "Oct 2026"},
++		{name: "six months", months: []string{"05/26", "06/26", "07/26", "08/26", "09/26", "10/26"}, want: "May 2026 – Oct 2026"},
++		{name: "across a year boundary", months: []string{"11/25", "12/25", "01/26", "02/26", "03/26", "04/26"}, want: "Nov 2025 – Apr 2026"},
++		{name: "unreadable key passes through", months: []string{"junk"}, want: "junk"},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			if got := formatWindowLabel(tt.months); got != tt.want {
++				t.Errorf("formatWindowLabel() = %q, want %q", got, tt.want)
++			}
++		})
++	}
++}
+diff --git a/cmd/root_test.go b/cmd/root_test.go
+index 5f7ee77..d5756ef 100644
+--- a/cmd/root_test.go
++++ b/cmd/root_test.go
+@@ -111,6 +111,7 @@ func TestCobraHelpPaths(t *testing.T) {
+ 		{"columns", "list", "--help"},
+ 		{"budget", "--help"},
+ 		{"monthly", "--help"},
++		{"affordability", "--help"},
+ 		{"copy", "--help"},
+ 		{"migrate", "--help"},
+ 		{"recategorize", "--help"},

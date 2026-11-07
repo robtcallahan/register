@@ -111,6 +111,7 @@ func TestCobraHelpPaths(t *testing.T) {
 		{"columns", "list", "--help"},
 		{"budget", "--help"},
 		{"monthly", "--help"},
+		{"affordability", "--help"},
 		{"copy", "--help"},
 		{"migrate", "--help"},
 		{"recategorize", "--help"},

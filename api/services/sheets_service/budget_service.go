@@ -32,24 +32,43 @@ type BudgetSheet struct {
 }
 
 func (bs *BudgetService) NewBudgetSheet(cfg config.Config) (*BudgetSheet, error) {
+	return bs.newBudgetSheet(cfg, BudgetTabName, cfg.BudgetEndRow)
+}
+
+// NewBudgetSheetForTab builds a BudgetSheet for a tab that shares the
+// Budget layout but isn't the Budget tab itself — the House Budget tab.
+// The read runs to the end of the tab's grid, not cfg.BudgetEndRow: the
+// tab has more rows than Budget, and the grid is the honest end.
+func (bs *BudgetService) NewBudgetSheetForTab(cfg config.Config, tabName string) (*BudgetSheet, error) {
+	return bs.newBudgetSheet(cfg, tabName, 0)
+}
+
+func (bs *BudgetService) newBudgetSheet(cfg config.Config, tabName string, endRow int64) (*BudgetSheet, error) {
 	budgetSheet := &BudgetSheet{
-		TabName: BudgetTabName,
+		TabName: tabName,
 		SheetCoords: SheetCoords{
 			StartRow: cfg.BudgetStartRow,
-			EndRow:   cfg.BudgetEndRow,
+			EndRow:   endRow,
 			// EndColumnName/Index are detected from the header row below.
 		},
 	}
-	spreadsheet, err := bs.Provider.GetSpreadsheet(BudgetTabName)
+	spreadsheet, err := bs.Provider.GetSpreadsheet(tabName)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve spreadsheet: %w", err)
 	}
+	if spreadsheet == nil {
+		return nil, fmt.Errorf("unable to retrieve spreadsheet: no sheet named %q", tabName)
+	}
 	budgetSheet.ID = spreadsheet.SheetID
+	if budgetSheet.SheetCoords.EndRow == 0 {
+		// No fixed end row: read to the end of the tab's grid.
+		budgetSheet.SheetCoords.EndRow = spreadsheet.RowCount
+	}
 
 	// Detect the rightmost column from the header row so adding columns
-	// to the Budget tab doesn't require a code change. We read a generous
+	// to the tab doesn't require a code change. We read a generous
 	// range (A1:Z1) and find the last non-empty header.
-	headerRange := fmt.Sprintf("%s!A1:Z1", BudgetTabName)
+	headerRange := fmt.Sprintf("%s!A1:Z1", tabName)
 	values, err := bs.Provider.GetValues(headerRange)
 	if err != nil {
 		return nil, fmt.Errorf("could not read budget header row for width detection: %w", err)
@@ -67,6 +86,46 @@ func (bs *BudgetService) NewBudgetSheet(cfg config.Config) (*BudgetSheet, error)
 	budgetSheet.SheetCoords.EndColumnIndex = int64(lastIdx)
 	budgetSheet.SheetCoords.EndColumnName = models.ColumnLetter(lastIdx)
 	return budgetSheet, nil
+}
+
+// ReadHousingSheet reads the named Budget-format tab (the House Budget
+// tab) and returns one HousingCategory per category row: the category name
+// and its Monthly amount. Group-totals rows are skipped — they SUM the
+// categories above them, so counting one would double-count the group.
+// Rows are read generically, so a category added to the tab later shows
+// up with no code change.
+func (bs *BudgetService) ReadHousingSheet(tabName string, cfg config.Config) ([]HousingCategory, error) {
+	sheet, err := bs.NewBudgetSheetForTab(cfg, tabName)
+	if err != nil {
+		return nil, err
+	}
+	sheet, err = bs.ReadBudgetSheet(sheet)
+	if err != nil {
+		return nil, err
+	}
+	totals := budgetTotalsNames()
+	var housing []HousingCategory
+	for _, entry := range sheet.BudgetEntries {
+		if totals[strings.ToLower(strings.TrimSpace(entry.Category))] {
+			continue
+		}
+		housing = append(housing, HousingCategory{Name: entry.Category, Monthly: entry.Monthly})
+	}
+	return housing, nil
+}
+
+// budgetTotalsNames are the Budget tab's group-totals row labels, plus the
+// plain "Total" label a hand-built tab might use. They are SUM rows, not
+// categories. The labels come from the same group names the Budget code
+// already uses (budgetGroupName), so a renamed group stays in step.
+func budgetTotalsNames() map[string]bool {
+	names := map[string]bool{"total": true}
+	for _, color := range []string{models.ColorGreen, models.ColorYellow, models.ColorBlue} {
+		if name, ok := budgetGroupName(color); ok {
+			names[strings.ToLower(name)] = true
+		}
+	}
+	return names
 }
 
 func (bs *BudgetService) ReadBudgetSheet(budgetSheet *BudgetSheet) (*BudgetSheet, error) {
