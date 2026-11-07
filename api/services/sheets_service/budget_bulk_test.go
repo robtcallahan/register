@@ -267,7 +267,7 @@ func Test_budgetService_InsertBudgetCategory_Errors(t *testing.T) {
 		SheetCoords: SheetCoords{StartRow: 3, EndRow: 63},
 	}
 	columnA := func(string) ([][]any, error) {
-		return [][]any{{"Discretionary"}, {"Grocery"}}, nil
+		return budgetColumnA(), nil
 	}
 
 	t.Run("totals row lookup error", func(t *testing.T) {
@@ -275,25 +275,25 @@ func Test_budgetService_InsertBudgetCategory_Errors(t *testing.T) {
 		getValuesProviderFunc = func(range_ string) ([][]any, error) {
 			return nil, errTestProvider
 		}
-		if err := bs.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); !errors.Is(err, errTestProvider) {
+		if err := bs.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen, 0); !errors.Is(err, errTestProvider) {
 			t.Errorf("InsertBudgetCategory() error = %v, wantErr %v", err, errTestProvider)
 		}
 	})
 	t.Run("batch update error", func(t *testing.T) {
 		svc := NewBudgetService(&stubSheetsProvider{getValuesFunc: columnA, batchUpdateErr: errTestProvider})
-		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); err == nil || !strings.Contains(err.Error(), "could not insert budget row") {
+		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen, 0); err == nil || !strings.Contains(err.Error(), "could not insert budget row") {
 			t.Errorf("InsertBudgetCategory() error = %v, want insert error", err)
 		}
 	})
 	t.Run("label update error", func(t *testing.T) {
 		svc := NewBudgetService(&stubSheetsProvider{getValuesFunc: columnA, updateErr: errTestProvider})
-		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); err == nil || !strings.Contains(err.Error(), "could not label budget row 3") {
+		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen, 0); err == nil || !strings.Contains(err.Error(), "could not label budget row 10") {
 			t.Errorf("InsertBudgetCategory() error = %v, want label error", err)
 		}
 	})
 	t.Run("extend formulas error", func(t *testing.T) {
 		svc := NewBudgetService(&stubSheetsProvider{getValuesFunc: columnA, getFormulaErr: errTestProvider})
-		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); err == nil || !strings.Contains(err.Error(), "budget totals formulas extended failed") {
+		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen, 0); err == nil || !strings.Contains(err.Error(), "budget totals formulas extended failed") {
 			t.Errorf("InsertBudgetCategory() error = %v, want extend error", err)
 		}
 	})

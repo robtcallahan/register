@@ -160,6 +160,30 @@ func TestFindBudgetNeighbor(t *testing.T) {
 	}
 }
 
+func TestBudgetInsertRow(t *testing.T) {
+	rows := map[string]int{"A": 5, "B": 6, "C": 8}
+	tests := []struct {
+		name      string
+		before    string
+		following string
+		want      int
+	}{
+		{"after predecessor", "A", "C", 6},
+		{"before successor when first", "", "A", 5},
+		{"no neighbors means end of group", "", "", 0},
+		{"predecessor wins over successor", "B", "C", 7},
+		{"unknown predecessor falls through to successor", "Missing", "A", 5},
+		{"unknown names mean end of group", "Missing", "AlsoMissing", 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := budgetInsertRow(tc.before, tc.following, rows); got != tc.want {
+				t.Errorf("budgetInsertRow(%q, %q) = %d, want %d", tc.before, tc.following, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestAddColumn_Guards(t *testing.T) {
 	oldColor, oldAfter := addColor, addAfter
 	defer func() { addColor, addAfter = oldColor, oldAfter }()

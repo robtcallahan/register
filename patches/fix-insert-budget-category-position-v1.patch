@@ -1,0 +1,432 @@
+diff --git a/api/services/sheets_service/budget_bulk_test.go b/api/services/sheets_service/budget_bulk_test.go
+index b841415..9c6a6f3 100644
+--- a/api/services/sheets_service/budget_bulk_test.go
++++ b/api/services/sheets_service/budget_bulk_test.go
+@@ -267,7 +267,7 @@ func Test_budgetService_InsertBudgetCategory_Errors(t *testing.T) {
+ 		SheetCoords: SheetCoords{StartRow: 3, EndRow: 63},
+ 	}
+ 	columnA := func(string) ([][]any, error) {
+-		return [][]any{{"Discretionary"}, {"Grocery"}}, nil
++		return budgetColumnA(), nil
+ 	}
+ 
+ 	t.Run("totals row lookup error", func(t *testing.T) {
+@@ -275,25 +275,25 @@ func Test_budgetService_InsertBudgetCategory_Errors(t *testing.T) {
+ 		getValuesProviderFunc = func(range_ string) ([][]any, error) {
+ 			return nil, errTestProvider
+ 		}
+-		if err := bs.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); !errors.Is(err, errTestProvider) {
++		if err := bs.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen, 0); !errors.Is(err, errTestProvider) {
+ 			t.Errorf("InsertBudgetCategory() error = %v, wantErr %v", err, errTestProvider)
+ 		}
+ 	})
+ 	t.Run("batch update error", func(t *testing.T) {
+ 		svc := NewBudgetService(&stubSheetsProvider{getValuesFunc: columnA, batchUpdateErr: errTestProvider})
+-		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); err == nil || !strings.Contains(err.Error(), "could not insert budget row") {
++		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen, 0); err == nil || !strings.Contains(err.Error(), "could not insert budget row") {
+ 			t.Errorf("InsertBudgetCategory() error = %v, want insert error", err)
+ 		}
+ 	})
+ 	t.Run("label update error", func(t *testing.T) {
+ 		svc := NewBudgetService(&stubSheetsProvider{getValuesFunc: columnA, updateErr: errTestProvider})
+-		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); err == nil || !strings.Contains(err.Error(), "could not label budget row 3") {
++		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen, 0); err == nil || !strings.Contains(err.Error(), "could not label budget row 10") {
+ 			t.Errorf("InsertBudgetCategory() error = %v, want label error", err)
+ 		}
+ 	})
+ 	t.Run("extend formulas error", func(t *testing.T) {
+ 		svc := NewBudgetService(&stubSheetsProvider{getValuesFunc: columnA, getFormulaErr: errTestProvider})
+-		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); err == nil || !strings.Contains(err.Error(), "budget totals formulas extended failed") {
++		if err := svc.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen, 0); err == nil || !strings.Contains(err.Error(), "budget totals formulas extended failed") {
+ 			t.Errorf("InsertBudgetCategory() error = %v, want extend error", err)
+ 		}
+ 	})
+diff --git a/api/services/sheets_service/budget_service.go b/api/services/sheets_service/budget_service.go
+index d29e420..61ffa65 100644
+--- a/api/services/sheets_service/budget_service.go
++++ b/api/services/sheets_service/budget_service.go
+@@ -359,9 +359,12 @@ func (bs *BudgetService) RenameBudgetCategory(budgetSheet BudgetSheet, oldName,
+ }
+ 
+ // InsertBudgetCategory adds a zeroed Budget row for a new register
+-// category: inside its color group, just before the group's totals row,
+-// with the totals formulas extended to cover the new row.
+-func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, color string) error {
++// category: inside its color group, at insertRow when given, otherwise
++// just before the group's totals row, with the totals formulas extended
++// to cover the new row. insertRow is a 1-based sheet row; 0 means the
++// end of the group. The caller computes it from the new register order
++// (usually the row after the nearest same-color predecessor).
++func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, color string, insertRow int) error {
+ 	group, ok := budgetGroupName(color)
+ 	if !ok {
+ 		return fmt.Errorf("no budget group for color %q", color)
+@@ -373,6 +376,13 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
+ 	if !found {
+ 		return fmt.Errorf("budget tab has no %q totals row to insert before", group)
+ 	}
++	if insertRow == 0 {
++		insertRow = totalsRow
++	}
++	if insertRow < int(budgetSheet.SheetCoords.StartRow) || insertRow > totalsRow {
++		return fmt.Errorf("budget insert row %d is outside the %q group (rows %d-%d)",
++			insertRow, group, budgetSheet.SheetCoords.StartRow, totalsRow)
++	}
+ 
+ 	insertReq := &sheets.BatchUpdateSpreadsheetRequest{
+ 		Requests: []*sheets.Request{{
+@@ -380,8 +390,8 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
+ 				Range: &sheets.DimensionRange{
+ 					SheetId:    budgetSheet.ID,
+ 					Dimension:  "ROWS",
+-					StartIndex: int64(totalsRow - 1),
+-					EndIndex:   int64(totalsRow),
++					StartIndex: int64(insertRow - 1),
++					EndIndex:   int64(insertRow),
+ 				},
+ 				InheritFromBefore: true,
+ 			},
+@@ -391,10 +401,10 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
+ 		return fmt.Errorf("could not insert budget row: %w", err)
+ 	}
+ 
+-	// the new row sits at totalsRow; label it
+-	rng := fmt.Sprintf("%s!A%d", budgetSheet.TabName, totalsRow)
++	// the new row sits at insertRow; label it
++	rng := fmt.Sprintf("%s!A%d", budgetSheet.TabName, insertRow)
+ 	if _, err := bs.Provider.Update(rng, &sheets.ValueRange{Values: [][]any{{name}}}); err != nil {
+-		return fmt.Errorf("could not label budget row %d: %w", totalsRow, err)
++		return fmt.Errorf("could not label budget row %d: %w", insertRow, err)
+ 	}
+ 
+ 	totalsRow = totalsRow + 1
+diff --git a/api/services/sheets_service/budget_service_test.go b/api/services/sheets_service/budget_service_test.go
+index 773f371..f8a329e 100644
+--- a/api/services/sheets_service/budget_service_test.go
++++ b/api/services/sheets_service/budget_service_test.go
+@@ -352,37 +352,141 @@ func Test_budgetService_RenameBudgetCategory(t *testing.T) {
+ 	})
+ }
+ 
++// budgetColumnA mirrors the live Budget tab's column A (rows 3-40): the
++// three groups with their totals labels last, so a test that inserts
++// mid-group asserts against a layout the real sheet can actually have.
++func budgetColumnA() [][]any {
++	names := []string{
++		"Cash", "Dining Out", "Gas", "Grocery", "Misc", "Uber", "Vape Supplies", "Discretionary",
++		"Car Loan", "Car Insurance", "Cell Provider", "Content Subscriptions", "Electric", "Hair Cut", "Health Insurance", "Ignition Interlock", "ISP", "Laptop Purchase", "Massage", "Rent", "Renters Insurance", "Water, Sewer, Trash", "Non-Discretionary",
++		"Car Expenses", "Car Property Tax", "Clothing & Household", "Emergency Fund", "Extra", "General Savings", "Gifts", "Medical", "Taxes", "Vision", "Alcohol", "Savings Categories",
++		"Total Expenses", "Total Income", "Difference",
++	}
++	rows := make([][]any, len(names))
++	for i, n := range names {
++		rows[i] = []any{n}
++	}
++	return rows
++}
++
+ func Test_budgetService_InsertBudgetCategory(t *testing.T) {
+ 	sheet := BudgetSheet{
+ 		ID:          987654321,
+ 		TabName:     BudgetTabName,
+ 		SheetCoords: SheetCoords{StartRow: 3, EndRow: 63},
+ 	}
+-	t.Run("unknown color", func(t *testing.T) {
+-		if err := bs.InsertBudgetCategory(sheet, "NewCat", "red"); err == nil {
+-			t.Errorf("InsertBudgetCategory() error = nil, want error")
+-		}
+-	})
+-	t.Run("missing totals row", func(t *testing.T) {
+-		getValuesProviderFunc = func(range_ string) ([][]any, error) {
+-			return [][]any{{"Grocery"}}, nil
+-		}
+-		err := bs.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen)
+-		if err == nil || !strings.Contains(err.Error(), "Discretionary") {
+-			t.Errorf("InsertBudgetCategory() error = %v, want missing totals row error", err)
+-		}
+-	})
+-	t.Run("happy path", func(t *testing.T) {
+-		getValuesProviderFunc = func(range_ string) ([][]any, error) {
+-			return [][]any{{"Discretionary"}, {"Grocery"}}, nil
+-		}
+-		getFormulaProviderFunc = func(range_ string) ([][]any, error) {
+-			return [][]any{{"=SUM(A1:A2)"}}, nil
+-		}
+-		if err := bs.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); err != nil {
+-			t.Errorf("InsertBudgetCategory() error = %v, want nil", err)
+-		}
+-	})
++	columnA := func(string) ([][]any, error) { return budgetColumnA(), nil }
++
++	tests := []struct {
++		name       string
++		color      string
++		insertRow  int
++		columnA    func(string) ([][]any, error)
++		formula    [][]any
++		wantErr    string
++		wantStart  int64 // 0-based InsertDimension start of the new row
++		wantEnd    int64
++		wantRanges []string // Update ranges in order: label, then any formula extension
++		wantValues []string // one value per Update, in order
++	}{
++		{
++			name:    "unknown color",
++			color:   "red",
++			wantErr: "no budget group",
++		},
++		{
++			name:    "missing totals row",
++			color:   models.ColorGreen,
++			columnA: func(string) ([][]any, error) { return [][]any{{"Cash"}, {"Grocery"}}, nil },
++			wantErr: "Discretionary",
++		},
++		{
++			name:       "happy path",
++			color:      models.ColorGreen,
++			columnA:    columnA,
++			formula:    [][]any{{"=SUM(A3:A9)", "Total"}},
++			wantStart:  9,
++			wantEnd:    10,
++			wantRanges: []string{"Budget!A10", "Budget!A11"},
++			wantValues: []string{"NewCat", "=SUM(A3:A10)"},
++		},
++		{
++			// Insert after Health Insurance (Budget row 17) lands at row 18,
++			// mid-group. Sheets widens a SUM range for a row inserted inside
++			// it, so the totals formulas need no rewrite: the canned totals
++			// formula already ends at row 25 and stays untouched.
++			name:       "mid-group insert",
++			color:      models.ColorYellow,
++			insertRow:  18,
++			columnA:    columnA,
++			formula:    [][]any{{"=SUM(A11:A25)", "Total"}},
++			wantStart:  17,
++			wantEnd:    18,
++			wantRanges: []string{"Budget!A18"},
++			wantValues: []string{"NewCat"},
++		},
++		{
++			name:       "insert before first",
++			color:      models.ColorGreen,
++			insertRow:  3,
++			columnA:    columnA,
++			formula:    [][]any{{"=SUM(A3:A9)", "Total"}},
++			wantStart:  2,
++			wantEnd:    3,
++			wantRanges: []string{"Budget!A3", "Budget!A11"},
++			wantValues: []string{"NewCat", "=SUM(A3:A10)"},
++		},
++		{
++			name:      "insert row out of range",
++			color:     models.ColorGreen,
++			insertRow: 99,
++			columnA:   columnA,
++			wantErr:   "outside",
++		},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			stub := &stubSheetsProvider{getValuesFunc: tc.columnA, getFormula: tc.formula}
++			svc := NewBudgetService(stub)
++			err := svc.InsertBudgetCategory(sheet, "NewCat", tc.color, tc.insertRow)
++			if tc.wantErr != "" {
++				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
++					t.Fatalf("InsertBudgetCategory() error = %v, want %q", err, tc.wantErr)
++				}
++				return
++			}
++			if err != nil {
++				t.Fatalf("InsertBudgetCategory() error = %v, want nil", err)
++			}
++			if len(stub.batchUpdates) != 1 {
++				t.Fatalf("BatchUpdate calls = %d, want 1", len(stub.batchUpdates))
++			}
++			if len(stub.batchUpdates[0].Requests) != 1 {
++				t.Fatalf("BatchUpdate requests = %d, want 1", len(stub.batchUpdates[0].Requests))
++			}
++			dim := stub.batchUpdates[0].Requests[0].InsertDimension
++			if dim == nil {
++				t.Fatalf("InsertDimension is nil")
++			}
++			if dim.Range.Dimension != "ROWS" || dim.Range.SheetId != sheet.ID ||
++				dim.Range.StartIndex != tc.wantStart || dim.Range.EndIndex != tc.wantEnd {
++				t.Errorf("InsertDimension range = %+v, want ROWS %d-%d on sheet %d",
++					dim.Range, tc.wantStart, tc.wantEnd, sheet.ID)
++			}
++			if !reflect.DeepEqual(stub.updateRanges, tc.wantRanges) {
++				t.Errorf("Update ranges = %v, want %v", stub.updateRanges, tc.wantRanges)
++			}
++			if len(stub.updateValues) != len(tc.wantValues) {
++				t.Fatalf("Update values = %d calls, want %d", len(stub.updateValues), len(tc.wantValues))
++			}
++			for i, want := range tc.wantValues {
++				if len(stub.updateValues[i].Values) != 1 || len(stub.updateValues[i].Values[0]) != 1 ||
++					stub.updateValues[i].Values[0][0] != want {
++					t.Errorf("Update values[%d] = %v, want [[%q]]", i, stub.updateValues[i].Values, want)
++				}
++			}
++		})
++	}
+ }
+ 
+ type fakeSheetsProvider struct {
+diff --git a/api/services/sheets_service/register_columns.go b/api/services/sheets_service/register_columns.go
+index 8db5117..de1d56e 100644
+--- a/api/services/sheets_service/register_columns.go
++++ b/api/services/sheets_service/register_columns.go
+@@ -267,6 +267,25 @@ func ApplyColumnMove(columns []models.Column, from, to int) []models.Column {
+ 	return out
+ }
+ 
++// ApplyColumnInsert returns the ordering that results from inserting col
++// at its 1-based ColumnIndex. The caller passes the order without col;
++// the fixed block and the payoff columns keep their places, so the new
++// column lands exactly where the Register tab put it.
++func ApplyColumnInsert(columns []models.Column, col models.Column) []models.Column {
++	pos := col.ColumnIndex - 1
++	if pos < 0 {
++		pos = 0
++	}
++	if pos > len(columns) {
++		pos = len(columns)
++	}
++	out := make([]models.Column, 0, len(columns)+1)
++	out = append(out, columns[:pos]...)
++	out = append(out, col)
++	out = append(out, columns[pos:]...)
++	return out
++}
++
+ // RenameRegisterColumnHeader rewrites the row-4 name cell of the column at
+ // the given 1-based index.
+ func (ss *RegisterService) RenameRegisterColumnHeader(registerSheet RegisterSheet, index int, name string) error {
+diff --git a/api/services/sheets_service/register_columns_test.go b/api/services/sheets_service/register_columns_test.go
+index 5b79c5b..e8fe2b6 100644
+--- a/api/services/sheets_service/register_columns_test.go
++++ b/api/services/sheets_service/register_columns_test.go
+@@ -85,6 +85,39 @@ func checkTestColumns() []models.Column {
+ 	return cols
+ }
+ 
++func TestApplyColumnInsert(t *testing.T) {
++	tests := []struct {
++		name     string
++		col      models.Column
++		wantIdx  int // 0-based position of the new column in the result
++		wantPrev string
++		wantNext string
++	}{
++		{"first category", models.Column{Name: "New", Color: models.ColorGreen, ColumnIndex: 11}, 10, "", "Cash"},
++		{"mid-group", models.Column{Name: "New", Color: models.ColorYellow, ColumnIndex: 16}, 15, "Rent", "Electric"},
++		{"at the end", models.Column{Name: "New", Color: models.ColorBlue, ColumnIndex: 25}, 24, "Taxes", ""},
++		{"past the end clamps to the end", models.Column{Name: "New", Color: models.ColorBlue, ColumnIndex: 99}, 24, "Taxes", ""},
++		{"before the start clamps to the start", models.Column{Name: "New", Color: models.ColorGreen, ColumnIndex: 0}, 0, "", ""},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			got := ApplyColumnInsert(moveTestColumns(), tc.col)
++			if len(got) != 25 {
++				t.Fatalf("len = %d, want 25", len(got))
++			}
++			if got[tc.wantIdx].Name != tc.col.Name {
++				t.Errorf("got[%d].Name = %q, want %q", tc.wantIdx, got[tc.wantIdx].Name, tc.col.Name)
++			}
++			if tc.wantIdx > 0 && got[tc.wantIdx-1].Name != tc.wantPrev {
++				t.Errorf("got[%d].Name = %q, want %q (prev)", tc.wantIdx-1, got[tc.wantIdx-1].Name, tc.wantPrev)
++			}
++			if tc.wantIdx < len(got)-1 && got[tc.wantIdx+1].Name != tc.wantNext {
++				t.Errorf("got[%d].Name = %q, want %q (next)", tc.wantIdx+1, got[tc.wantIdx+1].Name, tc.wantNext)
++			}
++		})
++	}
++}
++
+ func Test_registerService_CheckRegisterColumns(t *testing.T) {
+ 	sheet := RegisterSheet{
+ 		TabName:     RegisterTabName,
+diff --git a/cmd/columns.go b/cmd/columns.go
+index 791031b..722ff61 100644
+--- a/cmd/columns.go
++++ b/cmd/columns.go
+@@ -201,7 +201,19 @@ func addColumn(name string) error {
+ 			name, set.LetterFor(newIndex), newIndex, err)
+ 	}
+ 	if !addNoBudget {
+-		if err := bs.InsertBudgetCategory(*budgetSheet, name, addColor); err != nil {
++		// The Budget row mirrors the new register position: it sits after
++		// the nearest same-color predecessor (or before the nearest
++		// successor when the new column leads its group), the way the
++		// move path already places rows. Without a neighbor it lands at
++		// the end of the group, as before.
++		budgetRowsMap, err := bs.BudgetRows(*budgetSheet)
++		if err != nil {
++			return fmt.Errorf("%q added at %s (%d) but the Budget rows could not be read: %w",
++				name, set.LetterFor(newIndex), newIndex, err)
++		}
++		final := sheets_service.ApplyColumnInsert(columns, models.Column{Name: name, Color: addColor, ColumnIndex: newIndex})
++		before, following := findBudgetNeighbor(final, name, addColor, budgetRowsMap)
++		if err := bs.InsertBudgetCategory(*budgetSheet, name, addColor, budgetInsertRow(before, following, budgetRowsMap)); err != nil {
+ 			return fmt.Errorf("%q added at %s (%d) but the Budget row update failed: %w",
+ 				name, set.LetterFor(newIndex), newIndex, err)
+ 		}
+@@ -479,6 +491,24 @@ func findBudgetNeighbor(final []models.Column, name, color string, budgetRowsMap
+ 	return before, following
+ }
+ 
++// budgetInsertRow turns a pair of Budget neighbors into the 1-based sheet
++// row a new Budget row belongs at: just after the predecessor, or at the
++// successor's row when there is no predecessor. 0 means the end of the
++// group (no neighbor on either side).
++func budgetInsertRow(before, following string, budgetRowsMap map[string]int) int {
++	if before != "" {
++		if row, ok := budgetRowsMap[before]; ok {
++			return row + 1
++		}
++	}
++	if following != "" {
++		if row, ok := budgetRowsMap[following]; ok {
++			return row
++		}
++	}
++	return 0
++}
++
+ func checkColumns() error {
+ 	q, err := columnsQuery()
+ 	if err != nil {
+diff --git a/cmd/columns_test.go b/cmd/columns_test.go
+index 15d2929..937da2e 100644
+--- a/cmd/columns_test.go
++++ b/cmd/columns_test.go
+@@ -160,6 +160,30 @@ func TestFindBudgetNeighbor(t *testing.T) {
+ 	}
+ }
+ 
++func TestBudgetInsertRow(t *testing.T) {
++	rows := map[string]int{"A": 5, "B": 6, "C": 8}
++	tests := []struct {
++		name      string
++		before    string
++		following string
++		want      int
++	}{
++		{"after predecessor", "A", "C", 6},
++		{"before successor when first", "", "A", 5},
++		{"no neighbors means end of group", "", "", 0},
++		{"predecessor wins over successor", "B", "C", 7},
++		{"unknown predecessor falls through to successor", "Missing", "A", 5},
++		{"unknown names mean end of group", "Missing", "AlsoMissing", 0},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			if got := budgetInsertRow(tc.before, tc.following, rows); got != tc.want {
++				t.Errorf("budgetInsertRow(%q, %q) = %d, want %d", tc.before, tc.following, got, tc.want)
++			}
++		})
++	}
++}
++
+ func TestAddColumn_Guards(t *testing.T) {
+ 	oldColor, oldAfter := addColor, addAfter
+ 	defer func() { addColor, addAfter = oldColor, oldAfter }()

@@ -85,6 +85,39 @@ func checkTestColumns() []models.Column {
 	return cols
 }
 
+func TestApplyColumnInsert(t *testing.T) {
+	tests := []struct {
+		name     string
+		col      models.Column
+		wantIdx  int // 0-based position of the new column in the result
+		wantPrev string
+		wantNext string
+	}{
+		{"first category", models.Column{Name: "New", Color: models.ColorGreen, ColumnIndex: 11}, 10, "", "Cash"},
+		{"mid-group", models.Column{Name: "New", Color: models.ColorYellow, ColumnIndex: 16}, 15, "Rent", "Electric"},
+		{"at the end", models.Column{Name: "New", Color: models.ColorBlue, ColumnIndex: 25}, 24, "Taxes", ""},
+		{"past the end clamps to the end", models.Column{Name: "New", Color: models.ColorBlue, ColumnIndex: 99}, 24, "Taxes", ""},
+		{"before the start clamps to the start", models.Column{Name: "New", Color: models.ColorGreen, ColumnIndex: 0}, 0, "", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ApplyColumnInsert(moveTestColumns(), tc.col)
+			if len(got) != 25 {
+				t.Fatalf("len = %d, want 25", len(got))
+			}
+			if got[tc.wantIdx].Name != tc.col.Name {
+				t.Errorf("got[%d].Name = %q, want %q", tc.wantIdx, got[tc.wantIdx].Name, tc.col.Name)
+			}
+			if tc.wantIdx > 0 && got[tc.wantIdx-1].Name != tc.wantPrev {
+				t.Errorf("got[%d].Name = %q, want %q (prev)", tc.wantIdx-1, got[tc.wantIdx-1].Name, tc.wantPrev)
+			}
+			if tc.wantIdx < len(got)-1 && got[tc.wantIdx+1].Name != tc.wantNext {
+				t.Errorf("got[%d].Name = %q, want %q (next)", tc.wantIdx+1, got[tc.wantIdx+1].Name, tc.wantNext)
+			}
+		})
+	}
+}
+
 func Test_registerService_CheckRegisterColumns(t *testing.T) {
 	sheet := RegisterSheet{
 		TabName:     RegisterTabName,

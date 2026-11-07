@@ -267,6 +267,25 @@ func ApplyColumnMove(columns []models.Column, from, to int) []models.Column {
 	return out
 }
 
+// ApplyColumnInsert returns the ordering that results from inserting col
+// at its 1-based ColumnIndex. The caller passes the order without col;
+// the fixed block and the payoff columns keep their places, so the new
+// column lands exactly where the Register tab put it.
+func ApplyColumnInsert(columns []models.Column, col models.Column) []models.Column {
+	pos := col.ColumnIndex - 1
+	if pos < 0 {
+		pos = 0
+	}
+	if pos > len(columns) {
+		pos = len(columns)
+	}
+	out := make([]models.Column, 0, len(columns)+1)
+	out = append(out, columns[:pos]...)
+	out = append(out, col)
+	out = append(out, columns[pos:]...)
+	return out
+}
+
 // RenameRegisterColumnHeader rewrites the row-4 name cell of the column at
 // the given 1-based index.
 func (ss *RegisterService) RenameRegisterColumnHeader(registerSheet RegisterSheet, index int, name string) error {

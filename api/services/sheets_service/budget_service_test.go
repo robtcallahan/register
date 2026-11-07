@@ -352,37 +352,141 @@ func Test_budgetService_RenameBudgetCategory(t *testing.T) {
 	})
 }
 
+// budgetColumnA mirrors the live Budget tab's column A (rows 3-40): the
+// three groups with their totals labels last, so a test that inserts
+// mid-group asserts against a layout the real sheet can actually have.
+func budgetColumnA() [][]any {
+	names := []string{
+		"Cash", "Dining Out", "Gas", "Grocery", "Misc", "Uber", "Vape Supplies", "Discretionary",
+		"Car Loan", "Car Insurance", "Cell Provider", "Content Subscriptions", "Electric", "Hair Cut", "Health Insurance", "Ignition Interlock", "ISP", "Laptop Purchase", "Massage", "Rent", "Renters Insurance", "Water, Sewer, Trash", "Non-Discretionary",
+		"Car Expenses", "Car Property Tax", "Clothing & Household", "Emergency Fund", "Extra", "General Savings", "Gifts", "Medical", "Taxes", "Vision", "Alcohol", "Savings Categories",
+		"Total Expenses", "Total Income", "Difference",
+	}
+	rows := make([][]any, len(names))
+	for i, n := range names {
+		rows[i] = []any{n}
+	}
+	return rows
+}
+
 func Test_budgetService_InsertBudgetCategory(t *testing.T) {
 	sheet := BudgetSheet{
 		ID:          987654321,
 		TabName:     BudgetTabName,
 		SheetCoords: SheetCoords{StartRow: 3, EndRow: 63},
 	}
-	t.Run("unknown color", func(t *testing.T) {
-		if err := bs.InsertBudgetCategory(sheet, "NewCat", "red"); err == nil {
-			t.Errorf("InsertBudgetCategory() error = nil, want error")
-		}
-	})
-	t.Run("missing totals row", func(t *testing.T) {
-		getValuesProviderFunc = func(range_ string) ([][]any, error) {
-			return [][]any{{"Grocery"}}, nil
-		}
-		err := bs.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen)
-		if err == nil || !strings.Contains(err.Error(), "Discretionary") {
-			t.Errorf("InsertBudgetCategory() error = %v, want missing totals row error", err)
-		}
-	})
-	t.Run("happy path", func(t *testing.T) {
-		getValuesProviderFunc = func(range_ string) ([][]any, error) {
-			return [][]any{{"Discretionary"}, {"Grocery"}}, nil
-		}
-		getFormulaProviderFunc = func(range_ string) ([][]any, error) {
-			return [][]any{{"=SUM(A1:A2)"}}, nil
-		}
-		if err := bs.InsertBudgetCategory(sheet, "NewCat", models.ColorGreen); err != nil {
-			t.Errorf("InsertBudgetCategory() error = %v, want nil", err)
-		}
-	})
+	columnA := func(string) ([][]any, error) { return budgetColumnA(), nil }
+
+	tests := []struct {
+		name       string
+		color      string
+		insertRow  int
+		columnA    func(string) ([][]any, error)
+		formula    [][]any
+		wantErr    string
+		wantStart  int64 // 0-based InsertDimension start of the new row
+		wantEnd    int64
+		wantRanges []string // Update ranges in order: label, then any formula extension
+		wantValues []string // one value per Update, in order
+	}{
+		{
+			name:    "unknown color",
+			color:   "red",
+			wantErr: "no budget group",
+		},
+		{
+			name:    "missing totals row",
+			color:   models.ColorGreen,
+			columnA: func(string) ([][]any, error) { return [][]any{{"Cash"}, {"Grocery"}}, nil },
+			wantErr: "Discretionary",
+		},
+		{
+			name:       "happy path",
+			color:      models.ColorGreen,
+			columnA:    columnA,
+			formula:    [][]any{{"=SUM(A3:A9)", "Total"}},
+			wantStart:  9,
+			wantEnd:    10,
+			wantRanges: []string{"Budget!A10", "Budget!A11"},
+			wantValues: []string{"NewCat", "=SUM(A3:A10)"},
+		},
+		{
+			// Insert after Health Insurance (Budget row 17) lands at row 18,
+			// mid-group. Sheets widens a SUM range for a row inserted inside
+			// it, so the totals formulas need no rewrite: the canned totals
+			// formula already ends at row 25 and stays untouched.
+			name:       "mid-group insert",
+			color:      models.ColorYellow,
+			insertRow:  18,
+			columnA:    columnA,
+			formula:    [][]any{{"=SUM(A11:A25)", "Total"}},
+			wantStart:  17,
+			wantEnd:    18,
+			wantRanges: []string{"Budget!A18"},
+			wantValues: []string{"NewCat"},
+		},
+		{
+			name:       "insert before first",
+			color:      models.ColorGreen,
+			insertRow:  3,
+			columnA:    columnA,
+			formula:    [][]any{{"=SUM(A3:A9)", "Total"}},
+			wantStart:  2,
+			wantEnd:    3,
+			wantRanges: []string{"Budget!A3", "Budget!A11"},
+			wantValues: []string{"NewCat", "=SUM(A3:A10)"},
+		},
+		{
+			name:      "insert row out of range",
+			color:     models.ColorGreen,
+			insertRow: 99,
+			columnA:   columnA,
+			wantErr:   "outside",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			stub := &stubSheetsProvider{getValuesFunc: tc.columnA, getFormula: tc.formula}
+			svc := NewBudgetService(stub)
+			err := svc.InsertBudgetCategory(sheet, "NewCat", tc.color, tc.insertRow)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("InsertBudgetCategory() error = %v, want %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("InsertBudgetCategory() error = %v, want nil", err)
+			}
+			if len(stub.batchUpdates) != 1 {
+				t.Fatalf("BatchUpdate calls = %d, want 1", len(stub.batchUpdates))
+			}
+			if len(stub.batchUpdates[0].Requests) != 1 {
+				t.Fatalf("BatchUpdate requests = %d, want 1", len(stub.batchUpdates[0].Requests))
+			}
+			dim := stub.batchUpdates[0].Requests[0].InsertDimension
+			if dim == nil {
+				t.Fatalf("InsertDimension is nil")
+			}
+			if dim.Range.Dimension != "ROWS" || dim.Range.SheetId != sheet.ID ||
+				dim.Range.StartIndex != tc.wantStart || dim.Range.EndIndex != tc.wantEnd {
+				t.Errorf("InsertDimension range = %+v, want ROWS %d-%d on sheet %d",
+					dim.Range, tc.wantStart, tc.wantEnd, sheet.ID)
+			}
+			if !reflect.DeepEqual(stub.updateRanges, tc.wantRanges) {
+				t.Errorf("Update ranges = %v, want %v", stub.updateRanges, tc.wantRanges)
+			}
+			if len(stub.updateValues) != len(tc.wantValues) {
+				t.Fatalf("Update values = %d calls, want %d", len(stub.updateValues), len(tc.wantValues))
+			}
+			for i, want := range tc.wantValues {
+				if len(stub.updateValues[i].Values) != 1 || len(stub.updateValues[i].Values[0]) != 1 ||
+					stub.updateValues[i].Values[0][0] != want {
+					t.Errorf("Update values[%d] = %v, want [[%q]]", i, stub.updateValues[i].Values, want)
+				}
+			}
+		})
+	}
 }
 
 type fakeSheetsProvider struct {

@@ -201,7 +201,19 @@ func addColumn(name string) error {
 			name, set.LetterFor(newIndex), newIndex, err)
 	}
 	if !addNoBudget {
-		if err := bs.InsertBudgetCategory(*budgetSheet, name, addColor); err != nil {
+		// The Budget row mirrors the new register position: it sits after
+		// the nearest same-color predecessor (or before the nearest
+		// successor when the new column leads its group), the way the
+		// move path already places rows. Without a neighbor it lands at
+		// the end of the group, as before.
+		budgetRowsMap, err := bs.BudgetRows(*budgetSheet)
+		if err != nil {
+			return fmt.Errorf("%q added at %s (%d) but the Budget rows could not be read: %w",
+				name, set.LetterFor(newIndex), newIndex, err)
+		}
+		final := sheets_service.ApplyColumnInsert(columns, models.Column{Name: name, Color: addColor, ColumnIndex: newIndex})
+		before, following := findBudgetNeighbor(final, name, addColor, budgetRowsMap)
+		if err := bs.InsertBudgetCategory(*budgetSheet, name, addColor, budgetInsertRow(before, following, budgetRowsMap)); err != nil {
 			return fmt.Errorf("%q added at %s (%d) but the Budget row update failed: %w",
 				name, set.LetterFor(newIndex), newIndex, err)
 		}
@@ -477,6 +489,24 @@ func findBudgetNeighbor(final []models.Column, name, color string, budgetRowsMap
 		}
 	}
 	return before, following
+}
+
+// budgetInsertRow turns a pair of Budget neighbors into the 1-based sheet
+// row a new Budget row belongs at: just after the predecessor, or at the
+// successor's row when there is no predecessor. 0 means the end of the
+// group (no neighbor on either side).
+func budgetInsertRow(before, following string, budgetRowsMap map[string]int) int {
+	if before != "" {
+		if row, ok := budgetRowsMap[before]; ok {
+			return row + 1
+		}
+	}
+	if following != "" {
+		if row, ok := budgetRowsMap[following]; ok {
+			return row
+		}
+	}
+	return 0
 }
 
 func checkColumns() error {

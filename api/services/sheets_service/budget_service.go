@@ -359,9 +359,12 @@ func (bs *BudgetService) RenameBudgetCategory(budgetSheet BudgetSheet, oldName, 
 }
 
 // InsertBudgetCategory adds a zeroed Budget row for a new register
-// category: inside its color group, just before the group's totals row,
-// with the totals formulas extended to cover the new row.
-func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, color string) error {
+// category: inside its color group, at insertRow when given, otherwise
+// just before the group's totals row, with the totals formulas extended
+// to cover the new row. insertRow is a 1-based sheet row; 0 means the
+// end of the group. The caller computes it from the new register order
+// (usually the row after the nearest same-color predecessor).
+func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, color string, insertRow int) error {
 	group, ok := budgetGroupName(color)
 	if !ok {
 		return fmt.Errorf("no budget group for color %q", color)
@@ -373,6 +376,13 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
 	if !found {
 		return fmt.Errorf("budget tab has no %q totals row to insert before", group)
 	}
+	if insertRow == 0 {
+		insertRow = totalsRow
+	}
+	if insertRow < int(budgetSheet.SheetCoords.StartRow) || insertRow > totalsRow {
+		return fmt.Errorf("budget insert row %d is outside the %q group (rows %d-%d)",
+			insertRow, group, budgetSheet.SheetCoords.StartRow, totalsRow)
+	}
 
 	insertReq := &sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{{
@@ -380,8 +390,8 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
 				Range: &sheets.DimensionRange{
 					SheetId:    budgetSheet.ID,
 					Dimension:  "ROWS",
-					StartIndex: int64(totalsRow - 1),
-					EndIndex:   int64(totalsRow),
+					StartIndex: int64(insertRow - 1),
+					EndIndex:   int64(insertRow),
 				},
 				InheritFromBefore: true,
 			},
@@ -391,10 +401,10 @@ func (bs *BudgetService) InsertBudgetCategory(budgetSheet BudgetSheet, name, col
 		return fmt.Errorf("could not insert budget row: %w", err)
 	}
 
-	// the new row sits at totalsRow; label it
-	rng := fmt.Sprintf("%s!A%d", budgetSheet.TabName, totalsRow)
+	// the new row sits at insertRow; label it
+	rng := fmt.Sprintf("%s!A%d", budgetSheet.TabName, insertRow)
 	if _, err := bs.Provider.Update(rng, &sheets.ValueRange{Values: [][]any{{name}}}); err != nil {
-		return fmt.Errorf("could not label budget row %d: %w", totalsRow, err)
+		return fmt.Errorf("could not label budget row %d: %w", insertRow, err)
 	}
 
 	totalsRow = totalsRow + 1
