@@ -20,7 +20,7 @@ func writeCSVFile(t *testing.T, dir, name, content string) string {
 	return path
 }
 
-func TestNew(t *testing.T) {
+func Test_New(t *testing.T) {
 	banks := map[string]config.Bank{
 		models.FidelityID: {ID: models.FidelityID, CSVFileName: "fidelity.csv"},
 	}
